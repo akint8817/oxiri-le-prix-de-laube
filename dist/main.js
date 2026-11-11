@@ -6264,6 +6264,10 @@ function initTerrainMap() {
         if (loading)
             loading.remove();
     });
+    setTimeout(() => { try {
+        nvGetCity();
+    }
+    catch (_e) { } }, 1500);
 }
 function cleanupMap() {
     if (tmState) {
@@ -6299,10 +6303,19 @@ const NOVELANCE_DISTRICTS = [
     { id: 'faubourgs', label: 'Faubourgs', color: '#5a6b4a',
         desc: "La ceinture extérieure de la cité : lotissements épars, entrepôts et petites exploitations qui s'étendent bien au-delà des remparts, là où Novelance se dissout peu à peu dans la campagne." },
 ];
-const NV_W = 2000, NV_H = 1125, NV_CX = 1000, NV_CY = 562;
-const NV_R = [60, 130, 205, 280, 385];
-const NV_DX = NV_CX - 430, NV_DY = NV_CY - 400;
-const NV_CATS = [
+const NV_W = 2000, NV_H = 1125;
+const NV_GW = 400, NV_GH = 225, NV_CELL = NV_W / NV_GW;
+const NV_FOCUS = [1090, 560];
+const NV_DIDS = ['centre', 'superieurs', 'intermediaires', 'populaires', 'industrielle', 'ruines', 'faubourgs'];
+const NV_STYLE = {
+    centre: { ang: 12, sp: 13, empty: 0.08, f: [0.5, 0.85], n: 2, fill: '#f7d43c' },
+    superieurs: { ang: 38, sp: 19, empty: 0.3, f: [0.3, 0.6], n: 1, fill: '#f3cd30' },
+    intermediaires: { ang: -8, sp: 15, empty: 0.2, f: [0.4, 0.8], n: 2, fill: '#f2cf2e' },
+    populaires: { ang: 24, sp: 12, empty: 0.15, f: [0.45, 0.85], n: 2, fill: '#efca2a' },
+    industrielle: { ang: 0, sp: 24, empty: 0.2, f: [0.55, 0.9], n: 1, fill: '#e9a926' },
+    ruines: { ang: 57, sp: 18, empty: 0.5, f: [0.3, 0.6], n: 1, fill: '#9c7b24', rubble: true },
+    faubourgs: { ang: 18, sp: 30, empty: 0.6, f: [0.12, 0.3], n: 1, fill: '#e3c23c' },
+};const NV_CATS = [
     { id: 'commerce', label: 'Commerces', red: false, icon: '<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>' },
     { id: 'halcyon', label: 'Halcyon', red: true, icon: '<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/>' },
     { id: 'transport', label: 'Transports', red: false, icon: '<rect x="6" y="4" width="12" height="13" rx="3"/><path d="M6 11h12M9 20l-2 2M15 20l2 2"/><circle cx="9.5" cy="14.5" r="0.8"/><circle cx="14.5" cy="14.5" r="0.8"/>' },
@@ -6311,7 +6324,7 @@ const NV_CATS = [
     { id: 'danger', label: 'Zones à risque', red: true, icon: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/>' },
 ];
 const NV_FLOORS = [
-    { id: 'all', label: 'Toute la ville', districts: ['centre', 'superieurs', 'intermediaires', 'populaires', 'industrielle', 'ruines', 'faubourgs'],
+    { id: 'all', label: 'Toute la ville', districts: NV_DIDS.slice(),
         icon: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4"/>' },
     { id: 'haute', label: 'Haute ville', districts: ['centre', 'superieurs'],
         icon: '<path d="M12 3v18M8 21h8M9 8h6M7 13h10"/>' },
@@ -6322,189 +6335,472 @@ const NV_FLOORS = [
     { id: 'sous', label: 'Souterrains', districts: [],
         icon: '<path d="M5 21V11a7 7 0 0 1 14 0v10"/><path d="M9 21v-6h6v6"/>' },
 ];
-function nvPolar(r, ang) {
-    const a = (ang - 90) * Math.PI / 180;
-    return [NV_CX + r * Math.cos(a), NV_CY + r * Math.sin(a)];
-}
 const NV_POIS = [
-    { id: 'hq', name: 'Quartier général de Halcyon', cat: 'halcyon', district: 'centre', at: nvPolar(16, 30), desc: "Le siège de l'organisation : bureaux de commandement et laboratoires, derrière plusieurs anneaux de sécurité." },
-    { id: 'palais', name: 'Palais administratif', cat: 'halcyon', district: 'centre', at: nvPolar(38, 150), desc: "Les services qui gèrent la cité au quotidien, sous la tutelle directe de Halcyon." },
-    { id: 'controle', name: 'Poste de contrôle central', cat: 'danger', district: 'centre', at: nvPolar(44, 255), desc: "Dernier filtre avant le cœur de la cité : habilitation exigée, aucune exception." },
-    { id: 'residences', name: 'Résidences des dirigeants', cat: 'halcyon', district: 'superieurs', at: nvPolar(100, 20), desc: "Les demeures des cadres et des hybrides de haut rang, surveillées jour et nuit." },
-    { id: 'galerie-haute', name: 'Galerie des Hauts-Quartiers', cat: 'commerce', district: 'superieurs', at: nvPolar(92, 110), desc: "Boutiques de luxe et salons privés réservés à la haute société de Novelance." },
-    { id: 'clinique', name: 'Clinique privée', cat: 'service', district: 'superieurs', at: nvPolar(106, 200), desc: "Soins de pointe pour l'élite, avec un accès direct aux technologies de Halcyon." },
-    { id: 'gare-cercle', name: 'Gare du Cercle', cat: 'transport', district: 'superieurs', at: nvPolar(98, 290), desc: "Le terminal des lignes rapides qui relient les quartiers supérieurs au reste de la cité." },
-    { id: 'marche-couvert', name: 'Grand marché couvert', cat: 'commerce', district: 'intermediaires', at: nvPolar(170, 35), desc: "Le plus fréquenté de la ville : étals, restauration et artisans sous une même halle." },
-    { id: 'avenue-marchande', name: 'Avenue marchande', cat: 'commerce', district: 'intermediaires', at: nvPolar(160, 130), desc: "Boutiques, cafés et enseignes qui bordent la grande avenue radiale." },
-    { id: 'hopital', name: 'Hôpital général', cat: 'service', district: 'intermediaires', at: nvPolar(175, 205), desc: "L'établissement de soins ouvert à tous, toujours saturé." },
-    { id: 'lycee', name: 'Lycée de Novelance', cat: 'service', district: 'intermediaires', at: nvPolar(165, 270), desc: "Là où se forment les futurs techniciens, chercheurs et soldats de la cité." },
-    { id: 'station-centrale', name: 'Station Centrale', cat: 'transport', district: 'intermediaires', at: nvPolar(150, 330), desc: "Le grand nœud des transports en commun, entre la rocade et le centre." },
-    { id: 'marche-ruelles', name: 'Marché des ruelles', cat: 'commerce', district: 'populaires', at: nvPolar(245, 60), desc: "Un dédale d'étals où l'on trouve de tout, souvent à moindre prix." },
-    { id: 'puces', name: 'Marché aux puces', cat: 'commerce', district: 'populaires', at: nvPolar(255, 170), desc: "Récupération, troc et pièces détachées : l'économie parallèle des quartiers populaires." },
-    { id: 'dispensaire', name: 'Dispensaire', cat: 'service', district: 'populaires', at: nvPolar(240, 235), desc: "Un centre de soins de quartier, tenu à bout de bras par des bénévoles." },
-    { id: 'station-rocade', name: 'Station de la Rocade', cat: 'transport', district: 'populaires', at: nvPolar(250, 305), desc: "Dessert les quartiers populaires et les faubourgs par la grande rocade." },
-    { id: 'usines', name: "Usines d'Essence", cat: 'industrie', district: 'industrielle', at: [1300, 530], desc: "Les complexes qui transforment et distribuent l'Essence qui alimente la cité." },
-    { id: 'entrepots', name: 'Entrepôts du port', cat: 'industrie', district: 'industrielle', at: [1390, 570], desc: "Stockage des marchandises avant leur départ vers le centre ou le reste du monde." },
-    { id: 'quais', name: 'Quais de chargement', cat: 'transport', district: 'industrielle', at: [1430, 640], desc: "Cargos, grues et convois : le port ne dort jamais." },
-    { id: 'depot', name: 'Dépôt de convois', cat: 'transport', district: 'industrielle', at: [1330, 650], desc: "Point de départ des convois de ravitaillement vers le centre." },
-    { id: 'vestiges', name: "Vestiges de l'ancienne cité", cat: 'danger', district: 'ruines', at: [880, 840], desc: "Des bâtiments à moitié effondrés, que Halcyon ne patrouille presque jamais." },
-    { id: 'squat', name: 'Quartier des squats', cat: 'service', district: 'ruines', at: [790, 770], desc: "Ceux qui vivent en marge de la Novelance officielle s'y sont installés." },
-    { id: 'marche-bordure', name: 'Marché de bordure', cat: 'commerce', district: 'faubourgs', at: nvPolar(345, 20), desc: "Les maraîchers et les petits commerçants des faubourgs y vendent leurs produits." },
-    { id: 'exploitations', name: 'Exploitations agricoles', cat: 'industrie', district: 'faubourgs', at: nvPolar(350, 100), desc: "Champs et serres qui nourrissent une partie de la cité." },
-    { id: 'gare-banlieue', name: 'Gare de banlieue', cat: 'transport', district: 'faubourgs', at: nvPolar(340, 225), desc: "Le dernier arrêt avant les routes qui filent vers l'horizon." },
-    { id: 'poste-frontiere', name: 'Poste-frontière', cat: 'danger', district: 'faubourgs', at: nvPolar(352, 300), desc: "Un contrôle de Halcyon à la sortie de la cité, là où commence la zone non surveillée." },
-    { id: 'sous-acces', name: 'Accès — Cité d\'en dessous', cat: 'transport', district: 'sous', at: [800, 760], desc: "Un escalier dissimulé dans les ruines, qui descend vers les galeries de la Cité d'en dessous.", link: 'souterrains' },
-    { id: 'sous-refuge', name: 'Refuge', cat: 'service', district: 'sous', at: [760, 640], desc: "Un abri de fortune où trouvent asile ceux que la ville d'en haut ne veut plus voir." },
-    { id: 'sous-marche', name: 'Marché clandestin', cat: 'commerce', district: 'sous', at: [900, 700], desc: "Tout ce qui est interdit en surface s'y échange, à la lueur de lampes bricolées." },
-    { id: 'sous-reservoirs', name: 'Réservoirs', cat: 'industrie', district: 'sous', at: [1160, 700], desc: "D'anciennes cuves d'Essence, encore partiellement alimentées." },
-    { id: 'sous-secure', name: 'Accès sécurisé de Halcyon', cat: 'halcyon', district: 'sous', at: [1010, 640], desc: "Une entrée discrète sous le centre politique, que les habitants des galeries évitent." },
-    { id: 'sous-galerie', name: 'Galerie corrompue', cat: 'danger', district: 'sous', at: [1130, 790], desc: "Une section des tunnels envahie par la Corruption : personne n'y retourne." },
+    { id: 'hq', name: 'Quartier général de Halcyon', cat: 'halcyon', district: 'centre', zone: 'centre', at: null, desc: "Le siège de l'organisation : bureaux de commandement et laboratoires, derrière plusieurs anneaux de sécurité." },
+    { id: 'palais', name: 'Palais administratif', cat: 'halcyon', district: 'centre', zone: 'centre', at: null, desc: "Les services qui gèrent la cité au quotidien, sous la tutelle directe de Halcyon." },
+    { id: 'controle', name: 'Poste de contrôle central', cat: 'danger', district: 'centre', zone: 'centre', at: null, desc: "Dernier filtre avant le cœur de la cité : habilitation exigée, aucune exception." },
+    { id: 'residences', name: 'Résidences des dirigeants', cat: 'halcyon', district: 'superieurs', zone: 'superieurs', at: null, desc: "Les demeures des cadres et des hybrides de haut rang, surveillées jour et nuit." },
+    { id: 'galerie-haute', name: 'Galerie des Hauts-Quartiers', cat: 'commerce', district: 'superieurs', zone: 'superieurs', at: null, desc: "Boutiques de luxe et salons privés réservés à la haute société de Novelance." },
+    { id: 'clinique', name: 'Clinique privée', cat: 'service', district: 'superieurs', zone: 'superieurs', at: null, desc: "Soins de pointe pour l'élite, avec un accès direct aux technologies de Halcyon." },
+    { id: 'gare-cercle', name: 'Gare du Cercle', cat: 'transport', district: 'superieurs', zone: 'superieurs', at: null, desc: "Le terminal des lignes rapides qui relient les quartiers supérieurs au reste de la cité." },
+    { id: 'marche-couvert', name: 'Grand marché couvert', cat: 'commerce', district: 'intermediaires', zone: 'intermediaires', at: null, desc: "Le plus fréquenté de la ville : étals, restauration et artisans sous une même halle." },
+    { id: 'avenue-marchande', name: 'Avenue marchande', cat: 'commerce', district: 'intermediaires', zone: 'intermediaires', at: null, desc: "Boutiques, cafés et enseignes qui bordent la grande avenue." },
+    { id: 'hopital', name: 'Hôpital général', cat: 'service', district: 'intermediaires', zone: 'intermediaires', at: null, desc: "L'établissement de soins ouvert à tous, toujours saturé." },
+    { id: 'lycee', name: 'Lycée de Novelance', cat: 'service', district: 'intermediaires', zone: 'intermediaires', at: null, desc: "Là où se forment les futurs techniciens, chercheurs et soldats de la cité." },
+    { id: 'station-centrale', name: 'Station Centrale', cat: 'transport', district: 'intermediaires', zone: 'intermediaires', at: null, desc: "Le grand nœud des transports en commun, entre la rocade et le centre." },
+    { id: 'marche-ruelles', name: 'Marché des ruelles', cat: 'commerce', district: 'populaires', zone: 'populaires', at: null, desc: "Un dédale d'étals où l'on trouve de tout, souvent à moindre prix." },
+    { id: 'puces', name: 'Marché aux puces', cat: 'commerce', district: 'populaires', zone: 'populaires', at: null, desc: "Récupération, troc et pièces détachées : l'économie parallèle des quartiers populaires." },
+    { id: 'dispensaire', name: 'Dispensaire', cat: 'service', district: 'populaires', zone: 'populaires', at: null, desc: "Un centre de soins de quartier, tenu à bout de bras par des bénévoles." },
+    { id: 'station-rocade', name: 'Station de la Rocade', cat: 'transport', district: 'populaires', zone: 'populaires', at: null, desc: "Dessert les quartiers populaires et les faubourgs par la grande rocade." },
+    { id: 'usines', name: "Usines d'Essence", cat: 'industrie', district: 'industrielle', zone: 'industrielle', at: null, desc: "Les complexes qui transforment et distribuent l'Essence qui alimente la cité." },
+    { id: 'entrepots', name: 'Entrepôts du port', cat: 'industrie', district: 'industrielle', zone: 'industrielle', at: null, desc: "Stockage des marchandises avant leur départ vers le centre ou le reste du monde." },
+    { id: 'quais', name: 'Quais de chargement', cat: 'transport', district: 'industrielle', zone: 'industrielle', at: null, desc: "Cargos, grues et convois : le port ne dort jamais." },
+    { id: 'depot', name: 'Dépôt de convois', cat: 'transport', district: 'industrielle', zone: 'industrielle', at: null, desc: "Point de départ des convois de ravitaillement vers le centre." },
+    { id: 'vestiges', name: "Vestiges de l'ancienne cité", cat: 'danger', district: 'ruines', zone: 'ruines', at: null, desc: "Des bâtiments à moitié effondrés, que Halcyon ne patrouille presque jamais." },
+    { id: 'squat', name: 'Quartier des squats', cat: 'service', district: 'ruines', zone: 'ruines', at: null, desc: "Ceux qui vivent en marge de la Novelance officielle s'y sont installés." },
+    { id: 'marche-bordure', name: 'Marché de bordure', cat: 'commerce', district: 'faubourgs', zone: 'faubourgs', at: null, desc: "Les maraîchers et les petits commerçants des faubourgs y vendent leurs produits." },
+    { id: 'exploitations', name: 'Exploitations agricoles', cat: 'industrie', district: 'faubourgs', zone: 'faubourgs', at: null, desc: "Champs et serres qui nourrissent une partie de la cité." },
+    { id: 'gare-banlieue', name: 'Gare de banlieue', cat: 'transport', district: 'faubourgs', zone: 'faubourgs', at: null, desc: "Le dernier arrêt avant les routes qui filent vers l'horizon." },
+    { id: 'poste-frontiere', name: 'Poste-frontière', cat: 'danger', district: 'faubourgs', zone: 'faubourgs', at: null, desc: "Un contrôle de Halcyon à la sortie de la cité, là où commence la zone non surveillée." },
+    { id: 'sous-acces', name: "Accès — Cité d'en dessous", cat: 'transport', district: 'sous', zone: 'ruines', at: null, desc: "Un escalier dissimulé dans les ruines, qui descend vers les galeries de la Cité d'en dessous.", link: 'souterrains' },
+    { id: 'sous-refuge', name: 'Refuge', cat: 'service', district: 'sous', zone: 'populaires', at: null, desc: "Un abri de fortune où trouvent asile ceux que la ville d'en haut ne veut plus voir." },
+    { id: 'sous-marche', name: 'Marché clandestin', cat: 'commerce', district: 'sous', zone: 'intermediaires', at: null, desc: "Tout ce qui est interdit en surface s'y échange, à la lueur de lampes bricolées." },
+    { id: 'sous-reservoirs', name: 'Réservoirs', cat: 'industrie', district: 'sous', zone: 'industrielle', at: null, desc: "D'anciennes cuves d'Essence, encore partiellement alimentées." },
+    { id: 'sous-secure', name: 'Accès sécurisé de Halcyon', cat: 'halcyon', district: 'sous', zone: 'centre', at: null, desc: "Une entrée discrète sous le centre politique, que les habitants des galeries évitent." },
+    { id: 'sous-galerie', name: 'Galerie corrompue', cat: 'danger', district: 'sous', zone: 'populaires', at: null, desc: "Une section des tunnels envahie par la Corruption : personne n'y retourne." },
 ];
 const NV_TUNNELS = [
     ['sous-acces', 'sous-refuge'], ['sous-refuge', 'sous-marche'], ['sous-marche', 'sous-secure'],
     ['sous-marche', 'sous-reservoirs'], ['sous-reservoirs', 'sous-galerie'],
 ];
 let nvFloor = 'all';
-let nvFilters = { commerce: true, halcyon: true, transport: true, service: true, industrie: true, danger: true, routes: true, noms: true, souterrains: false, grille: true };
+let nvFilters = { commerce: true, halcyon: true, transport: true, service: true, industrie: true, danger: true, routes: true, rues: true, batiments: true, limites: true, noms: true, souterrains: false, grille: false };
 let nvSel = null;
 let nvMoved = false;
 let nvState = null;
 let nvBooting = false;
-function nvSmooth(pts) {
-    const n = pts.length;
-    const f = (v) => (Math.round(v * 10) / 10).toString();
-    const mid = (a, b) => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
-    const m0 = mid(pts[n - 1], pts[0]);
-    let d = `M${f(m0[0])} ${f(m0[1])}`;
-    for (let i = 0; i < n; i++) {
-        const p = pts[i], q = mid(p, pts[(i + 1) % n]);
-        d += `Q${f(p[0])} ${f(p[1])} ${f(q[0])} ${f(q[1])}`;
+let nvCity = null;
+function nvNoise(seed) {
+    const rnd = tmSeeded(seed);
+    const LAT = 64;
+    const lat = new Float32Array(LAT * LAT);
+    for (let i = 0; i < lat.length; i++)
+        lat[i] = rnd();
+    const smooth = (t) => t * t * (3 - 2 * t);
+    const vnoise = (x, y) => {
+        const xi = Math.floor(x), yi = Math.floor(y);
+        const xf = x - xi, yf = y - yi;
+        const x0 = xi & (LAT - 1), y0 = yi & (LAT - 1), x1 = (x0 + 1) & (LAT - 1), y1 = (y0 + 1) & (LAT - 1);
+        const a = lat[y0 * LAT + x0], b = lat[y0 * LAT + x1], c = lat[y1 * LAT + x0], d = lat[y1 * LAT + x1];
+        const u = smooth(xf), v = smooth(yf);
+        return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+    };
+    return (x, y, oct) => {
+        let amp = 0.5, f = 1, s = 0, n = 0;
+        for (let o = 0; o < oct; o++) {
+            s += amp * vnoise(x * f + o * 17.3, y * f + o * 9.1);
+            n += amp;
+            amp *= 0.5;
+            f *= 2.05;
+        }
+        return s / n;
+    };
+}
+function nvBlur(field, gw, gh) {
+    const out = new Float32Array(field.length);
+    for (let y = 0; y < gh; y++) {
+        for (let x = 0; x < gw; x++) {
+            let s = 0, c = 0;
+            for (let dy = -1; dy <= 1; dy++) {
+                const yy = y + dy;
+                if (yy < 0 || yy >= gh)
+                    continue;
+                for (let dx = -1; dx <= 1; dx++) {
+                    const xx = x + dx;
+                    if (xx < 0 || xx >= gw)
+                        continue;
+                    s += field[yy * gw + xx];
+                    c++;
+                }
+            }
+            out[y * gw + x] = s / c;
+        }
     }
+    return out;
+}
+function nvModeFilter(label, gw, gh, passes) {
+    let cur = label, nxt = new Uint8Array(label.length);
+    const counts = new Uint8Array(9);
+    for (let p = 0; p < passes; p++) {
+        for (let y = 0; y < gh; y++) {
+            for (let x = 0; x < gw; x++) {
+                counts.fill(0);
+                for (let dy = -1; dy <= 1; dy++) {
+                    const yy = y + dy;
+                    for (let dx = -1; dx <= 1; dx++) {
+                        const xx = x + dx;
+                        const l = (yy < 0 || yy >= gh || xx < 0 || xx >= gw) ? 0 : cur[yy * gw + xx];
+                        counts[l]++;
+                    }
+                }
+                let best = cur[y * gw + x], bc = counts[best];
+                for (let l = 0; l < 9; l++)
+                    if (counts[l] > bc) {
+                        bc = counts[l];
+                        best = l;
+                    }
+                nxt[y * gw + x] = best;
+            }
+        }
+        const tmp = cur;
+        cur = nxt;
+        nxt = tmp;
+    }
+    return cur;
+}
+const nvR = (v) => (Math.round(v * 10) / 10).toString();
+function nvClosedPath(flat, minPts) {
+    const n = flat.length / 2;
+    if (n < minPts)
+        return '';
+    const mx = (i, j) => (flat[(i % n) * 2] + flat[(j % n) * 2]) / 2;
+    const my = (i, j) => (flat[(i % n) * 2 + 1] + flat[(j % n) * 2 + 1]) / 2;
+    let d = `M${nvR(mx(n - 1, 0))} ${nvR(my(n - 1, 0))}`;
+    for (let i = 0; i < n; i++)
+        d += `Q${nvR(flat[i * 2])} ${nvR(flat[i * 2 + 1])} ${nvR(mx(i, i + 1))} ${nvR(my(i, i + 1))}`;
     return d + 'Z';
 }
-function nvBlob(r, seed) {
-    const pts = [];
-    for (let i = 0; i < 72; i++) {
-        const a = (i / 72) * Math.PI * 2;
-        const w = 1 + 0.032 * Math.sin(3 * a + seed) + 0.026 * Math.sin(5 * a + seed * 2.3) + 0.012 * Math.sin(8 * a + seed * 1.7);
-        pts.push([NV_CX + Math.cos(a) * r * w, NV_CY + Math.sin(a) * r * w]);
+function nvOpenPath(flat) {
+    const n = flat.length / 2;
+    if (n < 2)
+        return '';
+    if (n === 2)
+        return `M${nvR(flat[0])} ${nvR(flat[1])}L${nvR(flat[2])} ${nvR(flat[3])}`;
+    let d = `M${nvR(flat[0])} ${nvR(flat[1])}`;
+    for (let i = 1; i < n - 1; i++) {
+        const mx = (flat[i * 2] + flat[i * 2 + 2]) / 2, my = (flat[i * 2 + 1] + flat[i * 2 + 3]) / 2;
+        d += `Q${nvR(flat[i * 2])} ${nvR(flat[i * 2 + 1])} ${nvR(mx)} ${nvR(my)}`;
     }
-    return nvSmooth(pts);
+    return d + `L${nvR(flat[n * 2 - 2])} ${nvR(flat[n * 2 - 1])}`;
 }
-function nvFootprints(rInner, rOuter, count, seed) {
-    const rnd = tmSeeded(seed);
+function nvLoopsToPath(loops, minPts, step) {
     let d = '';
-    for (let i = 0; i < count; i++) {
-        const a = rnd() * Math.PI * 2;
-        const r = rInner + 6 + rnd() * (rOuter - rInner - 12);
-        const x = NV_CX + Math.cos(a) * r, y = NV_CY + Math.sin(a) * r;
-        const w = 4 + rnd() * 7, h = 4 + rnd() * 7;
-        d += `M${x.toFixed(0)} ${y.toFixed(0)}h${w.toFixed(0)}v${h.toFixed(0)}h${(-w).toFixed(0)}z`;
+    for (const loop of loops) {
+        const flat = [];
+        for (let i = 0; i < loop.length; i += 2 * step)
+            flat.push(loop[i] * NV_CELL, loop[i + 1] * NV_CELL);
+        d += nvClosedPath(flat, minPts);
     }
     return d;
 }
-function nvPolyFootprints(poly, count, seed) {
-    const rnd = tmSeeded(seed);
-    const xs = poly.map(p => p[0]), ys = poly.map(p => p[1]);
-    const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
-    let d = '', placed = 0, guard = 0;
-    while (placed < count && guard++ < count * 20) {
-        const x = x0 + rnd() * (x1 - x0), y = y0 + rnd() * (y1 - y0);
-        if (!novelancePointInPolygon([x, y], poly))
-            continue;
-        const w = 6 + rnd() * 12, h = 5 + rnd() * 9;
-        d += `M${x.toFixed(0)} ${y.toFixed(0)}h${w.toFixed(0)}v${h.toFixed(0)}h${(-w).toFixed(0)}z`;
-        placed++;
+function nvRunsPath(loop, keep, gapEvery) {
+    let d = '', run = [];
+    const flush = () => { if (run.length >= 8)
+        d += nvOpenPath(run); run = []; };
+    const n = loop.length / 2;
+    for (let i = 0; i < n; i++) {
+        const gx = loop[i * 2], gy = loop[i * 2 + 1];
+        const gap = gapEvery > 0 && (i % gapEvery) < 5;
+        if (!gap && keep(gx, gy))
+            run.push(gx * NV_CELL, gy * NV_CELL);
+        else
+            flush();
     }
+    flush();
     return d;
 }
-function novelancePointInPolygon(pt, poly) {
-    let inside = false;
-    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
-        const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
-        const intersect = ((yi > pt[1]) !== (yj > pt[1])) && (pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi);
-        if (intersect)
-            inside = !inside;
-    }
-    return inside;
+function nvRectPath(cx, cy, w, h, ang) {
+    const ca = Math.cos(ang), sa = Math.sin(ang);
+    const p = [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]].map(([x, y]) => [cx + x * ca - y * sa, cy + x * sa + y * ca]);
+    return `M${nvR(p[0][0])} ${nvR(p[0][1])}L${nvR(p[1][0])} ${nvR(p[1][1])}L${nvR(p[2][0])} ${nvR(p[2][1])}L${nvR(p[3][0])} ${nvR(p[3][1])}Z`;
 }
-function nvSvgHtml() {
-    const industriePoly = [[685, 300], [790, 255], [865, 285], [885, 340], [860, 400], [885, 460], [865, 520], [790, 548], [685, 500]].map(p => [p[0] + NV_DX, p[1] + NV_DY]);
-    const ruinesPoly = [[150, 560], [232, 518], [322, 540], [382, 582], [420, 650], [400, 720], [318, 742], [216, 720], [146, 680], [120, 618]].map(p => [p[0] + NV_DX, p[1] + NV_DY]);
-    let decor = '';
-    for (let k = 0; k < 33; k++) {
-        const r = 430 + k * 24;
-        const pts = [];
-        for (let i = 0; i < 90; i++) {
-            const a = (i / 90) * Math.PI * 2;
-            const w = 1 + 0.05 * Math.sin(3 * a + k * 0.35) + 0.035 * Math.sin(5 * a + 1.7 - k * 0.28) + 0.02 * Math.sin(9 * a + k);
-            pts.push([NV_CX + Math.cos(a) * r * w * 1.45, NV_CY + Math.sin(a) * r * w]);
+function nvBuildCity() {
+    const noise = nvNoise(7311);
+    const gw = NV_GW, gh = NV_GH, n = gw * gh;
+    const [fx, fy] = NV_FOCUS;
+    const land = new Float32Array(n), D = new Float32Array(n), ANG = new Float32Array(n);
+    const hills = new Float32Array(n);
+    for (let y = 0; y < gh; y++) {
+        for (let x = 0; x < gw; x++) {
+            const i = y * gw + x;
+            const wx = x * NV_CELL, wy = y * NV_CELL;
+            const u = wx / NV_W * 5, v = wy / NV_W * 5;
+            const w1 = (noise(u * 1.1 + 3, v * 1.1 + 8, 3) - 0.5) * 260, w2 = (noise(u * 1.1 + 9, v * 1.1 + 2, 3) - 0.5) * 260;
+            const dx = wx + w1 - fx, dy = wy + w2 - fy;
+            const ang0 = Math.atan2(dy, dx);
+            const lobe = 1 + 0.16 * Math.sin(2 * ang0 + 1.3) + 0.1 * Math.sin(3 * ang0 + 0.4) + 0.06 * Math.sin(5 * ang0 + 2.2);
+            D[i] = Math.hypot(dx * 0.95, dy * 0.78) / lobe;
+            ANG[i] = Math.atan2(dy, dx);
+            const nl = noise(u * 0.9 + 20, v * 0.9 + 5, 4);
+            const bay = tmSmoothstep(540, 110, Math.hypot(wx - 250, (wy - 540) * 0.8));
+            const isle = 1 - tmSmoothstep(0.7, 1.15, Math.hypot((wx - 1150) / 950, (wy - 560) / 640));
+            land[i] = isle * 0.9 + nl * 0.55 - bay * 0.95 - 0.6;
+            hills[i] = noise(u * 1.6 + 40, v * 1.6 + 11, 4) - 0.55 * (1 - tmSmoothstep(380, 600, D[i]));
         }
-        const major = k % 5 === 0;
-        decor += `<path d="${nvSmooth(pts)}" fill="none" stroke="${major ? '#4f7592' : '#2c4a63'}" stroke-opacity="${(major ? 0.8 : 0.55) * (1 - k / 48)}" stroke-width="${major ? 1.3 : 0.8}" vector-effect="non-scaling-stroke"/>`;
     }
-    const shape = (id, d, fp) => `
+    let label = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+        if (land[i] <= 0.02)
+            continue;
+        const d = D[i];
+        const x = (i % gw) * NV_CELL;
+        const deg = ANG[i] * 180 / Math.PI;
+        let l = 0;
+        if (d < 82)
+            l = 1;
+        else if (d < 165)
+            l = 2;
+        else if (d < 255)
+            l = 3;
+        else if (d < 345)
+            l = 4;
+        else if (d < 520)
+            l = 7;
+        if (l === 7) {
+            const px = (i % gw) / gw * 5, py = Math.floor(i / gw) / gw * 5;
+            if (noise(px * 3 + 50, py * 3 + 7, 3) < 0.46)
+                l = 0;
+        }
+        if (l >= 2 && land[i] < 0.3 && x < fx - 90 && d > 110 && d < 470)
+            l = 5;
+        if (l >= 3 && d > 190 && d < 450 && deg > 35 && deg < 105)
+            l = 6;
+        label[i] = l;
+    }
+    label = nvModeFilter(label, gw, gh, 3);
+    const lookup = (x, y) => {
+        const ix = Math.floor(x / NV_CELL), iy = Math.floor(y / NV_CELL);
+        if (ix < 0 || iy < 0 || ix >= gw || iy >= gh)
+            return 0;
+        return label[iy * gw + ix];
+    };
+    const sea = `<rect width="${NV_W}" height="${NV_H}" fill="url(#nvSea)"/>`;
+    const landPath = nvLoopsToPath(tmContours(land, gw, gh, 0), 8, 1);
+    const bath1 = nvLoopsToPath(tmContours(land, gw, gh, -0.16), 8, 2);
+    const bath2 = nvLoopsToPath(tmContours(land, gw, gh, -0.34), 8, 2);
+    const hillPath = nvLoopsToPath(tmContours(hills, gw, gh, 0.5), 8, 1);
+    const negD = new Float32Array(n);
+    for (let i = 0; i < n; i++)
+        negD[i] = -D[i];
+    const cityOk = (gx, gy) => lookup(gx * NV_CELL, gy * NV_CELL) !== 0;
+    let belts = '';
+    [[170, 9], [262, 12], [352, 14]].forEach(([lv, gap]) => {
+        tmContours(negD, gw, gh, -lv).forEach(loop => { belts += nvRunsPath(loop, cityOk, gap * 3); });
+    });
+    const coast = tmContours(land, gw, gh, 0.07).map(loop => nvRunsPath(loop, (gx, gy) => lookup(gx * NV_CELL, gy * NV_CELL) !== 0 && lookup(gx * NV_CELL, gy * NV_CELL) !== 7, 0)).join('');
+    const rnd = tmSeeded(515);
+    let radials = '';
+    for (let k = 0; k < 11; k++) {
+        const a = (k / 11) * Math.PI * 2 + rnd() * 0.25;
+        const flat = [];
+        const off = rnd() * 6.28;
+        for (let r = 24; r <= 600; r += 24) {
+            const wob = (noise(r * 0.012 + k * 3.1, off, 2) - 0.5) * 70;
+            const px = fx + Math.cos(a) * r * 1.05 - Math.sin(a) * wob, py = fy + Math.sin(a) * r * 0.9 + Math.cos(a) * wob;
+            if (r > 90 && lookup(px, py) === 0)
+                break;
+            flat.push(px, py);
+        }
+        if (flat.length >= 8)
+            radials += nvOpenPath(flat);
+    }
+    const highwayCtl = [
+        [[1180, 300], [1290, 205], [1480, 150], [1700, 105], [2000, 55]],
+        [[1330, 560], [1500, 600], [1700, 640], [2000, 650]],
+        [[1060, 720], [1040, 880], [1065, 1000], [1020, 1125]],
+        [[1250, 700], [1400, 850], [1600, 980], [1800, 1125]],
+        [[1020, 400], [980, 300], [1040, 170], [1010, 0]],
+    ];
+    const highways = highwayCtl.map(pts => nvOpenPath(pts.flat())).join('');
+    let districtSvg = '';
+    const centroids = [];
+    const labelPos = [];
+    NV_DIDS.forEach((id, di) => {
+        const lab = di + 1;
+        const st = NV_STYLE[id];
+        const ind = new Float32Array(n);
+        let sx = 0, sy = 0, cnt = 0, minx = gw, maxx = 0, miny = gh, maxy = 0;
+        for (let i = 0; i < n; i++)
+            if (label[i] === lab) {
+                ind[i] = 1;
+                const x = i % gw, y = Math.floor(i / gw);
+                sx += x;
+                sy += y;
+                cnt++;
+                if (x < minx)
+                    minx = x;
+                if (x > maxx)
+                    maxx = x;
+                if (y < miny)
+                    miny = y;
+                if (y > maxy)
+                    maxy = y;
+            }
+        if (!cnt) {
+            centroids.push([fx, fy]);
+            labelPos.push([fx, fy]);
+            return;
+        }
+        const cxw = sx / cnt * NV_CELL, cyw = sy / cnt * NV_CELL;
+        centroids.push([cxw, cyw]);
+        let bestScore = -1, bestPos = [cxw, cyw];
+        for (let i = 0; i < n; i++) {
+            if (label[i] !== lab)
+                continue;
+            const x = (i % gw) * NV_CELL, y = Math.floor(i / gw) * NV_CELL;
+            let sc = 0;
+            for (const [ddx, ddy] of [[1, 0], [-1, 0], [0, 1], [0, -1], [1, 1], [-1, 1], [1, -1], [-1, -1]])
+                if (lookup(x + ddx * 44, y + ddy * 44) === lab)
+                    sc++;
+            const score = sc * 10000 - Math.hypot(x - cxw, y - cyw);
+            if (score > bestScore) {
+                bestScore = score;
+                bestPos = [x, y];
+            }
+        }
+        labelPos.push(bestPos);
+        const outline = nvLoopsToPath(tmContours(nvBlur(nvBlur(ind, gw, gh), gw, gh), gw, gh, 0.5), 8, 1);
+        const rs = tmSeeded(900 + di * 37);
+        const rad = st.ang * Math.PI / 180, ca = Math.cos(rad), sa = Math.sin(rad);
+        const bx = (minx + maxx) / 2 * NV_CELL, by = (miny + maxy) / 2 * NV_CELL;
+        const R = Math.hypot((maxx - minx) * NV_CELL, (maxy - miny) * NV_CELL) / 2 + 20;
+        let streets = '';
+        for (let pass = 0; pass < 2; pass++) {
+            const dirx = pass ? -sa : ca, diry = pass ? ca : sa;
+            const nx = -diry, ny = dirx;
+            const K = Math.ceil(R / st.sp);
+            for (let k = -K; k <= K; k++) {
+                if (rs() < 0.1)
+                    continue;
+                const jit = (rs() - 0.5) * st.sp * 0.25;
+                const ox = bx + nx * (k * st.sp + jit), oy = by + ny * (k * st.sp + jit);
+                let started = false, sx0 = 0, sy0 = 0, lx = 0, ly = 0;
+                for (let t = -R; t <= R; t += 3) {
+                    const x = ox + dirx * t, y = oy + diry * t;
+                    if (lookup(x, y) === lab) {
+                        if (!started) {
+                            started = true;
+                            sx0 = x;
+                            sy0 = y;
+                        }
+                        lx = x;
+                        ly = y;
+                    }
+                    else if (started) {
+                        if (Math.hypot(lx - sx0, ly - sy0) > 8)
+                            streets += `M${Math.round(sx0)} ${Math.round(sy0)}L${Math.round(lx)} ${Math.round(ly)}`;
+                        started = false;
+                    }
+                }
+                if (started && Math.hypot(lx - sx0, ly - sy0) > 8)
+                    streets += `M${Math.round(sx0)} ${Math.round(sy0)}L${Math.round(lx)} ${Math.round(ly)}`;
+            }
+        }
+        let bld = '';
+        const ci = Math.ceil(R / st.sp);
+        for (let i = -ci; i <= ci; i++) {
+            for (let j = -ci; j <= ci; j++) {
+                const u0 = i * st.sp, v0 = j * st.sp;
+                const ccx = bx + ca * (u0 + st.sp / 2) - sa * (v0 + st.sp / 2), ccy = by + sa * (u0 + st.sp / 2) + ca * (v0 + st.sp / 2);
+                if (lookup(ccx, ccy) !== lab)
+                    continue;
+                if(noise(ccx / 230 + 70, ccy / 230 + 31, 2) < 0.34 + st.empty * 0.25 || rs() < st.empty) continue;
+                for (let b = 0; b < st.n; b++) {
+                    const fw = st.f[0] + rs() * (st.f[1] - st.f[0]), fh = st.f[0] + rs() * (st.f[1] - st.f[0]);
+                    const w = st.sp * fw * (st.n > 1 ? 0.62 : 1), h = st.sp * fh * (st.n > 1 ? 0.62 : 1);
+                    const ou = (rs() - 0.5) * (st.sp - w - 3), ov = (rs() - 0.5) * (st.sp - h - 3);
+                    const px = ccx + ca * ou - sa * ov, py = ccy + sa * ou + ca * ov;
+                    const a = rad + (st.rubble ? (rs() - 0.5) * 0.9 : 0);
+                    bld += nvRectPath(px, py, Math.max(3, w), Math.max(3, h), a);
+                }
+            }
+        }
+        districtSvg += `
       <g class="nv-dg" data-id="${id}" onclick="nvSelectDistrict('${id}')">
-        <path class="nv-d" d="${d}" fill="rgba(34,70,108,0.2)" stroke="#6f98bb" stroke-opacity="0.8" stroke-width="1.2" vector-effect="non-scaling-stroke"/>
-        <path d="${d}" fill="url(#nvHatch)" pointer-events="none"/>
-        <path d="${fp}" fill="none" stroke="#7fa6c8" stroke-opacity="0.4" stroke-width="0.9" vector-effect="non-scaling-stroke" pointer-events="none"/>
+        <path class="nv-hit" d="${outline}" fill="rgba(0,0,0,0)" pointer-events="all"/>
+        <path class="nv-border" d="${outline}" fill="none" stroke="#49c4dc" stroke-opacity="0.55" stroke-width="1.2" stroke-dasharray="6 5" vector-effect="non-scaling-stroke" pointer-events="none"/>
+        <path class="nv-street" d="${streets}" fill="none" stroke="#2aa6bf" stroke-opacity="0.8" stroke-width="0.9" vector-effect="non-scaling-stroke" pointer-events="none"/>
+        <path class="nv-bldg" d="${bld}" fill="${st.fill}" fill-opacity="${st.rubble ? 0.7 : 0.92}" pointer-events="none"/>
       </g>`;
-    const polyCenter = (poly) => [poly.reduce((s, p) => s + p[0], 0) / poly.length, poly.reduce((s, p) => s + p[1], 0) / poly.length];
-    const label = (text, x, y) => `<text class="nv-label" x="${x.toFixed(0)}" y="${y.toFixed(0)}" text-anchor="middle">${esc(text)}</text>`;
-    const lbl = (id, x, y) => label(NOVELANCE_DISTRICTS.find(d => d.id === id).label, x, y);
-    const ic = polyCenter(industriePoly), rc = polyCenter(ruinesPoly);
-    const L = (r, a) => nvPolar(r, a);
-    const districts = [
-        shape('faubourgs', nvBlob(NV_R[4], 5), nvFootprints(NV_R[3], NV_R[4], 120, 41)),
-        shape('industrielle', nvSmooth(industriePoly), nvPolyFootprints(industriePoly, 70, 71)),
-        shape('ruines', nvSmooth(ruinesPoly), nvPolyFootprints(ruinesPoly, 28, 89)),
-        shape('populaires', nvBlob(NV_R[3], 3), nvFootprints(NV_R[2], NV_R[3], 260, 53)),
-        shape('intermediaires', nvBlob(NV_R[2], 2), nvFootprints(NV_R[1], NV_R[2], 210, 37)),
-        shape('superieurs', nvBlob(NV_R[1], 1), nvFootprints(NV_R[0], NV_R[1], 110, 23)),
-        shape('centre', nvBlob(NV_R[0], 0), nvFootprints(0, NV_R[0], 40, 11)),
-    ].join('');
-    const labels = [
-        lbl('faubourgs', ...L((NV_R[3] + NV_R[4]) / 2, 322)),
-        lbl('populaires', ...L((NV_R[2] + NV_R[3]) / 2, 322)),
-        lbl('intermediaires', ...L((NV_R[1] + NV_R[2]) / 2, 322)),
-        lbl('superieurs', ...L((NV_R[0] + NV_R[1]) / 2, 322)),
-        label('Centre politique', NV_CX, NV_CY + 5),
-        lbl('industrielle', ic[0], ic[1] - 6),
-        lbl('ruines', rc[0], rc[1] - 6),
-    ].join('');
-    const spokes = Array.from({ length: 12 }, (_, i) => {
-        const a = nvPolar(NV_R[0], i * 30), b = nvPolar(NV_R[4], i * 30);
-        return `M${a[0].toFixed(1)} ${a[1].toFixed(1)}L${b[0].toFixed(1)} ${b[1].toFixed(1)}`;
-    }).join('');
-    const rings = NV_R.map((r, i) => nvBlob(r, [0, 1, 2, 3, 5][i])).join('');
-    const farRoads = [15, 75, 135, 195, 255, 315].map(a => {
-        const p = nvPolar(NV_R[4], a), q = nvPolar(NV_R[4] + 420, a);
-        return `M${p[0].toFixed(1)} ${p[1].toFixed(1)}L${q[0].toFixed(1)} ${q[1].toFixed(1)}`;
-    }).join('');
+    });
+    let piers = '';
+    const indC = centroids[4];
+    for (let py = Math.round(indC[1] - 130); py <= indC[1] + 130; py += 46) {
+        let xc = -1;
+        for (let x = 0; x < NV_W; x += 4)
+            if (land[Math.floor(py / NV_CELL) * gw + Math.floor(x / NV_CELL)] > 0.02) {
+                xc = x;
+                break;
+            }
+        if (xc < 0)
+            continue;
+        piers += nvRectPath(xc - 34, py, 78, 7, 0);
+        piers += nvRectPath(xc - 70, py + 15, 22, 6, 0.08);
+    }
+    const hqPath = `<circle cx="${fx}" cy="${fy}" r="22" fill="#ffe27a" fill-opacity="0.95"/><circle cx="${fx}" cy="${fy}" r="38" fill="none" stroke="#f7d43c" stroke-width="1.6" vector-effect="non-scaling-stroke"/><circle cx="${fx}" cy="${fy}" r="54" fill="none" stroke="#f7d43c" stroke-opacity="0.55" stroke-width="1" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>`;
+    // placement des points d'intérêt dans leur quartier
+    const placed = [];
+    NV_POIS.forEach(p => {
+        const lab = NV_DIDS.indexOf(p.zone) + 1;
+        if (p.id === 'hq') {
+            p.at = [fx, fy];
+            placed.push(p.at);
+            return;
+        }
+        const r2 = tmSeeded(tmHash(p.id));
+        let best = null;
+        for (let tries = 0; tries < 600; tries++) {
+            const x = r2() * NV_W, y = r2() * NV_H;
+            if (lookup(x, y) !== lab)
+                continue;
+            if (lookup(x + 14, y) !== lab || lookup(x - 14, y) !== lab || lookup(x, y + 14) !== lab || lookup(x, y - 14) !== lab)
+                continue;
+            const minD = tries < 300 ? 70 : 38;
+            if (placed.some(q => Math.hypot(q[0] - x, q[1] - y) < minD))
+                continue;
+            best = [x, y];
+            break;
+        }
+        if (!best)
+            best = [centroids[lab - 1][0], centroids[lab - 1][1]];
+        p.at = best;
+        placed.push(best);
+    });
     const poiById = (id) => NV_POIS.find(p => p.id === id);
     const tunnels = NV_TUNNELS.map(([a, b]) => {
         const pa = poiById(a).at, pb = poiById(b).at;
-        return `M${pa[0]} ${pa[1]}L${pb[0]} ${pb[1]}`;
+        return `M${nvR(pa[0])} ${nvR(pa[1])}L${nvR(pb[0])} ${nvR(pb[1])}`;
     }).join('');
-    return `
+    const labelOf = (id) => NOVELANCE_DISTRICTS.find(d => d.id === id).label;
+    const labels = NV_DIDS.map((id, di) => `<text class="nv-label" x="${labelPos[di][0].toFixed(0)}" y="${labelPos[di][1].toFixed(0)}" text-anchor="middle">${esc(labelOf(id))}</text>`).join('');
+    const svg = `
     <svg class="nv-svg" viewBox="0 0 ${NV_W} ${NV_H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <radialGradient id="nvBg" cx="50%" cy="50%" r="75%"><stop offset="0" stop-color="#0c1724"/><stop offset="0.6" stop-color="#070d16"/><stop offset="1" stop-color="#03060b"/></radialGradient>
-        <pattern id="nvHatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" stroke="#5b86aa" stroke-opacity="0.22" stroke-width="1"/></pattern>
+        <radialGradient id="nvSea" cx="30%" cy="50%" r="80%"><stop offset="0" stop-color="#021722"/><stop offset="1" stop-color="#010a10"/></radialGradient>
+        <clipPath id="nvLandClip"><path d="${landPath}"/></clipPath>
       </defs>
-      <rect width="${NV_W}" height="${NV_H}" fill="url(#nvBg)"/>
-      <g class="nv-decor">${decor}</g>
-      <g class="nv-roads">
-        <path d="${farRoads}" fill="none" stroke="#4f7a45" stroke-opacity="0.4" stroke-width="1" vector-effect="non-scaling-stroke"/>
+      ${sea}
+      <path d="${bath2}" fill="none" stroke="#0a3a4d" stroke-opacity="0.55" stroke-width="1" vector-effect="non-scaling-stroke"/>
+      <path d="${bath1}" fill="none" stroke="#0d5168" stroke-opacity="0.7" stroke-width="1" vector-effect="non-scaling-stroke"/>
+      <path d="${landPath}" fill="#082b3b" stroke="#2b87a0" stroke-opacity="0.9" stroke-width="1.4" vector-effect="non-scaling-stroke"/>
+      <g clip-path="url(#nvLandClip)"><path d="${hillPath}" fill="#05202d" fill-opacity="0.95" stroke="#0e3d52" stroke-width="1" vector-effect="non-scaling-stroke"/></g>
+      ${districtSvg}
+      <g class="nv-arterial" pointer-events="none" fill="none" stroke-linejoin="round">
+        <path d="${belts}${radials}${coast}" stroke="#35c7e0" stroke-opacity="0.22" stroke-width="5" vector-effect="non-scaling-stroke"/>
+        <path d="${belts}${radials}${coast}" stroke="#5fd9ee" stroke-opacity="0.95" stroke-width="1.6" vector-effect="non-scaling-stroke"/>
+        <path d="${highways}" stroke="#35c7e0" stroke-opacity="0.25" stroke-width="7" vector-effect="non-scaling-stroke"/>
+        <path d="${highways}" stroke="#8fe7f5" stroke-opacity="1" stroke-width="2.4" vector-effect="non-scaling-stroke"/>
       </g>
-      ${districts}
-      <g class="nv-roads" pointer-events="none">
-        <path d="${spokes}" fill="none" stroke="#5f8f52" stroke-opacity="0.4" stroke-width="1" vector-effect="non-scaling-stroke"/>
-        <path d="${rings}" fill="none" stroke="#6da35d" stroke-opacity="0.85" stroke-width="1.6" vector-effect="non-scaling-stroke"/>
-      </g>
-      <g class="nv-tunnels" pointer-events="none"><path d="${tunnels}" fill="none" stroke="#8fc1ea" stroke-opacity="0.8" stroke-width="1.6" stroke-dasharray="7 6" vector-effect="non-scaling-stroke"/></g>
+      <g class="nv-bldg" pointer-events="none"><path d="${piers}" fill="#e9a926" fill-opacity="0.95" stroke="#5fd9ee" stroke-width="0.8" vector-effect="non-scaling-stroke"/>${hqPath}</g>
+      <g class="nv-tunnels" pointer-events="none"><path d="${tunnels}" fill="none" stroke="#9eeaf7" stroke-opacity="0.9" stroke-width="1.8" stroke-dasharray="7 6" vector-effect="non-scaling-stroke"/></g>
       <g class="nv-labels" pointer-events="none">${labels}</g>
     </svg>`;
+    return { svg, lookup };
+}
+function nvGetCity() {
+    if (!nvCity)
+        nvCity = nvBuildCity();
+    return nvCity;
 }
 function nvPoiHtml(p) {
     const cat = NV_CATS.find(c => c.id === p.cat);
@@ -6551,8 +6847,9 @@ function openNovelanceOverlay() {
     });
 }
 function novelanceOverlayHtml() {
+    const city = nvGetCity();
     return `
-    <div class="nv-stage" id="nvStage"><div class="nv-world" id="nvWorld">${nvSvgHtml()}<div class="nv-pois">${NV_POIS.map(nvPoiHtml).join('')}</div></div></div>
+    <div class="nv-stage" id="nvStage"><div class="nv-world" id="nvWorld">${city.svg}<div class="nv-pois">${NV_POIS.map(nvPoiHtml).join('')}</div></div></div>
     <div class="nv-grid"></div>
     <div class="nv-vignette"></div>
     <div class="nv-ui">
@@ -6571,7 +6868,7 @@ function novelanceOverlayHtml() {
         <div class="nv-panel-h">Points d'intérêt</div>
         ${NV_CATS.map(c => `<div class="nv-row" data-key="${c.id}" onclick="nvToggle('${c.id}')"><span class="nv-check"></span><span class="nv-row-ico${c.red ? ' red' : ''}"><svg viewBox="0 0 24 24">${c.icon}</svg></span><span class="nv-row-lbl">${esc(c.label)}</span><em class="nv-row-count"></em></div>`).join('')}
         <div class="nv-panel-h">Calques</div>
-        ${[['routes', 'Routes et rocades'], ['noms', 'Noms des quartiers'], ['souterrains', 'Réseau souterrain'], ['grille', 'Grille']].map(([k, l]) => `<div class="nv-row" data-key="${k}" onclick="nvToggle('${k}')"><span class="nv-check"></span><span class="nv-row-lbl">${l}</span></div>`).join('')}
+        ${[['routes', 'Routes principales'], ['rues', 'Rues'], ['batiments', 'Bâtiments'], ['limites', 'Limites des quartiers'], ['noms', 'Noms des quartiers'], ['souterrains', 'Réseau souterrain'], ['grille', 'Grille']].map(([k, l]) => `<div class="nv-row" data-key="${k}" onclick="nvToggle('${k}')"><span class="nv-check"></span><span class="nv-row-lbl">${l}</span></div>`).join('')}
       </aside>
       <div class="nv-counters" id="nvCounters"></div>
       <div class="nv-card" id="nvCard"></div>
@@ -6597,7 +6894,10 @@ function nvRefreshUi() {
         g.classList.toggle('dim', nvFloor === 'sous' || !floor.districts.includes(id));
         g.classList.toggle('sel', !!nvSel && nvSel.kind === 'district' && nvSel.id === id);
     });
-    overlay.classList.toggle('nv-no-roads', !nvFilters.routes);
+    overlay.classList.toggle('nv-no-routes', !nvFilters.routes);
+    overlay.classList.toggle('nv-no-rues', !nvFilters.rues);
+    overlay.classList.toggle('nv-no-bldg', !nvFilters.batiments);
+    overlay.classList.toggle('nv-no-borders', !nvFilters.limites);
     overlay.classList.toggle('nv-no-labels', !nvFilters.noms);
     overlay.classList.toggle('nv-no-grid', !nvFilters.grille);
     overlay.classList.toggle('nv-show-tunnels', nvFloor === 'sous' || nvFilters.souterrains);
@@ -6615,8 +6915,7 @@ function nvRefreshUi() {
     });
     overlay.querySelectorAll('.nv-row').forEach(row => {
         const k = row.dataset.key;
-        const on = !!nvFilters[k];
-        row.classList.toggle('on', on);
+        row.classList.toggle('on', !!nvFilters[k]);
         const cnt = row.querySelector('.nv-row-count');
         if (cnt && total[k] !== undefined)
             cnt.textContent = `${shown[k]}/${total[k]}`;
@@ -6688,14 +6987,14 @@ function initNovelanceMap() {
     const apply = () => {
         world.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.s})`;
         world.style.setProperty('--inv', String(1 / cam.s));
-        overlay.classList.toggle('nv-zoomed', cam.s > fitS * 1.7);
+        overlay.classList.toggle('nv-zoomed', cam.s > fitS * 1.6);
     };
     const centerOn = (wx, wy, s) => ({ s, x: stage.clientWidth / 2 - wx * s, y: stage.clientHeight / 2 - wy * s });
     const fit = () => {
         const vw = stage.clientWidth, vh = stage.clientHeight;
         minS = Math.max(vw / NV_W, vh / NV_H);
-        fitS = minS * 1.02;
-        maxS = minS * 4.2;
+        fitS = minS * 1.08;
+        maxS = minS * 6;
         clampCam();
         apply();
     };
@@ -6718,15 +7017,15 @@ function initNovelanceMap() {
         };
         tween = requestAnimationFrame(step);
     };
-    const start = centerOn(NV_CX, NV_CY, minS * 3.4);
+    const start = centerOn(NV_FOCUS[0], NV_FOCUS[1], fitS * 2.8);
     cam.s = start.s;
     cam.x = start.x;
     cam.y = start.y;
     clampCam();
     apply();
-    const home = centerOn(NV_CX, NV_CY, fitS);
+    const home = centerOn(NV_FOCUS[0], NV_FOCUS[1], fitS);
     const recenter = () => flyTo(home, 650, true);
-    setTimeout(() => { overlay.classList.add('nv-ready'); flyTo(centerOn(NV_CX, NV_CY, fitS), 1500, true); }, 120);
+    setTimeout(() => { overlay.classList.add('nv-ready'); flyTo(home, 1500, true); }, 120);
     let dragging = false, down = null;
     const onDown = (e) => { dragging = true; nvMoved = false; down = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y }; cancelAnimationFrame(tween); };
     const onMove = (e) => {
