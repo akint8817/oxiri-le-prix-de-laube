@@ -643,7 +643,7 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
   transition: opacity .7s ease calc(var(--i) * 95ms + 150ms), transform .95s cubic-bezier(.2,.8,.2,1) calc(var(--i) * 95ms + 150ms);
 }
 .tm-ready .tm-layer{ opacity:1; transform:none; }
-.tm-layer canvas{
+.tm-layer > svg{
   position:absolute; inset:0; width:100%; height:100%; display:block;
   transform: translate3d(calc(var(--px) * var(--d)), calc(var(--py) * var(--d)), 0);
 }
@@ -3732,6 +3732,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=72"></script>
+<script src="dist/main.js?v=73"></script>
 </body>
 </html>

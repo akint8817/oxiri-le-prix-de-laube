@@ -5686,16 +5686,18 @@ function playDossierBoot(renderFn) {
 }
 const CONTINENT_NAME = 'Aeloria';
 const WORLD_W = 1300, WORLD_H = 760;
-const TM_W = 1000, TM_H = 560, TM_RES = 1.25, TM_LEVELS = 9;
+const TM_W = 1000, TM_H = 560, TM_LEVELS = 9;
+const TM_GW = 320, TM_GH = 180;
 let tmState = null;
 let tmMarkers = [];
 let tmMoved = false;
 let tmTerrain = null;
+let tmBooting = false;
 function tmRefreshMarkers() {
     const mk = document.querySelector('.tm-markers');
     if (!tmTerrain || !mk)
         return;
-    tmMarkers = tmPlaceMarkers(tmTerrain.rw, tmTerrain.rh, tmTerrain.hmap, tmTerrain.cuts);
+    tmMarkers = tmPlaceMarkers(tmTerrain);
     mk.innerHTML = tmMarkers.map(tmMarkerHtml).join('');
 }
 function tmSeeded(seed) {
@@ -5715,7 +5717,7 @@ function tmHash(str) {
     return h >>> 0;
 }
 function tmBuildTerrain() {
-    const gw = 500, gh = 280;
+    const gw = TM_GW, gh = TM_GH;
     const rnd = tmSeeded(20240);
     const LAT = 64;
     const lat = new Float32Array(LAT * LAT);
@@ -5743,13 +5745,13 @@ function tmBuildTerrain() {
     const grid = new Float32Array(gw * gh);
     for (let y = 0; y < gh; y++) {
         for (let x = 0; x < gw; x++) {
-            const nx = x / gw, ny = y / gh;
-            const u = nx * 5.4, v = ny * 5.4 * (TM_H / TM_W);
-            const wx = (fbm(u * 0.6 + 3.1, v * 0.6 + 1.7, 3) - 0.5) * 0.55;
-            const wy = (fbm(u * 0.6 + 8.3, v * 0.6 + 4.2, 3) - 0.5) * 0.55;
-            const base = fbm(u + wx, v + wy, 5);
-            const ridge = 1 - Math.abs(2 * fbm(u * 1.7 + wx + 11, v * 1.7 + wy + 5, 4) - 1);
-            const rr = Math.hypot((nx - 0.5) / 0.6, (ny - 0.5) / 0.64) + (fbm(u * 0.8 + 20, v * 0.8 + 9, 3) - 0.5) * 0.55;
+            const nx = x / (gw - 1), ny = y / (gh - 1);
+            const u = nx * 4.3, v = ny * 4.3 * (TM_H / TM_W);
+            const wx = (fbm(u * 0.6 + 3.1, v * 0.6 + 1.7, 3) - 0.5) * 0.6;
+            const wy = (fbm(u * 0.6 + 8.3, v * 0.6 + 4.2, 3) - 0.5) * 0.6;
+            const base = fbm(u + wx, v + wy, 4);
+            const ridge = 1 - Math.abs(2 * fbm(u * 1.6 + wx + 11, v * 1.6 + wy + 5, 3) - 1);
+            const rr = Math.hypot((nx - 0.5) / 0.5, (ny - 0.5) / 0.55) + (fbm(u * 0.8 + 20, v * 0.8 + 9, 3) - 0.5) * 0.55;
             const mask = 1 - tmSmoothstep(0.55, 1.1, rr);
             grid[y * gw + x] = base * 0.55 + ridge * ridge * 0.22 * mask + mask * 0.7;
         }
@@ -5760,133 +5762,223 @@ function tmBuildTerrain() {
     const lineCuts = [];
     for (let q = 0.03; q < 0.47; q += 0.03)
         lineCuts.push(quant(q));
-    const rw = Math.round(TM_W * TM_RES), rh = Math.round(TM_H * TM_RES);
-    const hmap = new Float32Array(rw * rh);
-    for (let y = 0; y < rh; y++) {
-        const gy = (y / (rh - 1)) * (gh - 1);
-        const y0 = Math.floor(gy), y1 = Math.min(gh - 1, y0 + 1), fy = gy - y0;
-        for (let x = 0; x < rw; x++) {
-            const gx = (x / (rw - 1)) * (gw - 1);
-            const x0 = Math.floor(gx), x1 = Math.min(gw - 1, x0 + 1), fx = gx - x0;
-            const a = grid[y0 * gw + x0], b = grid[y0 * gw + x1], c = grid[y1 * gw + x0], d = grid[y1 * gw + x1];
-            hmap[y * rw + x] = a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
-        }
-    }
-    return { rw, rh, hmap, cuts, lineCuts };
-}
-function tmPaintBase(rw, rh, hmap, lineCuts) {
-    const canvas = document.createElement('canvas');
-    canvas.width = rw;
-    canvas.height = rh;
-    const g = canvas.getContext('2d');
-    const bg = g.createRadialGradient(rw * 0.5, rh * 0.5, 40, rw * 0.5, rh * 0.5, rw * 0.7);
-    bg.addColorStop(0, '#1b0d10');
-    bg.addColorStop(1, '#070405');
-    g.fillStyle = bg;
-    g.fillRect(0, 0, rw, rh);
-    const img = g.getImageData(0, 0, rw, rh);
-    const px = new Uint32Array(img.data.buffer);
-    const bucket = (h) => { let n = 0; while (n < lineCuts.length && h >= lineCuts[n])
-        n++; return n; };
-    const put = (i, major, h) => {
-        const a = (major ? 0.85 : 0.5) * (0.55 + 0.45 * (1 - Math.min(1, h / lineCuts[lineCuts.length - 1])));
-        const old = px[i];
-        const or = old & 255, og = (old >> 8) & 255, ob = (old >> 16) & 255;
-        const r = Math.min(255, or + (225 - or) * a), gg = Math.min(255, og + (34 - og) * a), b = Math.min(255, ob + (44 - ob) * a);
-        px[i] = (255 << 24) | (b << 16) | (gg << 8) | r;
+    const hAt = (wx, wy) => {
+        const gx = Math.min(gw - 1.001, Math.max(0, (wx / TM_W) * (gw - 1))), gy = Math.min(gh - 1.001, Math.max(0, (wy / TM_H) * (gh - 1)));
+        const x0 = Math.floor(gx), y0 = Math.floor(gy), fx = gx - x0, fy = gy - y0;
+        const a = grid[y0 * gw + x0], b = grid[y0 * gw + x0 + 1], c = grid[(y0 + 1) * gw + x0], d = grid[(y0 + 1) * gw + x0 + 1];
+        return a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
     };
-    for (let y = 0; y < rh - 1; y++) {
-        for (let x = 0; x < rw - 1; x++) {
-            const i = y * rw + x;
-            const b0 = bucket(hmap[i]);
-            if (b0 === lineCuts.length)
+    return { grid, cuts, lineCuts, hAt };
+}
+function tmContours(grid, gw, gh, level) {
+    const val = (x, y) => (x < 0 || y < 0 || x >= gw || y >= gh) ? -1e6 : grid[y * gw + x];
+    const KW = gw + 3;
+    const hKey = (x, y) => (y + 1) * KW + (x + 1);
+    const vKey = (x, y) => 1e7 + (y + 1) * KW + (x + 1);
+    const kA = [], kB = [], pts = [];
+    const addSeg = (k1, x1, y1, k2, x2, y2) => {
+        kA.push(k1);
+        kB.push(k2);
+        pts.push(x1, y1, x2, y2);
+    };
+    const t = (a, b) => { const d = b - a; return d === 0 ? 0.5 : Math.min(1, Math.max(0, (level - a) / d)); };
+    for (let y = -1; y < gh; y++) {
+        for (let x = -1; x < gw; x++) {
+            const a = val(x, y), b = val(x + 1, y), c = val(x + 1, y + 1), d = val(x, y + 1);
+            const idx = (a >= level ? 1 : 0) | (b >= level ? 2 : 0) | (c >= level ? 4 : 0) | (d >= level ? 8 : 0);
+            if (idx === 0 || idx === 15)
                 continue;
-            const bx = bucket(hmap[i + 1]), by = bucket(hmap[i + rw]);
-            if (bx !== b0 || by !== b0) {
-                const major = (Math.max(b0, bx, by) % 4) === 0;
-                put(i, major, hmap[i]);
-                if (major && x + 1 < rw)
-                    put(i + 1, true, hmap[i]);
+            const T = () => [hKey(x, y), x + t(a, b), y];
+            const R = () => [vKey(x + 1, y), x + 1, y + t(b, c)];
+            const B = () => [hKey(x, y + 1), x + t(d, c), y + 1];
+            const L = () => [vKey(x, y), x, y + t(a, d)];
+            const link = (p, q) => addSeg(p[0], p[1], p[2], q[0], q[1], q[2]);
+            switch (idx) {
+                case 1:
+                    link(L(), T());
+                    break;
+                case 2:
+                    link(T(), R());
+                    break;
+                case 3:
+                    link(L(), R());
+                    break;
+                case 4:
+                    link(R(), B());
+                    break;
+                case 5:
+                    if ((a + b + c + d) / 4 >= level) {
+                        link(T(), R());
+                        link(L(), B());
+                    }
+                    else {
+                        link(L(), T());
+                        link(R(), B());
+                    }
+                    break;
+                case 6:
+                    link(T(), B());
+                    break;
+                case 7:
+                    link(L(), B());
+                    break;
+                case 8:
+                    link(L(), B());
+                    break;
+                case 9:
+                    link(T(), B());
+                    break;
+                case 10:
+                    if ((a + b + c + d) / 4 >= level) {
+                        link(L(), T());
+                        link(R(), B());
+                    }
+                    else {
+                        link(T(), R());
+                        link(L(), B());
+                    }
+                    break;
+                case 11:
+                    link(R(), B());
+                    break;
+                case 12:
+                    link(L(), R());
+                    break;
+                case 13:
+                    link(T(), R());
+                    break;
+                case 14:
+                    link(L(), T());
+                    break;
             }
         }
     }
-    g.putImageData(img, 0, 0);
-    return canvas;
+    const n = kA.length;
+    const adj = new Map();
+    for (let i = 0; i < n; i++) {
+        (adj.get(kA[i]) || adj.set(kA[i], []).get(kA[i])).push(i);
+        (adj.get(kB[i]) || adj.set(kB[i], []).get(kB[i])).push(i);
+    }
+    const used = new Uint8Array(n);
+    const loops = [];
+    for (let i = 0; i < n; i++) {
+        if (used[i])
+            continue;
+        const loop = [pts[i * 4], pts[i * 4 + 1]];
+        let seg = i, head = kB[i], hx = pts[i * 4 + 2], hy = pts[i * 4 + 3];
+        used[seg] = 1;
+        for (;;) {
+            loop.push(hx, hy);
+            const next = (adj.get(head) || []).find(s => !used[s]);
+            if (next === undefined)
+                break;
+            seg = next;
+            used[seg] = 1;
+            if (kA[seg] === head) {
+                head = kB[seg];
+                hx = pts[seg * 4 + 2];
+                hy = pts[seg * 4 + 3];
+            }
+            else {
+                head = kA[seg];
+                hx = pts[seg * 4];
+                hy = pts[seg * 4 + 1];
+            }
+        }
+        loops.push(loop);
+    }
+    return loops;
 }
-function tmPaintLayer(rw, rh, hmap, cuts, k) {
-    const tmp = document.createElement('canvas');
-    tmp.width = rw;
-    tmp.height = rh;
-    const tg = tmp.getContext('2d');
-    const img = tg.createImageData(rw, rh);
-    const px = new Uint32Array(img.data.buffer);
-    const c = cuts[k];
-    const hi = k < cuts.length - 1 ? cuts[k + 1] : c + (c - cuts[k - 1]);
-    const gv = 36 + 168 * Math.pow(k / (cuts.length - 1), 1.35);
-    const br = gv, bgc = gv * 0.985, bb = gv * 0.97;
+function tmLoopsToPath(loops, minPts, step) {
+    const sx = TM_W / (TM_GW - 1), sy = TM_H / (TM_GH - 1);
+    const f = (v) => (Math.round(v * 10) / 10).toString();
+    let d = '';
+    for (const loop of loops) {
+        const pts = [];
+        for (let i = 0; i < loop.length; i += 2 * step)
+            pts.push(loop[i] * sx, loop[i + 1] * sy);
+        const n = pts.length / 2;
+        if (n < minPts)
+            continue;
+        const mx = (i, j) => (pts[((i % n) * 2)] + pts[((j % n) * 2)]) / 2;
+        const my = (i, j) => (pts[((i % n) * 2) + 1] + pts[((j % n) * 2) + 1]) / 2;
+        d += `M${f(mx(n - 1, 0))} ${f(my(n - 1, 0))}`;
+        for (let i = 0; i < n; i++)
+            d += `Q${f(pts[i * 2])} ${f(pts[i * 2 + 1])} ${f(mx(i, i + 1))} ${f(my(i, i + 1))}`;
+        d += 'Z';
+    }
+    return d;
+}
+function tmBuildBaseSvg(t) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${TM_W} ${TM_H}`);
+    svg.setAttribute('preserveAspectRatio', 'none');
+    svg.setAttribute('class', 'tm-base');
+    let minor = '', major = '';
+    t.lineCuts.forEach((c, i) => {
+        const d = tmLoopsToPath(tmContours(t.grid, TM_GW, TM_GH, c), 8, 2);
+        if (i % 4 === 0)
+            major += d;
+        else
+            minor += d;
+    });
+    svg.innerHTML = `
+    <defs><radialGradient id="tmOcean" cx="50%" cy="48%" r="70%"><stop offset="0" stop-color="#1c0d10"/><stop offset="1" stop-color="#070405"/></radialGradient></defs>
+    <rect width="${TM_W}" height="${TM_H}" fill="url(#tmOcean)"/>
+    <path d="${minor}" fill="none" stroke="#c9262e" stroke-opacity="0.55" stroke-width="0.8" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+    <path d="${major}" fill="none" stroke="#ff3d3d" stroke-opacity="0.85" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
+    return svg;
+}
+function tmBuildLayerSvg(t, k) {
+    const NS = 'http://www.w3.org/2000/svg';
+    const svg = document.createElementNS(NS, 'svg');
+    svg.setAttribute('viewBox', `0 0 ${TM_W} ${TM_H}`);
+    svg.setAttribute('preserveAspectRatio', 'none');
+    const d = tmLoopsToPath(tmContours(t.grid, TM_GW, TM_GH, t.cuts[k]), 7, 1);
+    const gv = 36 + 168 * Math.pow(k / (t.cuts.length - 1), 1.35);
+    const rgb = (m, tint) => {
+        const r = tint ? tint[0] : gv * 1.0, g = tint ? tint[1] : gv * 0.985, b = tint ? tint[2] : gv * 0.97;
+        return `rgb(${Math.min(255, Math.round(r * m))},${Math.min(255, Math.round(g * m))},${Math.min(255, Math.round(b * m))})`;
+    };
     const orange = k === 2 || k === 5;
-    for (let y = 0; y < rh; y++) {
-        for (let x = 0; x < rw; x++) {
-            const i = y * rw + x;
-            const h = hmap[i];
-            if (h < c)
-                continue;
-            const t = Math.min(1, (h - c) / (hi - c));
-            let f = 0.9 + 0.2 * t;
-            let r = br, g = bgc, b = bb;
-            const ul = (x >= 2 && y >= 2) ? hmap[i - 2 * rw - 2] >= c : false;
-            const dr = (x < rw - 1 && y < rh - 1) ? hmap[i + rw + 1] >= c : false;
-            if (!ul) {
-                f = 1.3;
-                if (orange) {
-                    r = 255;
-                    g = 150;
-                    b = 70;
-                    f = 1.0;
-                }
-            }
-            else if (!dr) {
-                f = 0.7;
-            }
-            r = Math.min(255, r * f);
-            g = Math.min(255, g * f);
-            b = Math.min(255, b * f);
-            px[i] = (255 << 24) | (b << 16) | (g << 8) | r;
-        }
-    }
-    tg.putImageData(img, 0, 0);
-    const canvas = document.createElement('canvas');
-    canvas.width = rw;
-    canvas.height = rh;
-    const g2 = canvas.getContext('2d');
-    g2.shadowColor = 'rgba(0,0,0,0.7)';
-    g2.shadowBlur = 18;
-    g2.shadowOffsetX = 2;
-    g2.shadowOffsetY = 8;
-    g2.drawImage(tmp, 0, 0);
-    return canvas;
+    const id = 'tmL' + k;
+    svg.innerHTML = `
+    <defs>
+      <path id="${id}" d="${d}" fill-rule="evenodd"/>
+      <linearGradient id="${id}g" gradientUnits="userSpaceOnUse" x1="0" y1="0" x2="${TM_W}" y2="${TM_H}">
+        <stop offset="0" stop-color="${rgb(1.2)}"/><stop offset="1" stop-color="${rgb(0.82)}"/>
+      </linearGradient>
+    </defs>
+    <use href="#${id}" x="5.5" y="11" fill="#000" fill-opacity="0.12"/>
+    <use href="#${id}" x="3.5" y="7" fill="#000" fill-opacity="0.22"/>
+    <use href="#${id}" x="2" y="4" fill="#000" fill-opacity="0.34"/>
+    <use href="#${id}" x="2.4" y="3.6" fill="${rgb(0.4)}"/>
+    <use href="#${id}" x="1.6" y="2.4" fill="${rgb(0.5)}"/>
+    <use href="#${id}" x="0.8" y="1.2" fill="${rgb(0.6)}"/>
+    <use href="#${id}" x="-0.9" y="-0.9" fill="${orange ? rgb(1, [255, 150, 72]) : rgb(1.55)}"/>
+    <use href="#${id}" fill="url(#${id}g)"/>`;
+    return svg;
 }
-function tmPlaceMarkers(rw, rh, hmap, cuts) {
+function tmPlaceMarkers(t) {
     const levelAt = (wx, wy) => {
-        const x = Math.min(rw - 1, Math.max(0, Math.round(wx * TM_RES))), y = Math.min(rh - 1, Math.max(0, Math.round(wy * TM_RES)));
-        const h = hmap[y * rw + x];
+        const h = t.hAt(wx, wy);
         let n = 0;
-        while (n < cuts.length && h >= cuts[n])
+        while (n < t.cuts.length && h >= t.cuts[n])
             n++;
         return n;
     };
     let sx = 0, sy = 0, sn = 0;
-    const topCut = cuts[5];
-    for (let y = 0; y < rh; y += 4)
-        for (let x = 0; x < rw; x += 4)
-            if (hmap[y * rw + x] >= topCut) {
+    for (let y = 0; y < TM_GH; y += 2)
+        for (let x = 0; x < TM_GW; x += 2)
+            if (t.grid[y * TM_GW + x] >= t.cuts[5]) {
                 sx += x;
                 sy += y;
                 sn++;
             }
     const city = {
         id: 'novelance', label: 'Novelance', caption: 'Cité-bastion de Halcyon', kind: 'city', route: 'novelance',
-        x: sn ? sx / sn / TM_RES : TM_W * 0.5, y: sn ? sy / sn / TM_RES : TM_H * 0.5, level: 0,
+        x: sn ? (sx / sn) * TM_W / (TM_GW - 1) : TM_W * 0.5, y: sn ? (sy / sn) * TM_H / (TM_GH - 1) : TM_H * 0.5, level: 0,
     };
     city.level = levelAt(city.x, city.y);
     const out = [city];
@@ -5971,7 +6063,7 @@ function tmStepTab(dir) {
 }
 function openMapOverlay() {
     let overlay = document.getElementById('mapOverlay');
-    if (overlay && overlay.classList.contains('open')) {
+    if (overlay && (overlay.classList.contains('open') || tmBooting)) {
         tmRefreshMarkers();
         return;
     }
@@ -5983,31 +6075,30 @@ function openMapOverlay() {
     }
     overlay.innerHTML = mapOverlayHtml();
     document.body.style.overflow = 'hidden';
+    tmBooting = true;
     requestAnimationFrame(() => {
         overlay.classList.add('open');
-        setTimeout(initTerrainMap, 80);
+        setTimeout(() => { initTerrainMap(); tmBooting = false; }, 80);
     });
 }
 function initTerrainMap() {
     const overlay = document.getElementById('mapOverlay');
     const stage = document.getElementById('tmStage');
     const world = document.getElementById('tmWorld');
-    if (!overlay || !stage || !world)
+    if (!overlay || !stage || !world || !overlay.classList.contains('open') || world.childElementCount > 0)
         return;
-    const { rw, rh, hmap, cuts, lineCuts } = tmBuildTerrain();
-    tmTerrain = { rw, rh, hmap, cuts };
-    const base = tmPaintBase(rw, rh, hmap, lineCuts);
-    base.className = 'tm-base';
-    world.appendChild(base);
-    for (let k = 0; k < cuts.length; k++) {
+    const terrain = tmBuildTerrain();
+    tmTerrain = terrain;
+    world.appendChild(tmBuildBaseSvg(terrain));
+    for (let k = 0; k < terrain.cuts.length; k++) {
         const layer = document.createElement('div');
         layer.className = 'tm-layer';
         layer.style.setProperty('--i', String(k));
         layer.style.setProperty('--d', ((k + 1) / TM_LEVELS).toFixed(3));
-        layer.appendChild(tmPaintLayer(rw, rh, hmap, cuts, k));
+        layer.appendChild(tmBuildLayerSvg(terrain, k));
         world.appendChild(layer);
     }
-    tmMarkers = tmPlaceMarkers(rw, rh, hmap, cuts);
+    tmMarkers = tmPlaceMarkers(terrain);
     const mk = document.createElement('div');
     mk.className = 'tm-markers';
     mk.innerHTML = tmMarkers.map(tmMarkerHtml).join('');
@@ -6152,6 +6243,7 @@ function cleanupMap() {
         tmState = null;
     }
     tmTerrain = null;
+    tmBooting = false;
 }
 function closeMapOverlay() {
     const overlay = document.getElementById('mapOverlay');
