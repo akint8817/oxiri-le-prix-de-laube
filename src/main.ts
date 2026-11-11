@@ -6289,11 +6289,31 @@ function dockHalcyonLogoImmediate(): void {
 function setHalcyonImmersive(on: boolean): void {
   const shell = document.querySelector('.shell');
   if(shell) shell.classList.toggle('immersive', on);
+  // Dans la section Halcyon, c'est le logo Halcyon (en haut à gauche) qui
+  // ouvre le menu : on masque donc le logo ✦ habituel.
+  document.body.classList.toggle('immersive-nav', on);
+}
+
+// Menu latéral : il se superpose au site (qui reste en plein écran) et se
+// referme au clic à côté, à Échap ou dès qu'on choisit une page.
+function openNav(): void {
+  document.body.classList.add('nav-open');
+  const btn = document.getElementById('navLogoBtn');
+  if(btn) btn.setAttribute('aria-expanded', 'true');
+}
+
+function closeNav(): void {
+  document.body.classList.remove('nav-open');
+  const btn = document.getElementById('navLogoBtn');
+  if(btn) btn.setAttribute('aria-expanded', 'false');
+}
+
+function toggleNav(): void {
+  if(document.body.classList.contains('nav-open')) closeNav(); else openNav();
 }
 
 function toggleHalcyonNav(): void {
-  const shell = document.querySelector('.shell');
-  if(shell) shell.classList.toggle('immersive');
+  toggleNav();
 }
 
 function playDossierBoot(renderFn: () => string): void {
@@ -7688,6 +7708,7 @@ function render(): void {
   const route = (window.location.hash || '#home').slice(1);
   const isNavigation = route !== lastRenderedRoute;
   lastRenderedRoute = route;
+  if(isNavigation) closeNav();
   const content = document.getElementById('content')!;
 
   if(route !== 'carte') closeMapOverlay();
@@ -8128,8 +8149,14 @@ window.addEventListener('keydown', (ev)=>{
     if(mapOv && mapOv.classList.contains('open')){ navigate('home'); }
     else if(leakOv){ leakOv.remove(); document.body.style.overflow = ''; }
     else if(codeOv && codeOv.classList.contains('open')){ closeCorruptCodeWindow(); }
-    else { closeRosterZoom(); closeStoryBook(); }
+    else { closeRosterZoom(); closeStoryBook(); closeNav(); }
   }
+});
+
+// Un clic sur une entrée du menu (même celle de la page déjà ouverte, qui ne
+// change pas l'adresse) referme le menu.
+document.getElementById('sidebar')?.addEventListener('click', (ev)=>{
+  if((ev.target as HTMLElement).closest('.nav-link, .search-results a, .brand')) closeNav();
 });
 
 /* --- search --- */

@@ -5442,11 +5442,28 @@ function setHalcyonImmersive(on) {
     const shell = document.querySelector('.shell');
     if (shell)
         shell.classList.toggle('immersive', on);
+    document.body.classList.toggle('immersive-nav', on);
+}
+function openNav() {
+    document.body.classList.add('nav-open');
+    const btn = document.getElementById('navLogoBtn');
+    if (btn)
+        btn.setAttribute('aria-expanded', 'true');
+}
+function closeNav() {
+    document.body.classList.remove('nav-open');
+    const btn = document.getElementById('navLogoBtn');
+    if (btn)
+        btn.setAttribute('aria-expanded', 'false');
+}
+function toggleNav() {
+    if (document.body.classList.contains('nav-open'))
+        closeNav();
+    else
+        openNav();
 }
 function toggleHalcyonNav() {
-    const shell = document.querySelector('.shell');
-    if (shell)
-        shell.classList.toggle('immersive');
+    toggleNav();
 }
 function playDossierBoot(renderFn) {
     const content = document.getElementById('content');
@@ -6795,6 +6812,8 @@ function render() {
     const route = (window.location.hash || '#home').slice(1);
     const isNavigation = route !== lastRenderedRoute;
     lastRenderedRoute = route;
+    if (isNavigation)
+        closeNav();
     const content = document.getElementById('content');
     if (route !== 'carte')
         closeMapOverlay();
@@ -7249,8 +7268,13 @@ window.addEventListener('keydown', (ev) => {
         else {
             closeRosterZoom();
             closeStoryBook();
+            closeNav();
         }
     }
+});
+document.getElementById('sidebar')?.addEventListener('click', (ev) => {
+    if (ev.target.closest('.nav-link, .search-results a, .brand'))
+        closeNav();
 });
 /* --- search --- */
 const searchInput = document.getElementById('searchInput');

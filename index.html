@@ -225,36 +225,48 @@ h1,h2,h3,h4{
 ::selection{ background: var(--amber-dim); color: #fff; }
 
 /* --- layout shell --- */
-.shell{
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  max-width: 1760px;
-  margin: 0 auto;
-  min-height: 100vh;
-  transition: grid-template-columns .4s cubic-bezier(.2,.8,.2,1), max-width .4s ease;
-}
-.shell.immersive{ grid-template-columns: 0px 1fr; max-width: none; }
-.shell.no-anim, .shell.no-anim .sidebar{ transition: none !important; }
-@media (max-width: 800px){
-  .shell{ grid-template-columns: 1fr; }
-  .sidebar{ position: relative; }
-}
+.shell{ min-height: 100vh; }
 
-/* --- sidebar --- */
-.sidebar{
-  border-right: 1px solid var(--border);
-  padding: 28px 20px;
-  position: sticky;
-  top: 0;
-  align-self: start;
-  height: 100vh;
-  overflow-y: auto;
-  overflow-x: hidden;
-  opacity: 1;
-  transition: opacity .3s ease, padding .4s ease;
+/* --- menu latéral : le site occupe tout l'écran, le menu se superpose sur le
+   côté quand on clique sur le logo (voir toggleNav) et se referme en
+   douceur au clic à côté, à l'Échap ou après avoir choisi une page. --- */
+.nav-backdrop{
+  position: fixed; inset: 0; z-index: 1000;
+  background: rgba(3,3,5,0.6); backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+  opacity: 0; pointer-events: none;
+  transition: opacity .45s ease;
 }
-.shell.immersive .sidebar{ opacity: 0; padding-left:0; padding-right:0; pointer-events: none; border-right-color: transparent; }
-@media (max-width: 800px){ .sidebar{ height: auto; position: static; border-right:none; border-bottom:1px solid var(--border);} }
+body.nav-open .nav-backdrop{ opacity: 1; pointer-events: auto; }
+.nav-logo-btn{
+  position: fixed; top: 25px; left: 17px; z-index: 600;
+  width: 36px; height: 36px; padding: 0; cursor: pointer;
+  border: 1px solid var(--amber); border-radius: 50%;
+  background: rgba(8,8,10,0.72); backdrop-filter: blur(4px); -webkit-backdrop-filter: blur(4px);
+  color: var(--amber); font-family: 'Cinzel', serif; font-size: 18px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 0 8px rgba(196,201,209,0.4);
+  animation: markpulse 3.5s ease-in-out infinite;
+  transition: transform .45s cubic-bezier(.22,.8,.2,1), background .25s ease;
+}
+.nav-logo-btn:hover{ background: rgba(28,30,36,0.9); }
+body.nav-open .nav-logo-btn{ z-index: 1020; transform: rotate(90deg); }
+body.immersive-nav .nav-logo-btn{ display: none; }
+.sidebar{
+  position: fixed; top: 0; left: 0; bottom: 0; z-index: 1010;
+  width: 300px; max-width: 86vw; box-sizing: border-box;
+  padding: 28px 20px;
+  background: linear-gradient(180deg, #101013, #08080a);
+  border-right: 1px solid var(--border);
+  box-shadow: 18px 0 50px rgba(0,0,0,0.55);
+  overflow-y: auto; overflow-x: hidden;
+  transform: translateX(-105%); visibility: hidden;
+  transition: transform .45s cubic-bezier(.22,.8,.2,1), visibility 0s linear .45s;
+}
+body.nav-open .sidebar{
+  transform: translateX(0); visibility: visible;
+  transition: transform .45s cubic-bezier(.22,.8,.2,1), visibility 0s;
+}
+.sidebar .brand-mark{ visibility: hidden; }
 
 .brand{
   display:flex;
@@ -364,6 +376,52 @@ h1,h2,h3,h4{
 .nav-link.active{ color: var(--amber); border-left-color: var(--amber); background: var(--surface); }
 .nav-icon{ width:15px; height:15px; opacity:0.75; flex-shrink:0; }
 
+/* Dans le menu latéral : chaque entrée est un point relié aux autres par un
+   fil vertical, les groupes ont une pastille numérotée, et les entrées
+   apparaissent l'une après l'autre à l'ouverture. */
+.sidebar .nav-group{ position:relative; margin-bottom:26px; }
+.sidebar .nav-group::before{
+  content:''; position:absolute; left:10px; top:32px; bottom:16px; width:2px;
+  background: linear-gradient(180deg, var(--amber-dim), rgba(75,81,88,0.2));
+}
+.sidebar .nav-label{
+  display:flex; align-items:center; gap:10px; margin-bottom:10px; padding:0;
+  font-weight:700; font-size:11px; letter-spacing:0.16em; color:var(--amber);
+}
+.sidebar .nav-label::before{
+  content:'01'; width:22px; height:22px; border-radius:50%; flex-shrink:0;
+  display:flex; align-items:center; justify-content:center;
+  background: var(--amber); color:#0a0a0c; font-size:9.5px; letter-spacing:0; position:relative; z-index:1;
+}
+.sidebar .nav-group + .nav-group .nav-label::before{ content:'02'; }
+.sidebar .nav-icon{ display:none; }
+.sidebar .nav-link{
+  position:relative; padding:8px 8px 8px 34px; border-left:none; font-size:12.5px;
+  opacity:0; transform:translateX(-12px);
+  transition: opacity .4s ease, transform .4s cubic-bezier(.22,.8,.2,1), color .15s ease, background .15s ease;
+}
+.sidebar .nav-link::before{
+  content:''; position:absolute; left:5px; top:50%; width:11px; height:11px; margin-top:-5.5px; box-sizing:border-box;
+  border-radius:50%; border:2px solid var(--amber-dim); background:#0b0b0e;
+  transition: border-color .2s ease, background .2s ease, box-shadow .2s ease;
+}
+.sidebar .nav-link:hover::before{ border-color: var(--amber); }
+.sidebar .nav-link.active{ background: rgba(196,201,209,0.06); }
+.sidebar .nav-link.active::before{ background: var(--amber); border-color: var(--amber); box-shadow: 0 0 9px rgba(196,201,209,0.7); }
+body.nav-open .sidebar .nav-link{ opacity:1; transform:none; }
+body.nav-open .sidebar .nav-link:nth-child(2){ transition-delay:.12s, .12s, 0s, 0s; }
+body.nav-open .sidebar .nav-link:nth-child(3){ transition-delay:.16s, .16s, 0s, 0s; }
+body.nav-open .sidebar .nav-link:nth-child(4){ transition-delay:.2s, .2s, 0s, 0s; }
+body.nav-open .sidebar .nav-link:nth-child(5){ transition-delay:.24s, .24s, 0s, 0s; }
+body.nav-open .sidebar .nav-link:nth-child(6){ transition-delay:.28s, .28s, 0s, 0s; }
+body.nav-open .sidebar .nav-link:nth-child(7){ transition-delay:.32s, .32s, 0s, 0s; }
+body.nav-open .sidebar .nav-link:nth-child(8){ transition-delay:.36s, .36s, 0s, 0s; }
+body.nav-open .sidebar .nav-link:nth-child(9){ transition-delay:.4s, .4s, 0s, 0s; }
+body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0s, 0s; }
+@media (prefers-reduced-motion: reduce){
+  .sidebar, .nav-backdrop, .sidebar .nav-link{ transition-duration:.01s !important; transition-delay:0s !important; }
+}
+
 .sidebar-foot{
   margin-top: 30px;
   padding-top: 14px;
@@ -378,8 +436,8 @@ h1,h2,h3,h4{
 .topbar{
   display:none;
 }
-.content{ padding: 34px 40px 60px; }
-@media (max-width: 800px){ .content{ padding: 24px 20px 50px; } }
+.content{ padding: 72px 40px 60px; }
+@media (max-width: 800px){ .content{ padding: 68px 20px 50px; } }
 .content.page-enter{ animation: contentFadeIn .45s cubic-bezier(.2,.8,.2,1); }
 @keyframes contentFadeIn{ from{ opacity:0; transform:translateY(14px); } to{ opacity:1; transform:none; } }
 
@@ -400,13 +458,13 @@ h1,h2,h3,h4{
     linear-gradient(180deg, #0c0c0e 0%, #141416 55%, #0c0c0e 100%);
   border-radius: var(--radius);
   padding: 76px 40px 54px;
-  margin: -34px -40px 34px;
+  margin: -72px -40px 34px;
   position: relative;
   overflow:hidden;
   text-align: center;
   display:flex; flex-direction:column; align-items:center;
 }
-@media (max-width: 800px){ .hero{ margin: -24px -20px 28px; padding: 56px 24px 40px; } }
+@media (max-width: 800px){ .hero{ margin: -68px -20px 28px; padding: 56px 24px 40px; } }
 .hero::before{
   content:"";
   position:absolute; inset:0;
@@ -2655,7 +2713,7 @@ h1,h2,h3,h4{
 /* ---- Page Personnages : toolbar (faction + recherche), cartes cadre tech
    (numéro, portrait, étiquette de faction, barre de nom) et fond animé très
    discret (grille qui dérive, halo, balayage lent). ---- */
-.perso-page{ position:relative; margin:-34px -40px -60px; padding:34px 40px 60px; min-height:calc(100vh - 20px); overflow:hidden; }
+.perso-page{ position:relative; margin:-72px -40px -60px; padding:72px 40px 60px; min-height:calc(100vh - 20px); overflow:hidden; }
 .perso-page > *:not(.perso-bg){ position:relative; z-index:1; }
 .perso-bg{ position:absolute; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
 .perso-bg::before{
@@ -2772,7 +2830,7 @@ h1,h2,h3,h4{
 }
 .perso-card:hover::after{ opacity:1; }
 @media (max-width:800px){
-  .perso-page{ margin:-24px -20px -50px; padding:24px 20px 50px; }
+  .perso-page{ margin:-68px -20px -50px; padding:68px 20px 50px; }
 }
 @media (max-width:700px){
   .perso-grid{ grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap:18px 12px; }
@@ -3486,8 +3544,9 @@ footer.page-foot{
   </div>
 </div>
 
-<div class="shell">
-  <aside class="sidebar">
+<div class="nav-backdrop" id="navBackdrop" onclick="closeNav()"></div>
+<button type="button" class="nav-logo-btn" id="navLogoBtn" onclick="toggleNav()" aria-label="Menu" aria-expanded="false">✦</button>
+<aside class="sidebar" id="sidebar">
     <div class="brand" onclick="navigate('home')">
       <div class="brand-mark">✦</div>
       <div>
@@ -3560,6 +3619,7 @@ footer.page-foot{
     </div>
   </aside>
 
+<div class="shell">
   <main class="main">
     <div class="content" id="content"><!-- injected --></div>
   </main>
@@ -3584,6 +3644,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=65"></script>
+<script src="dist/main.js?v=66"></script>
 </body>
 </html>
