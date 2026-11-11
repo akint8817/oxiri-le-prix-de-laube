@@ -698,7 +698,7 @@ function totalWfImagesBytes() {
     return wfImagesDraft.reduce((sum, img) => sum + estimateImageBytes(img.url), 0);
 }
 
-const DRAFT_FIELD_IDS = ['wfCat', 'wfName', 'wfTagline', 'wfQuote', 'wfFactionSelect', 'wfFaction', 'wfOxiriGene', 'wfSpecialite', 'wfCapacite', 'wfMusic', 'wfBody', 'wfEditId', 'ceDate', 'ceTitle', 'ceBody', 'ceEditId', 'cnpLabel', 'cnpBody', 'hiDirigeant', 'hiDirigeantDesc', 'hsqName', 'hsqDesc', 'sqdName', 'sqdDesc', 'sqdTag', 'sqdCategory', 'sqdMusic', 'sqdBody', 'sfTitle', 'sfDanger', 'sfBody', 'sfEditId', 'orgfEditId', 'orgfName', 'orgfTag', 'orgfCategory', 'orgfDesc', 'orgdName', 'orgdTag', 'orgdCategory', 'orgdDesc', 'orgdMusic', 'orgdBody', 'frqEditId', 'frqName', 'frqTagline', 'frqQuote', 'frqFactionSelect', 'frqFaction', 'frqOxiriGene', 'frqSpecialite', 'frqCapacite', 'frqMusic', 'frqBody'];
+const DRAFT_FIELD_IDS = ['wfCat', 'wfName', 'wfTagline', 'wfQuote', 'wfFactionSelect', 'wfFaction', 'wfOxiriGene', 'wfSpecialite', 'wfCapacite', 'wfMusic', 'wfBody', 'wfEditId', 'ceDate', 'ceTitle', 'ceBody', 'ceEditId', 'cnpLabel', 'cnpBody', 'hiDirigeant', 'hiDirigeantDesc', 'hsqName', 'hsqDesc', 'sqdName', 'sqdDesc', 'sqdTag', 'sqdCategory', 'sqdMusic', 'sqdBody', 'sfTitle', 'sfDanger', 'sfBody', 'sfEditId', 'orgfEditId', 'orgfName', 'orgfTag', 'orgfCategory', 'orgfDesc', 'orgdName', 'orgdTag', 'orgdCategory', 'orgdDesc', 'orgdMusic', 'orgdBody', 'frqEditId', 'frqName', 'frqTagline', 'frqQuote', 'frqFactionSelect', 'frqFaction', 'frqOxiriGene', 'frqRang', 'frqStats', 'wfRang', 'wfStats', 'frqSpecialite', 'frqCapacite', 'frqMusic', 'frqBody'];
 
 function captureDraftFormState() {
     const state = {};
@@ -764,11 +764,11 @@ function initFirestoreSync() {
             const isOverride = ENTRIES_BASE.some(e => e.id === doc.id);
             if (isOverride) {
                 if (data.deleted) { deletedOverrideIds.add(doc.id); return; }
-                overrides[doc.id] = { cat: data.cat, name: data.name, tagline: data.tagline, quote: data.quote || undefined, body: data.body || [], images: data.images, specialite, capacite: data.capacite || undefined, faction: data.faction || undefined, factionId: data.factionId || undefined, music: data.music || undefined, linkedIds: data.linkedIds || undefined, oxiriGene: data.oxiriGene || undefined };
+                overrides[doc.id] = { cat: data.cat, name: data.name, tagline: data.tagline, quote: data.quote || undefined, body: data.body || [], images: data.images, specialite, capacite: data.capacite || undefined, faction: data.faction || undefined, factionId: data.factionId || undefined, music: data.music || undefined, linkedIds: data.linkedIds || undefined, oxiriGene: data.oxiriGene || undefined, rang: data.rang || undefined, stats: data.stats || undefined };
                 return;
             }
             const images = data.images || (data.image ? [{ url: data.image, caption: '' }] : []);
-            list.push({ id: doc.id, cat: data.cat, name: data.name, tagline: data.tagline, quote: data.quote || undefined, body: data.body || [], author: data.author || 'aki', images, specialite, capacite: data.capacite || undefined, faction: data.faction || undefined, factionId: data.factionId || undefined, music: data.music || undefined, linkedIds: data.linkedIds || undefined, oxiriGene: data.oxiriGene || undefined });
+            list.push({ id: doc.id, cat: data.cat, name: data.name, tagline: data.tagline, quote: data.quote || undefined, body: data.body || [], author: data.author || 'aki', images, specialite, capacite: data.capacite || undefined, faction: data.faction || undefined, factionId: data.factionId || undefined, music: data.music || undefined, linkedIds: data.linkedIds || undefined, oxiriGene: data.oxiriGene || undefined, rang: data.rang || undefined, stats: data.stats || undefined });
         });
         ENTRIES.length = 0;
         ENTRIES_BASE.forEach(base => {
@@ -790,6 +790,7 @@ function initFirestoreSync() {
             list.push({
                 id: doc.id, name: data.name || '', tagline: data.tagline || '', quote: data.quote || undefined,
                 faction: data.faction || undefined, factionId: data.factionId || undefined, oxiriGene: data.oxiriGene || undefined,
+                rang: data.rang || undefined, stats: data.stats || undefined,
                 specialite: data.specialite || undefined, capacite: data.capacite || undefined, music: data.music || undefined,
                 linkedIds: data.linkedIds || undefined, body: data.body || [], images: data.images || undefined,
                 author: data.author || 'aki', ownerToken: data.ownerToken || undefined,
@@ -923,6 +924,7 @@ function getCustomEntriesRaw() {
 }
 function customEntryToEntry(c) {
     const info = {};
+    if (c.rang) info['Rang'] = c.rang;
     if (c.oxiriGene) info["Gène d'Oxiri lié"] = c.oxiriGene;
     if (c.capacite) info['Spécificité'] = c.capacite;
     info['Auteur'] = capitalize(c.author || 'aki');
@@ -930,6 +932,7 @@ function customEntryToEntry(c) {
         id: 'custom-' + c.id, cat: c.cat, name: c.name, tagline: c.tagline, rarity: 'common',
         quote: c.quote, summary: c.tagline, info, body: c.body,
         specialite: c.specialite,
+        stats: c.stats,
         faction: c.factionId,
         factionLabel: c.faction,
         music: c.music,
@@ -947,8 +950,10 @@ function mergeEntryOverride(base, ov) {
         info['Spécificité'] = ov.capacite;
     }
     if (ov.oxiriGene) info["Gène d'Oxiri lié"] = ov.oxiriGene;
+    if (ov.rang) info['Rang'] = ov.rang;
     return {
         ...base,
+        stats: ov.stats && ov.stats.length ? ov.stats : base.stats,
         cat: ov.cat || base.cat,
         name: ov.name || base.name,
         tagline: ov.tagline || base.tagline,
@@ -1060,6 +1065,16 @@ function renderFicheRequestForm() {
         <div class="write-hint">S'affiche comme ligne d'info "Gène d'Oxiri lié" sur la fiche, comme pour Alice ou Sariah.</div>
       </div>
       <div class="write-row">
+        <label>Rang (optionnel)</label>
+        <input id="frqRang" type="text" placeholder="Ex : Rang A, S, D…">
+        <div class="write-hint">S'affiche dans l'encadré « Rang » à gauche de la fiche.</div>
+      </div>
+      <div class="write-row">
+        <label>Statistiques (optionnel)</label>
+        <textarea id="frqStats" rows="5" placeholder="Sexe : Femme&#10;Âge : 24 ans&#10;Taille : 168 cm&#10;Anniversaire : 10 avril"></textarea>
+        <div class="write-hint">Une statistique par ligne, au format <code>Libellé : valeur</code>. Elles s'affichent en grille dans l'onglet « Présentation générale ».</div>
+      </div>
+      <div class="write-row">
         <label>Spécificité (optionnel)</label>
         <input id="frqCapacite" type="text" placeholder="Ex : Androïde de dernière génération, Rang A…">
         <div class="write-hint">S'affiche comme info courte à côté de la fiche.</div>
@@ -1160,6 +1175,16 @@ function renderEcriture() {
         <label>Gène d'Oxiri lié (optionnel)</label>
         <input id="wfOxiriGene" type="text" placeholder="Ex : Kitzo, Apoleia…">
         <div class="write-hint">S'affiche comme ligne d'info "Gène d'Oxiri lié" sur la fiche, comme pour Alice ou Sariah.</div>
+      </div>
+      <div class="write-row">
+        <label>Rang (optionnel)</label>
+        <input id="wfRang" type="text" placeholder="Ex : Rang A, S, D…">
+        <div class="write-hint">S'affiche dans l'encadré « Rang » à gauche de la fiche d'un personnage.</div>
+      </div>
+      <div class="write-row">
+        <label>Statistiques (optionnel)</label>
+        <textarea id="wfStats" rows="5" placeholder="Sexe : Femme&#10;Âge : 24 ans&#10;Taille : 168 cm&#10;Anniversaire : 10 avril"></textarea>
+        <div class="write-hint">Une statistique par ligne, au format <code>Libellé : valeur</code>. Elles s'affichent en grille dans l'onglet « Présentation générale » d'un personnage.</div>
       </div>
       <div class="write-row">
         <label>Spécificité (optionnel)</label>
@@ -1588,6 +1613,8 @@ function submitCustomEntry() {
     const factionSelectEl = document.getElementById('wfFactionSelect');
     const factionEl = document.getElementById('wfFaction');
     const oxiriGeneEl = document.getElementById('wfOxiriGene');
+    const rangEl = document.getElementById('wfRang');
+    const statsEl = document.getElementById('wfStats');
     const specialiteEl = document.getElementById('wfSpecialite');
     const capaciteEl = document.getElementById('wfCapacite');
     const musicEl = document.getElementById('wfMusic');
@@ -1602,6 +1629,8 @@ function submitCustomEntry() {
     const factionId = factionSelect && factionSelect !== '__custom' ? factionSelect : '';
     const faction = factionSelect === '__custom' ? (factionEl?.value || '').trim() : '';
     const oxiriGene = (oxiriGeneEl?.value || '').trim();
+    const rang = (rangEl?.value || '').trim();
+    const stats = (statsEl?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
     const specialite = parseWriteBody(specialiteEl?.value || '');
     const capacite = (capaciteEl?.value || '').trim();
     const music = (musicEl?.value || '').trim();
@@ -1619,12 +1648,12 @@ function submitCustomEntry() {
     if (editId) {
         const existing = customEntriesCache.find(c => c.id === editId);
         db.collection('entries').doc(editId).set({
-            cat, name, tagline, quote: quote || null, faction: faction || null, factionId: factionId || null, oxiriGene: oxiriGene || null, specialite: specialite.length ? specialite : null, capacite: capacite || null, music: music || null, linkedIds: linkedIds.length ? linkedIds : null, body, images,
+            cat, name, tagline, quote: quote || null, faction: faction || null, factionId: factionId || null, oxiriGene: oxiriGene || null, rang: rang || null, stats: stats.length ? stats : null, specialite: specialite.length ? specialite : null, capacite: capacite || null, music: music || null, linkedIds: linkedIds.length ? linkedIds : null, body, images,
             author: existing ? existing.author : (getCurrentUser() || 'aki'),
         }).catch((err) => { if (errEl) errEl.textContent = 'Erreur : ' + err.message; });
     } else {
         db.collection('entries').add({
-            cat, name, tagline, quote: quote || null, faction: faction || null, factionId: factionId || null, oxiriGene: oxiriGene || null, specialite: specialite.length ? specialite : null, capacite: capacite || null, music: music || null, linkedIds: linkedIds.length ? linkedIds : null, body, images, author: getCurrentUser() || 'aki',
+            cat, name, tagline, quote: quote || null, faction: faction || null, factionId: factionId || null, oxiriGene: oxiriGene || null, rang: rang || null, stats: stats.length ? stats : null, specialite: specialite.length ? specialite : null, capacite: capacite || null, music: music || null, linkedIds: linkedIds.length ? linkedIds : null, body, images, author: getCurrentUser() || 'aki',
         }).catch((err) => { if (errEl) errEl.textContent = 'Erreur : ' + err.message; });
     }
     cancelEditCustomEntry();
@@ -1648,6 +1677,8 @@ function editCustomEntry(id) {
     document.getElementById('wfFaction').value = entry.factionLabel || '';
     onWfFactionSelectChange();
     document.getElementById('wfOxiriGene').value = entry.info["Gène d'Oxiri lié"] || '';
+    document.getElementById('wfRang').value = entry.info['Rang'] || entry.info['Rang hybride'] || '';
+    document.getElementById('wfStats').value = (entry.stats || []).join('\n');
     document.getElementById('wfSpecialite').value = (entry.specialite || []).map(decodeBodyLineForEdit).join('\n\n');
     document.getElementById('wfCapacite').value = entry.info['Spécificité'] || entry.info['Capacité'] || '';
     document.getElementById('wfMusic').value = entry.music || '';
@@ -1672,6 +1703,8 @@ function cancelEditCustomEntry() {
     document.getElementById('wfFaction').value = '';
     onWfFactionSelectChange();
     document.getElementById('wfOxiriGene').value = '';
+    document.getElementById('wfRang').value = '';
+    document.getElementById('wfStats').value = '';
     document.getElementById('wfSpecialite').value = '';
     document.getElementById('wfCapacite').value = '';
     document.getElementById('wfMusic').value = '';
@@ -1725,6 +1758,8 @@ function submitFicheRequest() {
     const factionSelectEl = document.getElementById('frqFactionSelect');
     const factionEl = document.getElementById('frqFaction');
     const oxiriGeneEl = document.getElementById('frqOxiriGene');
+    const rangEl = document.getElementById('frqRang');
+    const statsEl = document.getElementById('frqStats');
     const specialiteEl = document.getElementById('frqSpecialite');
     const capaciteEl = document.getElementById('frqCapacite');
     const musicEl = document.getElementById('frqMusic');
@@ -1738,6 +1773,8 @@ function submitFicheRequest() {
     const factionId = factionSelect && factionSelect !== '__custom' ? factionSelect : '';
     const faction = factionSelect === '__custom' ? (factionEl?.value || '').trim() : '';
     const oxiriGene = (oxiriGeneEl?.value || '').trim();
+    const rang = (rangEl?.value || '').trim();
+    const stats = (statsEl?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
     const specialite = parseWriteBody(specialiteEl?.value || '');
     const capacite = (capaciteEl?.value || '').trim();
     const music = (musicEl?.value || '').trim();
@@ -1754,7 +1791,7 @@ function submitFicheRequest() {
     if (errEl) errEl.textContent = '';
     const data = {
         name, tagline, quote: quote || null, faction: faction || null, factionId: factionId || null,
-        oxiriGene: oxiriGene || null, specialite: specialite.length ? specialite : null, capacite: capacite || null,
+        oxiriGene: oxiriGene || null, rang: rang || null, stats: stats.length ? stats : null, specialite: specialite.length ? specialite : null, capacite: capacite || null,
         music: music || null, linkedIds: linkedIds.length ? linkedIds : null, body, images,
         author: getCurrentUser() || 'aki', ownerToken: getFrqOwnerToken(),
     };
@@ -1777,6 +1814,8 @@ function editFicheRequest(id) {
     document.getElementById('frqFaction').value = req.faction || '';
     onFrqFactionSelectChange();
     document.getElementById('frqOxiriGene').value = req.oxiriGene || '';
+    document.getElementById('frqRang').value = req.rang || '';
+    document.getElementById('frqStats').value = (req.stats || []).join('\n');
     document.getElementById('frqSpecialite').value = (req.specialite || []).map(decodeBodyLineForEdit).join('\n\n');
     document.getElementById('frqCapacite').value = req.capacite || '';
     document.getElementById('frqMusic').value = req.music || '';
@@ -1800,6 +1839,8 @@ function cancelFicheRequestForm() {
     document.getElementById('frqFaction').value = '';
     onFrqFactionSelectChange();
     document.getElementById('frqOxiriGene').value = '';
+    document.getElementById('frqRang').value = '';
+    document.getElementById('frqStats').value = '';
     document.getElementById('frqSpecialite').value = '';
     document.getElementById('frqCapacite').value = '';
     document.getElementById('frqMusic').value = '';
@@ -1830,6 +1871,7 @@ function validateFicheRequest(id) {
     db.collection('entries').add({
         cat: 'personnages', name: req.name, tagline: req.tagline, quote: req.quote || null,
         faction: req.faction || null, factionId: req.factionId || null, oxiriGene: req.oxiriGene || null,
+        rang: req.rang || null, stats: req.stats && req.stats.length ? req.stats : null,
         specialite: req.specialite && req.specialite.length ? req.specialite : null, capacite: req.capacite || null,
         music: req.music || null, linkedIds: req.linkedIds && req.linkedIds.length ? req.linkedIds : null,
         body: req.body, images: req.images || [], author: req.author,
@@ -3429,25 +3471,75 @@ function entryOwnerActionsHtml(e) {
     <span class="btn btn-ghost" onclick="if(confirm('Supprimer définitivement cette fiche ?')){ deleteCustomEntry('${e.id}'); navigate('cat-${e.cat}'); }">Supprimer</span>
   </div>`;
 }
-function opParticlesHtml() {
-    let out = '';
-    for (let i = 0; i < 12; i++) {
-        const left = (Math.random() * 100).toFixed(1);
-        const delay = (Math.random() * 6).toFixed(2);
-        const dur = (5 + Math.random() * 4).toFixed(2);
-        out += `<span class="op-particle" style="left:${left}%; animation-delay:${delay}s; animation-duration:${dur}s;"></span>`;
+let fichePageTab = { entryId: '', tab: 'general' };
+function parseStatLines(lines) {
+    return lines.map(raw => {
+        const idx = raw.search(/[:：]/);
+        if (idx === -1)
+            return { label: raw.trim(), value: '' };
+        return { label: raw.slice(0, idx).trim(), value: raw.slice(idx + 1).trim() };
+    }).filter(s => s.label || s.value);
+}
+function splitEntryChapters(body) {
+    const intro = [];
+    const chapters = [];
+    let current = null;
+    for (const raw of body) {
+        const t = raw.trim();
+        if (!raw.startsWith(LOCK_SENTINEL) && t.startsWith('#')) {
+            current = { title: t.replace(/^#+\s*/, '') || 'Chapitre', lines: [], locked: false };
+            chapters.push(current);
+            continue;
+        }
+        if (current) {
+            current.lines.push(raw);
+            if (raw.startsWith(LOCK_SENTINEL))
+                current.locked = true;
+        }
+        else {
+            intro.push(raw);
+        }
     }
-    return out;
+    return { intro, chapters };
+}
+function ficheTextBoxHtml(lines) {
+    const html = renderRichBody(lines);
+    if (!html)
+        return '';
+    return `<div class="fiche-text">
+    <div class="fiche-text-bar"><span></span><span></span><span></span><span></span></div>
+    <div class="fiche-text-body">${html}</div>
+  </div>`;
+}
+function switchFicheTab(key) {
+    const root = document.querySelector('.fiche');
+    fichePageTab = { entryId: root?.dataset.entry || '', tab: key };
+    document.querySelectorAll('.fiche-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === key));
+    document.querySelectorAll('.fiche-panel').forEach(p => p.classList.toggle('active', p.dataset.tab === key));
 }
 function renderPersonnageEntry(e) {
     const c = CATS[e.cat];
     const f = e.faction ? FACTIONS.find(x => x.id === e.faction) : undefined;
     const fclr = f ? f.color : '196,201,209';
-    const bgWord = e.name.split(/\s+/)[0].toUpperCase();
     const list = ENTRIES.filter(x => x.cat === 'personnages');
-    const infoEntries = Object.entries(e.info);
-    const capaciteFact = infoEntries.find(([k]) => k === 'Capacité' || k === 'Spécificité') || infoEntries[0];
     const factionName = f ? f.name : (e.factionLabel || '—');
+    const geneValue = e.info["Gène d'Oxiri lié"] || '—';
+    const rangValue = e.info['Rang'] || e.info['Rang hybride'] || '—';
+    const specKey = e.info['Spécificité'] !== undefined ? 'Spécificité' : (e.info['Capacité'] !== undefined ? 'Capacité' : '');
+    const statCells = [
+        { label: 'Faction', value: factionName },
+        ...(specKey ? [{ label: specKey, value: e.info[specKey] }] : []),
+        ...parseStatLines(e.stats || []),
+    ];
+    const { intro, chapters } = splitEntryChapters(e.body);
+    const hasPowers = !!(e.specialite && e.specialite.length);
+    const tabs = [
+        { key: 'general', label: 'Présentation générale', locked: intro.some(l => l.startsWith(LOCK_SENTINEL)) },
+        ...chapters.map((ch, i) => ({ key: 'ch-' + i, label: ch.title, locked: ch.locked })),
+        ...(hasPowers ? [{ key: 'pouvoirs', label: 'Pouvoirs', locked: e.specialite.some(l => l.startsWith(LOCK_SENTINEL)) }] : []),
+    ];
+    const activeTab = fichePageTab.entryId === e.id && tabs.some(t => t.key === fichePageTab.tab) ? fichePageTab.tab : 'general';
+    const panel = (key, inner) => `<div class="fiche-panel${key === activeTab ? ' active' : ''}" data-tab="${key}">${inner}</div>`;
     const railAvatars = list.map(p => {
         const active = p.id === e.id;
         return `<button type="button" class="op-rail-avatar${active ? ' active' : ''}" onclick="navigate('entry-${p.id}')" title="${esc(p.name)}">
@@ -3464,56 +3556,58 @@ function renderPersonnageEntry(e) {
         <button type="button" class="op-rail-all" onclick="navigate('cat-personnages')" title="Tous les personnages">☰</button>
       </div>
       <div class="op-main">
-        <div class="op-hero" style="--fclr:${fclr}">
-          <div class="op-hero-fx">
-            <div class="op-hero-bgtext">${esc(bgWord)}</div>
-            <div class="op-hero-blob"></div>
-            <div class="op-hero-shard op-hero-shard-1"></div>
-            <div class="op-hero-shard op-hero-shard-2"></div>
-            <div class="op-hero-particles">${opParticlesHtml()}</div>
-            <div class="op-hero-scan"></div>
-            <div class="op-hero-corners">
-              <span class="op-corner op-corner-tl"></span>
-              <span class="op-corner op-corner-tr"></span>
-              <span class="op-corner op-corner-bl"></span>
-              <span class="op-corner op-corner-br"></span>
+        <div class="fiche" data-entry="${e.id}" style="--fclr:${fclr}">
+          <aside class="fiche-left">
+            <div class="fiche-portrait">
+              <span class="fiche-portrait-bar"></span>
+              ${e.image
+                ? `<img src="${encodeURI(e.image)}" alt="${esc(e.name)}" style="${e.imagePos ? `object-position:${e.imagePos}` : ''}">`
+                : `<div class="fiche-portrait-noimg">${esc(e.name.charAt(0))}</div>`}
+              <div class="fiche-portrait-scan"></div>
             </div>
-          </div>
-          <div class="op-hero-badge">
-            <div class="op-hero-badge-clip"></div>
-            ${e.image
-                ? `<img class="op-hero-badge-img" src="${encodeURI(e.image)}" alt="${esc(e.name)}" style="${e.imagePos ? `object-position:${e.imagePos}` : ''}">`
-                : `<div class="op-hero-badge-noimg">${esc(e.name.charAt(0))}</div>`}
-            <div class="op-hero-badge-info">
-              <div class="op-hero-badge-name">${esc(e.name)}</div>
-              <span class="op-hero-badge-tag">Personnage</span>
+            <div class="fiche-field fiche-field-main">
+              <span class="fiche-field-tab">Nom</span>
+              <div class="fiche-field-val">${esc(e.name)}</div>
             </div>
-          </div>
-        </div>
-        <div class="op-name-row">
-          <span class="tag ${e.rarity}">${e.rarity === 'rare' ? 'Notable' : 'Commun'} · ${c.label}</span>
-          <h1 class="op-name">[ ${esc(e.name)} ]</h1>
-          <p class="op-tagline">${esc(e.tagline)}</p>
-        </div>
-        <div class="op-facts-bar">
-          <div class="op-fact"><span class="op-fact-k">Faction</span><span class="op-fact-v">${esc(factionName)}</span></div>
-          ${capaciteFact ? `<div class="op-fact"><span class="op-fact-k">${esc(capaciteFact[0])}</span><span class="op-fact-v">${esc(capaciteFact[1])}</span></div>` : ''}
-        </div>
-        ${e.quote ? `<p class="entry-quote op-quote">${esc(e.quote)}</p>` : ''}
-        ${entryLinkedCharactersHtml(e)}
-        ${musicBarHtml(e.id, e.music)}
-        <span class="btn btn-ghost op-history-btn" onclick="openStoryBook('${e.id}')">📖 Histoire</span>
-        ${entryOwnerActionsHtml(e)}
-        <div class="article-body op-article-body">
-          <div>${renderRichBody(e.body)}</div>
-          <div class="entry-side">
-            <div class="infobox">
-              ${Object.entries(e.info).map(([k, v]) => `
-                <div class="ib-row"><span class="ib-k">${esc(k)}</span><span class="ib-v">${esc(v)}</span></div>
-              `).join('')}
+            <div class="fiche-field">
+              <span class="fiche-field-label">Gène d'Oxiri</span>
+              <div class="fiche-field-val">${esc(geneValue)}</div>
             </div>
-            ${entrySpecialiteHtml(e)}
-          </div>
+            <div class="fiche-field">
+              <span class="fiche-field-label">Rang</span>
+              <div class="fiche-field-val">${esc(rangValue)}</div>
+            </div>
+          </aside>
+          <section class="fiche-right">
+            <header class="fiche-head">
+              <span class="tag ${e.rarity}">${e.rarity === 'rare' ? 'Notable' : 'Commun'} · ${c.label}</span>
+              <h1 class="fiche-title">${esc(e.name)}</h1>
+              <p class="fiche-tagline">${esc(e.tagline)}</p>
+              ${entryOwnerActionsHtml(e)}
+            </header>
+            ${musicBarHtml(e.id, e.music)}
+            <div class="fiche-body">
+              <nav class="fiche-tabs">
+                ${tabs.map(t => `<button type="button" class="fiche-tab${t.key === activeTab ? ' active' : ''}" data-tab="${t.key}" onclick="switchFicheTab('${t.key}')">${t.locked ? '🔒 ' : ''}${esc(t.label)}</button>`).join('')}
+              </nav>
+              <div class="fiche-panels">
+                ${panel('general', `
+                  <div class="fiche-stats">
+                    ${statCells.map(s => `<div class="fiche-stat"><span class="fiche-stat-k">${esc(s.label)}</span><span class="fiche-stat-v">${esc(s.value)}</span></div>`).join('')}
+                  </div>
+                  ${e.quote ? `<p class="entry-quote">${esc(e.quote)}</p>` : ''}
+                  ${entryLinkedCharactersHtml(e)}
+                  ${ficheTextBoxHtml(intro)}
+                  <span class="btn btn-ghost fiche-history-btn" onclick="openStoryBook('${e.id}')">📖 Histoire</span>`)}
+                ${chapters.map((ch, i) => panel('ch-' + i, `
+                  <h2 class="fiche-chapter-title">${esc(ch.title)}</h2>
+                  ${ficheTextBoxHtml(ch.lines) || `<p class="fiche-empty">Ce chapitre est vide pour l'instant.</p>`}`)).join('')}
+                ${hasPowers ? panel('pouvoirs', `
+                  <h2 class="fiche-chapter-title">Pouvoirs</h2>
+                  ${ficheTextBoxHtml(e.specialite)}`) : ''}
+              </div>
+            </div>
+          </section>
         </div>
       </div>
     </div>
@@ -3533,22 +3627,6 @@ function initPersonnageEntryRail() {
     if (page) {
         page.classList.remove('in');
         requestAnimationFrame(() => { page.classList.add('in'); });
-    }
-    const hero = document.querySelector('.op-hero');
-    if (hero) {
-        const img = hero.querySelector('.op-hero-badge');
-        const blob = hero.querySelector('.op-hero-blob');
-        hero.onmousemove = (ev) => {
-            const rect = hero.getBoundingClientRect();
-            const dx = (ev.clientX - rect.left) / rect.width - 0.5;
-            const dy = (ev.clientY - rect.top) / rect.height - 0.5;
-            if (img) img.style.transform = `translate(${dx * -14}px, ${dy * -8}px) scale(1.03)`;
-            if (blob) blob.style.transform = `translate(${dx * 20}px, ${dy * 14}px)`;
-        };
-        hero.onmouseleave = () => {
-            if (img) img.style.transform = '';
-            if (blob) blob.style.transform = '';
-        };
     }
 }
 function renderNotFound() {
