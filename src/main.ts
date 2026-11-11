@@ -74,26 +74,6 @@ interface Weapon {
   restricted?: boolean;
 }
 
-interface MapPoi {
-  id: string;
-  x: number;
-  y: number;
-  label: string;
-  desc: string;
-  facts?: Record<string, string>;
-  chars?: string[];
-}
-
-interface MapZone {
-  id: string;
-  type: string;
-  x: number;
-  y: number;
-  label: string;
-  glow: string;
-  pois?: MapPoi[];
-}
-
 const ENTRIES_BASE: Entry[] = [
   {id:'alice-alfreya', cat:'personnages', name:'Alice Alfreya', tagline:'Hybride de rang A', rarity:'rare', faction:'halcyon', squad:'oracle',
     image:'assets/characters/alice-alfreya.jpg',
@@ -6555,580 +6535,445 @@ function playDossierBoot(renderFn: () => string): void {
   step();
 }
 
-/* ---------------- CARTE 2D PEINTE (bascule 3D au clic) ----------------
-   Carte plate façon carte du monde peinte, déplaçable/zoomable à la souris.
-   Un clic sur une région lance une bascule en perspective (CSS 3D) qui zoome
-   vers la zone et ouvre le panneau latéral. MAP_ZONES pilote position/couleur.
+/* ---------------- CARTE DU MONDE — relief en couches ----------------
+   Terrain généré (même carte à chaque visite) puis découpé en terrasses
+   empilées façon papier découpé : chaque couche est un canvas avec son ombre
+   portée, et se décale légèrement selon la souris (parallaxe). Les courbes de
+   niveau rouges sont tracées sur le fond. Les marqueurs sont Novelance et les
+   lieux écrits depuis le site (page « Lieux »).
 */
 const CONTINENT_NAME = 'Aeloria';
-
-// Les lieux « en dur » (avec zone cliquable + fiche) ont été retirés : les
-// lieux sont désormais uniquement ceux écrits par les utilisateurs connectés
-// via l'espace Écriture (page "Lieux" du codex, sans zone sur la carte).
-// Ces coordonnées ne servent plus qu'à peindre le relief du continent
-// (montagnes, marais, forêt, falaises) sur la carte, à titre décoratif.
-const TERRAIN_FEATURES: { id:string; x:number; y:number; glow:string }[] = [
-  { id:'hauteterres',       x:640,  y:230, glow:'196,201,209' },
-  { id:'marais-bas',        x:930,  y:520, glow:'138,149,166' },
-  { id:'foret-des-cendres', x:520,  y:520, glow:'196,110,64' },
-  { id:'cote-ecarlate',     x:1020, y:250, glow:'178,90,82' },
-];
-
-const MAP_ZONES: MapZone[] = [];
-
-const MAP_ZONE_ICONS: Record<string, string> = {
-  mountain: '<path d="M3 18l5-9 4 6 3-4 6 7z"/>',
-  swamp: '<path d="M3 15c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/><path d="M3 19c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/>',
-  forest: '<path d="M12 2l5 8h-3l4 6h-4v4h-4v-4H6l4-6H7z"/>',
-  coast: '<path d="M2 16c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/><path d="M2 20c2-2 4-2 6 0s4 2 6 0 4-2 6 0"/>',
-};
-
 const WORLD_W = 1300, WORLD_H = 760;
 
-interface MapState {
-  focusZone(id: string): void;
-  focusPoi(zoneId: string, poiId: string): void;
-  resetView(): void;
-  cleanup(): void;
+const TM_W = 1000, TM_H = 560, TM_RES = 1.25, TM_LEVELS = 9;
+
+interface TmMarker { id: string; label: string; caption: string; kind: 'city' | 'place'; route: string; x: number; y: number; level: number; }
+
+let tmState: { cleanup(): void; recenter(): void; toggleLegend(): void } | null = null;
+let tmMarkers: TmMarker[] = [];
+let tmMoved = false;
+let tmTerrain: { rw: number; rh: number; hmap: Float32Array; cuts: number[] } | null = null;
+
+// Les lieux écrits sur le site arrivent de Firestore après l'ouverture de la
+// carte : on repose les marqueurs à chaque synchronisation.
+function tmRefreshMarkers(): void {
+  const mk = document.querySelector('.tm-markers');
+  if(!tmTerrain || !mk) return;
+  tmMarkers = tmPlaceMarkers(tmTerrain.rw, tmTerrain.rh, tmTerrain.hmap, tmTerrain.cuts);
+  mk.innerHTML = tmMarkers.map(tmMarkerHtml).join('');
 }
 
-let mapState: MapState | null = null;
-
-function paintWorldMap(): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
-  const SUPERSAMPLE = 2;
-  canvas.width = WORLD_W * SUPERSAMPLE; canvas.height = WORLD_H * SUPERSAMPLE;
-  canvas.style.width = WORLD_W + 'px'; canvas.style.height = WORLD_H + 'px';
-  const g = canvas.getContext('2d')!;
-  g.scale(SUPERSAMPLE, SUPERSAMPLE);
-
-  // océan profond, embrumé sur les bords
-  const ocean = g.createRadialGradient(WORLD_W*0.5,WORLD_H*0.5,80, WORLD_W*0.5,WORLD_H*0.5,900);
-  ocean.addColorStop(0,'#13212f'); ocean.addColorStop(0.6,'#0c1620'); ocean.addColorStop(1,'#060a0f');
-  g.fillStyle = ocean; g.fillRect(0,0,WORLD_W,WORLD_H);
-
-  let seed = 7;
-  function rand(): number { seed = (seed*1103515245+12345) & 0x7fffffff; return (seed % 1000)/1000; }
-
-  // texture de vaguelettes
-  g.strokeStyle = 'rgba(150,180,200,0.06)';
-  for(let i=0;i<180;i++){
-    const x = rand()*WORLD_W, y = rand()*WORLD_H, w = 14+rand()*22;
-    g.beginPath(); g.arc(x,y,w,0.2*Math.PI,0.8*Math.PI); g.stroke();
-  }
-
-  // brumes / nuages sur l'océan, façon carte peinte à l'ancienne
-  for(let i=0;i<26;i++){
-    const nearTop = rand()<0.5;
-    const x = rand()*WORLD_W;
-    const y = nearTop ? rand()*120 : WORLD_H-rand()*120;
-    const r = 60+rand()*90;
-    const cloud = g.createRadialGradient(x,y,0,x,y,r);
-    cloud.addColorStop(0,'rgba(215,222,230,0.12)'); cloud.addColorStop(1,'rgba(215,222,230,0)');
-    g.fillStyle = cloud; g.beginPath(); g.arc(x,y,r,0,Math.PI*2); g.fill();
-  }
-
-  // masse continentale (forme organique)
-  function landPath(): void {
-    g.beginPath();
-    const pts: number[][] = [
-      [260,140],[430,90],[620,110],[760,90],[900,130],[1030,160],[1120,260],
-      [1150,400],[1080,540],[960,610],[820,650],[660,660],[520,630],[400,560],
-      [300,470],[230,360],[210,240]
-    ];
-    g.moveTo(pts[0][0],pts[0][1]);
-    for(let i=1;i<pts.length;i++){
-      const p = pts[i], prev = pts[i-1];
-      g.quadraticCurveTo(prev[0]+(p[0]-prev[0])*0.5+((i%2)?12:-12), prev[1]+(p[1]-prev[1])*0.5, p[0], p[1]);
-    }
-    g.closePath();
-  }
-  landPath();
-  const landGrad = g.createLinearGradient(200,80,1150,660);
-  landGrad.addColorStop(0,'#3c4636'); landGrad.addColorStop(0.5,'#2f3a2a'); landGrad.addColorStop(1,'#242c20');
-  g.save(); g.clip();
-  g.fillStyle = landGrad; g.fillRect(0,0,WORLD_W,WORLD_H);
-
-  // teinte de neige/roche au sol sous les Hauteterres (les pics eux-mêmes sont peints sur le calque de relief séparé)
-  (function(){
-    const z = TERRAIN_FEATURES.find(m=>m.id==='hauteterres')!;
-    const snowGround = g.createRadialGradient(z.x,z.y-10,20,z.x,z.y-10,240);
-    snowGround.addColorStop(0,'rgba(212,217,224,0.6)'); snowGround.addColorStop(1,'rgba(212,217,224,0)');
-    g.fillStyle = snowGround; g.beginPath(); g.arc(z.x,z.y-10,240,0,Math.PI*2); g.fill();
-  })();
-
-  // ombrage doux (relief général)
-  const shade = g.createRadialGradient(680,300,50,680,300,650);
-  shade.addColorStop(0,'rgba(255,255,255,0.04)'); shade.addColorStop(1,'rgba(0,0,0,0.22)');
-  g.fillStyle = shade; g.fillRect(0,0,WORLD_W,WORLD_H);
-
-  // relief diffus sur toute la masse : petites hachures claires/sombres appairées → sensation de terrain vallonné partout
-  for(let i=0;i<520;i++){
-    const x = 230+rand()*860, y = 110+rand()*500;
-    const a = rand()*Math.PI*2, len = 5+rand()*7;
-    const dx = Math.cos(a)*len, dy = Math.sin(a)*len*0.5;
-    g.strokeStyle = `rgba(18,22,16,${0.10+rand()*0.08})`;
-    g.lineWidth = 1.4;
-    g.beginPath(); g.moveTo(x,y); g.lineTo(x+dx,y+dy); g.stroke();
-    g.strokeStyle = `rgba(205,215,195,${0.06+rand()*0.06})`;
-    g.beginPath(); g.moveTo(x-dx*0.4,y-dy*0.4-1.5); g.lineTo(x+dx*0.4,y+dy*0.4-1.5); g.stroke();
-  }
-
-  // texture de forêt dense (dabs verts) sur toute la masse
-  for(let i=0;i<1400;i++){
-    const x = 230+rand()*860, y = 110+rand()*500;
-    g.fillStyle = `rgba(${60+rand()*40|0},${90+rand()*50|0},${50+rand()*30|0},${0.12+rand()*0.1})`;
-    g.beginPath(); g.ellipse(x,y,3+rand()*4,2+rand()*3,rand()*Math.PI,0,Math.PI*2); g.fill();
-  }
-
-  // --- Marais Bas : zone humide ---
-  (function(){
-    const z = TERRAIN_FEATURES.find(m=>m.id==='marais-bas')!;
-    const swamp = g.createRadialGradient(z.x,z.y,10,z.x,z.y,150);
-    swamp.addColorStop(0,'rgba(60,90,80,0.5)'); swamp.addColorStop(1,'rgba(60,90,80,0)');
-    g.fillStyle = swamp; g.beginPath(); g.arc(z.x,z.y,150,0,Math.PI*2); g.fill();
-    g.strokeStyle = 'rgba(90,130,140,0.4)'; g.lineWidth = 2;
-    for(let i=0;i<4;i++){ g.beginPath(); g.arc(z.x-40+i*28, z.y+18, 10+i*3, 0, Math.PI*2); g.stroke(); }
-  })();
-
-  // --- Forêt des Cendres : zone corrompue, cendres noircies et lézardes d'énergie violette ---
-  (function(){
-    const z = TERRAIN_FEATURES.find(m=>m.id==='foret-des-cendres')!;
-    const corrupt = g.createRadialGradient(z.x,z.y,10,z.x,z.y,155);
-    corrupt.addColorStop(0,'rgba(28,18,26,0.75)'); corrupt.addColorStop(1,'rgba(28,18,26,0)');
-    g.fillStyle = corrupt; g.beginPath(); g.arc(z.x,z.y,155,0,Math.PI*2); g.fill();
-    for(let i=0;i<100;i++){
-      const x = z.x-115+rand()*230, y = z.y-95+rand()*190;
-      g.fillStyle = `rgba(${40+rand()*30|0},${18+rand()*14|0},${30+rand()*20|0},0.4)`;
-      g.beginPath(); g.ellipse(x,y,5+rand()*5,4+rand()*4,rand()*Math.PI,0,Math.PI*2); g.fill();
-    }
-    g.strokeStyle = 'rgba(190,110,230,0.85)'; g.lineWidth = 1.2;
-    g.shadowColor = 'rgba(190,110,230,0.9)'; g.shadowBlur = 6;
-    for(let i=0;i<5;i++){
-      let x = z.x-70+rand()*140, y = z.y-70+rand()*140;
-      g.beginPath(); g.moveTo(x,y);
-      for(let s=0;s<4;s++){ x += rand()*30-15; y += rand()*30-15; g.lineTo(x,y); }
-      g.stroke();
-    }
-    g.shadowBlur = 0;
-  })();
-
-  // --- Côte Écarlate : falaises chaudes et tons ambrés ---
-  (function(){
-    const z = TERRAIN_FEATURES.find(m=>m.id==='cote-ecarlate')!;
-    g.fillStyle = 'rgba(185,122,68,0.42)';
-    g.beginPath(); g.ellipse(z.x, z.y, 130, 90, 0, 0, Math.PI*2); g.fill();
-    for(let i=0;i<40;i++){
-      const x = z.x-110+rand()*220, y = z.y-70+rand()*140;
-      g.fillStyle = `rgba(${190+rand()*40|0},${130+rand()*40|0},${70+rand()*30|0},0.3)`;
-      g.beginPath(); g.ellipse(x,y,5+rand()*6,3+rand()*4,rand()*Math.PI,0,Math.PI*2); g.fill();
-    }
-  })();
-
-  g.restore();
-
-  // --- petites îles au large, avec leurs propres pics (hors du clip continental) ---
-  (function(){
-    const islands: number[][] = [[130,190],[1225,180],[95,600],[1195,605]];
-    islands.forEach(([ix,iy])=>{
-      g.beginPath(); g.ellipse(ix,iy,28+rand()*14,17+rand()*8,0,0,Math.PI*2);
-      g.fillStyle = '#2c3526'; g.fill();
-      g.beginPath(); g.moveTo(ix-9,iy+5); g.lineTo(ix,iy-13); g.lineTo(ix+9,iy+5);
-      g.closePath(); g.fillStyle = 'rgba(212,217,224,0.75)'; g.fill();
-    });
-  })();
-
-  // rivières
-  g.strokeStyle = 'rgba(90,130,160,0.55)'; g.lineWidth = 4; g.lineCap='round';
-  g.beginPath();
-  g.moveTo(560,140); g.quadraticCurveTo(600,320,700,420); g.quadraticCurveTo(780,500,900,540);
-  g.stroke();
-
-  // liseré de côte
-  g.save(); landPath(); g.strokeStyle = 'rgba(180,195,205,0.35)'; g.lineWidth = 2; g.stroke(); g.restore();
-
-  // sentier pointillé reliant les zones
-  const order = ['cote-ecarlate','hauteterres','foret-des-cendres','marais-bas'];
-  g.strokeStyle = 'rgba(196,201,209,0.55)'; g.lineWidth = 2; g.setLineDash([6,7]);
-  g.beginPath();
-  order.forEach((id,i)=>{
-    const z = TERRAIN_FEATURES.find(m=>m.id===id)!;
-    if(i===0) g.moveTo(z.x,z.y); else g.lineTo(z.x,z.y);
-  });
-  g.stroke();
-  g.setLineDash([]);
-
-  // vignette globale
-  const vg = g.createRadialGradient(WORLD_W*0.5,WORLD_H*0.5,200, WORLD_W*0.5,WORLD_H*0.5,750);
-  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,0.55)');
-  g.fillStyle = vg; g.fillRect(0,0,WORLD_W,WORLD_H);
-
-  return canvas;
+function tmSeeded(seed: number): () => number {
+  let s = seed >>> 0;
+  return () => { s = (Math.imul(s, 1664525) + 1013904223) >>> 0; return s / 4294967296; };
 }
 
-/* Calque de relief séparé : uniquement les pics des Hauteterres, peints sur un canevas
-   transparent et surélevés en 3D (translateZ) au-dessus du calque de base. Combiné à
-   l'inclinaison de la caméra (rotateX), ce décalage produit un vrai effet de parallaxe —
-   le relief « bouge » différemment du sol plat quand on incline/zoome la carte. */
-function paintReliefLayer(): HTMLCanvasElement {
-  const canvas = document.createElement('canvas');
-  const SUPERSAMPLE = 2;
-  canvas.width = WORLD_W * SUPERSAMPLE; canvas.height = WORLD_H * SUPERSAMPLE;
-  canvas.style.width = WORLD_W + 'px'; canvas.style.height = WORLD_H + 'px';
-  const g = canvas.getContext('2d')!;
-  g.scale(SUPERSAMPLE, SUPERSAMPLE);
-
-  let seed = 42;
-  function rand(): number { seed = (seed*1103515245+12345) & 0x7fffffff; return (seed % 1000)/1000; }
-
-  // --- Hauteterres : montagnes en relief (rangée arrière embrumée + rangée avant ombrée) ---
-  (function(){
-    const z = TERRAIN_FEATURES.find(m=>m.id==='hauteterres')!;
-    // rangée arrière : plus petite, plus claire et embrumée → sensation de profondeur
-    for(let i=0;i<6;i++){
-      const mx = z.x-165+i*58+rand()*16, my = z.y-48+((i%2)?8:-8);
-      const h = 30+rand()*20;
-      g.beginPath();
-      g.moveTo(mx-28,my+14); g.lineTo(mx,my-h); g.lineTo(mx+28,my+14);
-      g.closePath();
-      g.fillStyle = 'rgba(126,134,144,0.5)'; g.fill();
-    }
-    // rangée avant : volume marqué (face éclairée / face ombrée), ombre portée, neige
-    for(let i=0;i<7;i++){
-      const mx = z.x-140+i*46+rand()*20, my = z.y-30+((i%3)-1)*36;
-      const h = 46+rand()*40;
-      g.beginPath(); g.ellipse(mx+8, my+19, 38, 8, 0, 0, Math.PI*2);
-      g.fillStyle = 'rgba(0,0,0,0.24)'; g.fill();
-      g.beginPath();
-      g.moveTo(mx,my-h); g.lineTo(mx-34,my+18); g.lineTo(mx,my+18);
-      g.closePath();
-      g.fillStyle = '#5a6166'; g.fill();
-      g.beginPath();
-      g.moveTo(mx,my-h); g.lineTo(mx,my+18); g.lineTo(mx+34,my+18);
-      g.closePath();
-      g.fillStyle = '#33383b'; g.fill();
-      g.beginPath();
-      g.moveTo(mx-10,my-h+16); g.lineTo(mx,my-h); g.lineTo(mx+10,my-h+16); g.lineTo(mx+4,my-h+22); g.lineTo(mx-4,my-h+22);
-      g.closePath();
-      g.fillStyle = 'rgba(230,235,240,0.9)'; g.fill();
-    }
-  })();
-
-  return canvas;
+function tmSmoothstep(a: number, b: number, x: number): number {
+  const t = Math.min(1, Math.max(0, (x - a) / (b - a)));
+  return t * t * (3 - 2 * t);
 }
 
-function initMap(): void {
-  const container = document.getElementById('mapCanvasWrap');
-  const labelsWrap = document.getElementById('mapLabelsWrap');
-  const box = container ? container.closest<HTMLElement>('.map-box') : null;
-  if(!container || !labelsWrap || !box) return;
+function tmHash(str: string): number {
+  let h = 2166136261;
+  for(let i = 0; i < str.length; i++){ h ^= str.charCodeAt(i); h = Math.imul(h, 16777619); }
+  return h >>> 0;
+}
 
-  const worldEl = document.createElement('div');
-  worldEl.className = 'map-world';
-  const canvas = paintWorldMap();
-  canvas.className = 'map-painted-canvas';
-  worldEl.appendChild(canvas);
-  const reliefCanvas = paintReliefLayer();
-  reliefCanvas.className = 'map-relief-canvas';
-  worldEl.appendChild(reliefCanvas);
-  container.innerHTML = '';
-  container.appendChild(worldEl);
-  container.style.cursor = 'grab';
-
-  labelsWrap.innerHTML = '';
-  MAP_ZONES.forEach((z,i)=>{
-    const pin = document.createElement('div');
-    pin.className = 'map-pin2d pin-enter';
-    pin.style.left = z.x+'px'; pin.style.top = z.y+'px';
-    pin.innerHTML = `<div class="badge" style="--gclr:${z.glow}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">${MAP_ZONE_ICONS[z.type]||''}</svg></div><span class="lbl">${esc(z.label)}</span>`;
-    pin.addEventListener('click', (ev)=>{ ev.stopPropagation(); openZonePanel(z.id); });
-    pin.addEventListener('pointerenter', (ev)=> showTooltip(z, ev));
-    pin.addEventListener('pointermove', (ev)=> showTooltip(z, ev));
-    pin.addEventListener('pointerleave', hideTooltip);
-    worldEl.appendChild(pin);
-    setTimeout(()=> pin.classList.remove('pin-enter'), 120 + i*90);
-  });
-
-  // Point d'accès vers la carte détaillée de Novelance, la cité-bastion de
-  // Halcyon — un lieu à part, avec sa propre carte radiale (voir plus bas).
-  const novelancePin = document.createElement('div');
-  novelancePin.className = 'map-pin2d pin-enter';
-  novelancePin.style.left = '760px'; novelancePin.style.top = '420px';
-  novelancePin.title = 'Novelance';
-  novelancePin.innerHTML = `<div class="badge" style="--gclr:196,58,74"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2" fill="currentColor" stroke="none"/><path d="M12 3v4M12 17v4M3 12h4M17 12h4"/></svg></div><span class="lbl">Novelance</span>`;
-  novelancePin.addEventListener('click', (ev)=>{ ev.stopPropagation(); navigate('novelance'); });
-  worldEl.appendChild(novelancePin);
-  setTimeout(()=> novelancePin.classList.remove('pin-enter'), 120 + MAP_ZONES.length*90);
-
-  MAP_ZONES.forEach(z=>{
-    (z.pois||[]).forEach(p=>{
-      const poi = document.createElement('div');
-      poi.className = 'map-poi';
-      poi.dataset.zone = z.id;
-      poi.style.left = p.x+'px'; poi.style.top = p.y+'px';
-      poi.innerHTML = `<span class="poi-dot"></span><span class="poi-label">${esc(p.label)}</span>`;
-      poi.addEventListener('click', (ev)=>{ ev.stopPropagation(); openPoiPanel(z.id, p.id); });
-      poi.addEventListener('pointerenter', (ev)=> showPoiTooltip(p, ev));
-      poi.addEventListener('pointermove', (ev)=> showPoiTooltip(p, ev));
-      poi.addEventListener('pointerleave', hideTooltip);
-      worldEl.appendChild(poi);
-    });
-  });
-
-  function showPoisForZone(id: string | null): void {
-    worldEl.querySelectorAll<HTMLElement>('.map-poi').forEach(el=>{
-      el.classList.toggle('visible', !!id && el.dataset.zone === id);
-    });
-  }
-
-  const tooltipEl = document.getElementById('mapTooltip')!;
-  function showTooltip(z: MapZone, ev: PointerEvent): void {
-    const chars = ENTRIES.filter(c => c.cat==='personnages' && c.region===z.id);
-    const rect = box!.getBoundingClientRect();
-    tooltipEl.style.left = (ev.clientX-rect.left+14)+'px';
-    tooltipEl.style.top = (ev.clientY-rect.top+14)+'px';
-    tooltipEl.innerHTML = `<div class="map-tooltip-title">${esc(z.label)}</div>` +
-      (chars.length
-        ? `<div class="map-tooltip-chars">${chars.map(c=>`<div class="map-tooltip-chip" title="${esc(c.name)}">${esc(c.name.charAt(0))}</div>`).join('')}</div>`
-        : `<div class="map-tooltip-empty">Aucun personnage lié pour l'instant</div>`);
-    tooltipEl.classList.add('visible');
-  }
-  function showPoiTooltip(p: MapPoi, ev: PointerEvent): void {
-    const chars = (p.chars||[]).map(id=>findEntry(id)).filter(Boolean) as Entry[];
-    const rect = box!.getBoundingClientRect();
-    tooltipEl.style.left = (ev.clientX-rect.left+14)+'px';
-    tooltipEl.style.top = (ev.clientY-rect.top+14)+'px';
-    tooltipEl.innerHTML = `<div class="map-tooltip-title">${esc(p.label)}</div>` +
-      (chars.length
-        ? `<div class="map-tooltip-chars">${chars.map(c=>`<div class="map-tooltip-chip" title="${esc(c.name)}">${esc(c.name.charAt(0))}</div>`).join('')}</div>`
-        : `<div class="map-tooltip-empty">Aucun personnage lié pour l'instant</div>`);
-    tooltipEl.classList.add('visible');
-  }
-  function hideTooltip(): void { tooltipEl.classList.remove('visible'); }
-
-  // état caméra 2D (pan + zoom)
-  const cam = { x: WORLD_W/2, y: WORLD_H/2, scale: Math.min(box.clientWidth/WORLD_W, box.clientHeight/WORLD_H) * 1.35, tiltDeg: 0 };
-  const baseScale = cam.scale;
-  const minScale = baseScale*0.85, maxScale = baseScale*3.6;
-  let dragging=false, moved=false, tweening=false;
-  let downPos: { x: number; y: number; cx: number; cy: number } | null = null;
-
-  function apply(): void {
-    const w = box!.clientWidth, h = box!.clientHeight;
-    // Le recentrage (translate) doit s'appliquer APRÈS l'échelle/l'inclinaison/la perspective,
-    // sinon l'inclinaison 3D dévie le point vers lequel on vient de zoomer hors du cadre.
-    const tx = w/2 - cam.x;
-    const ty = h/2 - cam.y;
-    // La distance de perspective doit croître avec le zoom : sinon, à fort zoom/inclinaison,
-    // le bord éloigné du monde (loin du point ciblé) finit derrière la caméra et se déforme
-    // violemment (voire disparaît). En la liant à cam.scale, l'effet reste stable quelle que
-    // soit la taille de l'écran ou le niveau de zoom.
-    const persp = 1300 * cam.scale;
-    container!.style.perspective = `${persp}px`;
-    worldEl.style.transform = `translate(${tx}px, ${ty}px) perspective(${persp}px) rotateX(${cam.tiltDeg}deg) scale(${cam.scale})`;
-    worldEl.style.transformOrigin = `${cam.x}px ${cam.y}px`;
-  }
-  cam.scale = baseScale * 0.9;
-  apply();
-  requestAnimationFrame(()=> tweenTo(null, 900, 0));
-
-  function onDown(e: PointerEvent): void { if(tweening) return; dragging=true; moved=false; downPos={x:e.clientX,y:e.clientY,cx:cam.x,cy:cam.y}; container!.style.cursor='grabbing'; }
-  function onMove(e: PointerEvent): void {
-    if(!dragging || !downPos) return;
-    const dx=e.clientX-downPos.x, dy=e.clientY-downPos.y;
-    if(Math.hypot(dx,dy)>4) moved=true;
-    cam.x = downPos.cx - dx/cam.scale;
-    cam.y = downPos.cy - dy/cam.scale;
-    apply();
-  }
-  function onUp(): void { dragging=false; downPos=null; container!.style.cursor='grab'; }
-  function onWheel(e: WheelEvent): void {
-    if(tweening) return;
-    e.preventDefault();
-    cam.scale = Math.max(minScale, Math.min(maxScale, cam.scale * (e.deltaY>0 ? 0.9 : 1.1)));
-    apply();
-  }
-  container.addEventListener('pointerdown', onDown);
-  window.addEventListener('pointermove', onMove);
-  window.addEventListener('pointerup', onUp);
-  container.addEventListener('wheel', onWheel, { passive:false });
-
-  // bascule 3D : zoom + inclinaison vers la cible cliquée (région ou point d'intérêt)
-  function tweenTo(target: { x: number; y: number } | null, dur: number, tilt: number, scaleMult?: number): void {
-    tweening = true;
-    const from = { x:cam.x, y:cam.y, scale:cam.scale, tilt:cam.tiltDeg };
-    const to = target
-      ? { x:target.x, y:target.y, scale: Math.min(maxScale, baseScale*(scaleMult||2.2)), tilt }
-      : { x:WORLD_W/2, y:WORLD_H/2, scale: baseScale, tilt: 0 };
-    const start = performance.now();
-    function step(now: number): void {
-      const t = Math.min(1, (now-start)/dur);
-      const ease = 1 - Math.pow(1-t, 3);
-      cam.x = from.x + (to.x-from.x)*ease;
-      cam.y = from.y + (to.y-from.y)*ease;
-      cam.scale = from.scale + (to.scale-from.scale)*ease;
-      cam.tiltDeg = from.tilt + (to.tilt-from.tilt)*ease;
-      apply();
-      if(t<1) requestAnimationFrame(step); else tweening=false;
-    }
-    requestAnimationFrame(step);
-  }
-
-  mapState = {
-    focusZone(id: string){
-      const z = MAP_ZONES.find(m=>m.id===id);
-      if(z){ showPoisForZone(id); tweenTo({x:z.x,y:z.y}, 850, 34, 2.2); }
-    },
-    focusPoi(zoneId: string, poiId: string){
-      const z = MAP_ZONES.find(m=>m.id===zoneId);
-      const p = z && z.pois ? z.pois.find(pp=>pp.id===poiId) : undefined;
-      if(p) tweenTo({x:p.x,y:p.y}, 700, 44, 3.2);
-    },
-    resetView(){ showPoisForZone(null); tweenTo(null, 700, 0); },
-    cleanup(){
-      container.removeEventListener('pointerdown', onDown);
-      window.removeEventListener('pointermove', onMove);
-      window.removeEventListener('pointerup', onUp);
-      container.removeEventListener('wheel', onWheel);
-      container.innerHTML = '';
-      labelsWrap.innerHTML = '';
-      hideTooltip();
-    }
+// Champ de hauteur : bruit fractal déformé + masque en île. Les seuils des
+// terrasses sont des quantiles, donc chaque couche a une surface comparable.
+function tmBuildTerrain(): { rw: number; rh: number; hmap: Float32Array; cuts: number[]; lineCuts: number[] } {
+  const gw = 500, gh = 280;
+  const rnd = tmSeeded(20240);
+  const LAT = 64;
+  const lat = new Float32Array(LAT * LAT);
+  for(let i = 0; i < lat.length; i++) lat[i] = rnd();
+  const smooth = (t: number) => t * t * (3 - 2 * t);
+  const vnoise = (x: number, y: number): number => {
+    const xi = Math.floor(x), yi = Math.floor(y);
+    const xf = x - xi, yf = y - yi;
+    const x0 = xi & (LAT - 1), y0 = yi & (LAT - 1), x1 = (x0 + 1) & (LAT - 1), y1 = (y0 + 1) & (LAT - 1);
+    const a = lat[y0 * LAT + x0], b = lat[y0 * LAT + x1], c = lat[y1 * LAT + x0], d = lat[y1 * LAT + x1];
+    const u = smooth(xf), v = smooth(yf);
+    return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
   };
+  const fbm = (x: number, y: number, oct: number): number => {
+    let amp = 0.5, f = 1, s = 0, n = 0;
+    for(let o = 0; o < oct; o++){ s += amp * vnoise(x * f + o * 17.3, y * f + o * 9.1); n += amp; amp *= 0.5; f *= 2.05; }
+    return s / n;
+  };
+  const grid = new Float32Array(gw * gh);
+  for(let y = 0; y < gh; y++){
+    for(let x = 0; x < gw; x++){
+      const nx = x / gw, ny = y / gh;
+      const u = nx * 5.4, v = ny * 5.4 * (TM_H / TM_W);
+      const wx = (fbm(u * 0.6 + 3.1, v * 0.6 + 1.7, 3) - 0.5) * 0.55;
+      const wy = (fbm(u * 0.6 + 8.3, v * 0.6 + 4.2, 3) - 0.5) * 0.55;
+      const base = fbm(u + wx, v + wy, 5);
+      const ridge = 1 - Math.abs(2 * fbm(u * 1.7 + wx + 11, v * 1.7 + wy + 5, 4) - 1);
+      const rr = Math.hypot((nx - 0.5) / 0.6, (ny - 0.5) / 0.64) + (fbm(u * 0.8 + 20, v * 0.8 + 9, 3) - 0.5) * 0.55;
+      const mask = 1 - tmSmoothstep(0.55, 1.1, rr);
+      grid[y * gw + x] = base * 0.55 + ridge * ridge * 0.22 * mask + mask * 0.7;
+    }
+  }
+  const sorted = Float32Array.from(grid).sort();
+  const quant = (q: number) => sorted[Math.min(sorted.length - 1, Math.floor(q * sorted.length))];
+  const cuts = [0.46, 0.55, 0.63, 0.70, 0.76, 0.82, 0.875, 0.925, 0.965].map(quant);
+  const lineCuts: number[] = [];
+  for(let q = 0.03; q < 0.47; q += 0.03) lineCuts.push(quant(q));
+
+  const rw = Math.round(TM_W * TM_RES), rh = Math.round(TM_H * TM_RES);
+  const hmap = new Float32Array(rw * rh);
+  for(let y = 0; y < rh; y++){
+    const gy = (y / (rh - 1)) * (gh - 1);
+    const y0 = Math.floor(gy), y1 = Math.min(gh - 1, y0 + 1), fy = gy - y0;
+    for(let x = 0; x < rw; x++){
+      const gx = (x / (rw - 1)) * (gw - 1);
+      const x0 = Math.floor(gx), x1 = Math.min(gw - 1, x0 + 1), fx = gx - x0;
+      const a = grid[y0 * gw + x0], b = grid[y0 * gw + x1], c = grid[y1 * gw + x0], d = grid[y1 * gw + x1];
+      hmap[y * rw + x] = a + (b - a) * fx + (c - a) * fy + (a - b - c + d) * fx * fy;
+    }
+  }
+  return { rw, rh, hmap, cuts, lineCuts };
 }
 
-function cleanupMap(): void {
-  closeZonePanel();
-  if(mapState && mapState.cleanup){ mapState.cleanup(); mapState = null; }
+// Fond : océan sombre quadrillé de courbes de niveau rouges (les lignes
+// principales, une sur quatre, sont plus épaisses et plus vives).
+function tmPaintBase(rw: number, rh: number, hmap: Float32Array, lineCuts: number[]): HTMLCanvasElement {
+  const canvas = document.createElement('canvas');
+  canvas.width = rw; canvas.height = rh;
+  const g = canvas.getContext('2d')!;
+  const bg = g.createRadialGradient(rw * 0.5, rh * 0.5, 40, rw * 0.5, rh * 0.5, rw * 0.7);
+  bg.addColorStop(0, '#1b0d10'); bg.addColorStop(1, '#070405');
+  g.fillStyle = bg; g.fillRect(0, 0, rw, rh);
+  const img = g.getImageData(0, 0, rw, rh);
+  const px = new Uint32Array(img.data.buffer);
+  const bucket = (h: number): number => { let n = 0; while(n < lineCuts.length && h >= lineCuts[n]) n++; return n; };
+  const put = (i: number, major: boolean, h: number): void => {
+    const a = (major ? 0.85 : 0.5) * (0.55 + 0.45 * (1 - Math.min(1, h / lineCuts[lineCuts.length - 1])));
+    const old = px[i];
+    const or = old & 255, og = (old >> 8) & 255, ob = (old >> 16) & 255;
+    const r = Math.min(255, or + (225 - or) * a), gg = Math.min(255, og + (34 - og) * a), b = Math.min(255, ob + (44 - ob) * a);
+    px[i] = (255 << 24) | (b << 16) | (gg << 8) | r;
+  };
+  for(let y = 0; y < rh - 1; y++){
+    for(let x = 0; x < rw - 1; x++){
+      const i = y * rw + x;
+      const b0 = bucket(hmap[i]);
+      if(b0 === lineCuts.length) continue;
+      const bx = bucket(hmap[i + 1]), by = bucket(hmap[i + rw]);
+      if(bx !== b0 || by !== b0){
+        const major = (Math.max(b0, bx, by) % 4) === 0;
+        put(i, major, hmap[i]);
+        if(major && x + 1 < rw) put(i + 1, true, hmap[i]);
+      }
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return canvas;
 }
 
-function openZonePanel(id: string): void {
-  const entry = findEntry(id);
-  if(!entry) return;
-  if(mapState && mapState.focusZone) mapState.focusZone(id);
-  const chars = ENTRIES.filter(e => e.cat==='personnages' && e.region===id);
-  const panel = document.getElementById('mapPanel');
-  const content = document.getElementById('mapPanelContent');
-  if(!panel || !content) return;
-  content.innerHTML = `
-    <div class="map-panel-eyebrow">${esc(CATS.lieux ? CATS.lieux.label : 'Lieu')}</div>
-    <div class="map-panel-title">${esc(entry.name)}</div>
-    ${chars.length ? `<div class="map-panel-chars">${chars.map(c=>`<div class="map-panel-chip" title="${esc(c.name)}" onclick="navigate('entry-${c.id}')">${esc(c.name.charAt(0))}</div>`).join('')}</div>` : ''}
-    <div class="map-panel-facts">
-      ${Object.entries(entry.info||{}).map(([k,v])=>`<div><div class="map-panel-fact-k">${esc(k)}</div><div class="map-panel-fact-v">${esc(v)}</div></div>`).join('')}
+// Une couche = tout ce qui dépasse le seuil k, plus clair à chaque étage, avec
+// un liseré lumineux en haut à gauche, un bord sombre en bas à droite et une
+// ombre portée dessinée dans le canvas.
+function tmPaintLayer(rw: number, rh: number, hmap: Float32Array, cuts: number[], k: number): HTMLCanvasElement {
+  const tmp = document.createElement('canvas');
+  tmp.width = rw; tmp.height = rh;
+  const tg = tmp.getContext('2d')!;
+  const img = tg.createImageData(rw, rh);
+  const px = new Uint32Array(img.data.buffer);
+  const c = cuts[k];
+  const hi = k < cuts.length - 1 ? cuts[k + 1] : c + (c - cuts[k - 1]);
+  const gv = 36 + 168 * Math.pow(k / (cuts.length - 1), 1.35);
+  const br = gv, bgc = gv * 0.985, bb = gv * 0.97;
+  const orange = k === 2 || k === 5;
+  for(let y = 0; y < rh; y++){
+    for(let x = 0; x < rw; x++){
+      const i = y * rw + x;
+      const h = hmap[i];
+      if(h < c) continue;
+      const t = Math.min(1, (h - c) / (hi - c));
+      let f = 0.9 + 0.2 * t;
+      let r = br, g = bgc, b = bb;
+      const ul = (x >= 2 && y >= 2) ? hmap[i - 2 * rw - 2] >= c : false;
+      const dr = (x < rw - 1 && y < rh - 1) ? hmap[i + rw + 1] >= c : false;
+      if(!ul){
+        f = 1.3;
+        if(orange){ r = 255; g = 150; b = 70; f = 1.0; }
+      } else if(!dr){ f = 0.7; }
+      r = Math.min(255, r * f); g = Math.min(255, g * f); b = Math.min(255, b * f);
+      px[i] = (255 << 24) | (b << 16) | (g << 8) | r;
+    }
+  }
+  tg.putImageData(img, 0, 0);
+  const canvas = document.createElement('canvas');
+  canvas.width = rw; canvas.height = rh;
+  const g2 = canvas.getContext('2d')!;
+  g2.shadowColor = 'rgba(0,0,0,0.7)';
+  g2.shadowBlur = 18; g2.shadowOffsetX = 2; g2.shadowOffsetY = 8;
+  g2.drawImage(tmp, 0, 0);
+  return canvas;
+}
+
+// Place Novelance au cœur des hauteurs, puis chaque lieu écrit sur le site à
+// une position déterminée par son id (donc stable d'une visite à l'autre).
+function tmPlaceMarkers(rw: number, rh: number, hmap: Float32Array, cuts: number[]): TmMarker[] {
+  const levelAt = (wx: number, wy: number): number => {
+    const x = Math.min(rw - 1, Math.max(0, Math.round(wx * TM_RES))), y = Math.min(rh - 1, Math.max(0, Math.round(wy * TM_RES)));
+    const h = hmap[y * rw + x];
+    let n = 0; while(n < cuts.length && h >= cuts[n]) n++;
+    return n;
+  };
+  let sx = 0, sy = 0, sn = 0;
+  const topCut = cuts[5];
+  for(let y = 0; y < rh; y += 4) for(let x = 0; x < rw; x += 4) if(hmap[y * rw + x] >= topCut){ sx += x; sy += y; sn++; }
+  const city: TmMarker = {
+    id: 'novelance', label: 'Novelance', caption: 'Cité-bastion de Halcyon', kind: 'city', route: 'novelance',
+    x: sn ? sx / sn / TM_RES : TM_W * 0.5, y: sn ? sy / sn / TM_RES : TM_H * 0.5, level: 0,
+  };
+  city.level = levelAt(city.x, city.y);
+  const out: TmMarker[] = [city];
+  ENTRIES.filter(e => e.cat === 'lieux').forEach(e => {
+    const rnd = tmSeeded(tmHash(e.id));
+    let best: { x: number; y: number } | null = null;
+    for(let tries = 0; tries < 260; tries++){
+      const x = TM_W * (0.16 + rnd() * 0.68), y = TM_H * (0.18 + rnd() * 0.64);
+      const need = tries < 120 ? 3 : 2;
+      if(levelAt(x, y) < need) continue;
+      if(out.some(m => Math.hypot(m.x - x, m.y - y) < 120)) continue;
+      best = { x, y }; break;
+    }
+    if(!best) best = { x: TM_W * (0.3 + rnd() * 0.4), y: TM_H * (0.3 + rnd() * 0.4) };
+    out.push({ id: e.id, label: e.name, caption: e.tagline || 'Lieu', kind: 'place', route: 'entry-' + e.id, x: best.x, y: best.y, level: levelAt(best.x, best.y) });
+  });
+  return out;
+}
+
+function tmMarkerHtml(m: TmMarker): string {
+  const icon = m.kind === 'city'
+    ? '<circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7.5"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/>'
+    : '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.2"/>';
+  return `
+    <div class="tm-mk" style="left:${(m.x / TM_W * 100).toFixed(2)}%; top:${(m.y / TM_H * 100).toFixed(2)}%; --d:${(m.level / TM_LEVELS).toFixed(3)}">
+      <div class="tm-mk-in" onclick="tmOpenMarker('${escAttr(m.id)}')">
+        <div class="tm-hex"><svg viewBox="0 0 44 50">
+          <polygon points="22,2 41,13 41,37 22,48 3,37 3,13" fill="rgba(70,8,12,0.9)" stroke="#e5373a" stroke-width="2.4"/>
+          <polygon points="22,7 36.5,15.5 36.5,34.5 22,43 7.5,34.5 7.5,15.5" fill="none" stroke="rgba(229,55,58,0.45)" stroke-width="1"/>
+          <g transform="translate(10 13)" fill="none" stroke="#ffd9d9" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${icon}</g>
+        </svg></div>
+        <div class="tm-mk-label"><b>${esc(m.label)}</b><small>${esc(m.caption)}</small></div>
+      </div>
+    </div>`;
+}
+
+function tmOpenMarker(id: string): void {
+  if(tmMoved) return;
+  const m = tmMarkers.find(x => x.id === id);
+  if(m) navigate(m.route);
+}
+
+const TM_TABS: { label: string; route: string }[] = [
+  { label: 'Carte', route: 'carte' },
+  { label: 'Lieux', route: 'cat-lieux' },
+  { label: 'Chronologie', route: 'chronologie' },
+  { label: 'Organisations', route: 'organisations' },
+  { label: 'Codex', route: 'home' },
+];
+
+function mapOverlayHtml(): string {
+  return `
+    <div class="tm-stage" id="tmStage"><div class="tm-world" id="tmWorld"></div></div>
+    <div class="tm-grid"></div>
+    <div class="tm-vignette"></div>
+    <button class="tm-close" onclick="navigate('home')" aria-label="Fermer la carte">✕</button>
+    <div class="tm-title"><b>${esc(CONTINENT_NAME)}</b><span>Relevé topographique</span></div>
+    <nav class="tm-tabs">
+      <span class="tm-key" onclick="tmStepTab(-1)">Q</span>
+      ${TM_TABS.map((t, i) => `<a class="tm-tab${i === 0 ? ' active' : ''}" onclick="navigate('${t.route}')">${esc(t.label)}</a>`).join('')}
+      <span class="tm-key" onclick="tmStepTab(1)">E</span>
+    </nav>
+    <div class="tm-legend" id="tmLegend">
+      <div class="tm-legend-title">Légende</div>
+      <div class="tm-legend-row"><svg viewBox="0 0 44 50"><polygon points="22,2 41,13 41,37 22,48 3,37 3,13" fill="rgba(70,8,12,0.9)" stroke="#e5373a" stroke-width="3"/><g transform="translate(10 13)" fill="none" stroke="#ffd9d9" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7.5"/></g></svg>Cité</div>
+      <div class="tm-legend-row"><svg viewBox="0 0 44 50"><polygon points="22,2 41,13 41,37 22,48 3,37 3,13" fill="rgba(70,8,12,0.9)" stroke="#e5373a" stroke-width="3"/><g transform="translate(10 13)" fill="none" stroke="#ffd9d9" stroke-width="2.2" stroke-linecap="round"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.2"/></g></svg>Lieu</div>
+      <div class="tm-legend-alt"><span>Altitude</span><i></i><em><u>bas</u><u>haut</u></em></div>
     </div>
-    <div class="map-panel-desc">${esc(entry.summary||'')}</div>
-    <a class="map-panel-link" onclick="navigate('entry-${entry.id}')">En savoir plus →</a>
-  `;
-  panel.classList.add('open');
-  const box = document.getElementById('mapBox');
-  if(box) box.classList.add('focused');
-}
-
-function closeZonePanel(): void {
-  const panel = document.getElementById('mapPanel');
-  if(panel) panel.classList.remove('open');
-  if(mapState && mapState.resetView) mapState.resetView();
-  const box = document.getElementById('mapBox');
-  if(box) box.classList.remove('focused');
-}
-
-function openPoiPanel(zoneId: string, poiId: string): void {
-  const zone = MAP_ZONES.find(z=>z.id===zoneId);
-  const poi = zone && zone.pois ? zone.pois.find(p=>p.id===poiId) : undefined;
-  if(!zone || !poi) return;
-  if(mapState && mapState.focusPoi) mapState.focusPoi(zoneId, poiId);
-  const chars = (poi.chars||[]).map(id=>findEntry(id)).filter(Boolean) as Entry[];
-  const panel = document.getElementById('mapPanel');
-  const content = document.getElementById('mapPanelContent');
-  if(!panel || !content) return;
-  content.innerHTML = `
-    <div class="map-panel-eyebrow">${esc(zone.label)}</div>
-    <div class="map-panel-title">${esc(poi.label)}</div>
-    ${chars.length ? `<div class="map-panel-chars">${chars.map(c=>`<div class="map-panel-chip" title="${esc(c.name)}" onclick="navigate('entry-${c.id}')">${esc(c.name.charAt(0))}</div>`).join('')}</div>` : ''}
-    <div class="map-panel-facts">
-      ${Object.entries(poi.facts||{}).map(([k,v])=>`<div><div class="map-panel-fact-k">${esc(k)}</div><div class="map-panel-fact-v">${esc(v)}</div></div>`).join('')}
+    <div class="tm-hints">
+      <span onclick="tmState && tmState.recenter()"><b>R</b>Recentrer</span>
+      <span onclick="tmState && tmState.toggleLegend()"><b>L</b>Légende</span>
+      <span onclick="navigate('home')"><b>Échap</b>Retour</span>
     </div>
-    <div class="map-panel-desc">${esc(poi.desc)}</div>
-    <button class="map-panel-back" onclick="openZonePanel('${zoneId}')">← Retour à ${esc(zone.label)}</button>
+    <div class="tm-loading" id="tmLoading">Relevé topographique…</div>
   `;
-  panel.classList.add('open');
-  const box = document.getElementById('mapBox');
-  if(box) box.classList.add('focused');
 }
 
-/* ---------------- CARTE — PAGE PLEIN ÉCRAN (couverture + exploration façon carte interactive) ---------------- */
+function tmStepTab(dir: number): void {
+  const n = TM_TABS.length;
+  navigate(TM_TABS[(0 + dir + n) % n].route);
+}
+
 function openMapOverlay(): void {
   let overlay = document.getElementById('mapOverlay');
-  if(overlay && overlay.classList.contains('open')) return;
+  if(overlay && overlay.classList.contains('open')){ tmRefreshMarkers(); return; }
   if(!overlay){
     overlay = document.createElement('div');
     overlay.id = 'mapOverlay';
-    overlay.className = 'map-overlay';
+    overlay.className = 'tm-overlay';
     document.body.appendChild(overlay);
   }
   overlay.innerHTML = mapOverlayHtml();
   document.body.style.overflow = 'hidden';
-  requestAnimationFrame(()=>{
+  requestAnimationFrame(() => {
     overlay!.classList.add('open');
-    paintMapOverlayCover();
+    setTimeout(initTerrainMap, 80);
   });
 }
 
-function paintMapOverlayCover(): void {
-  const holder = document.getElementById('mapOvCoverCanvasWrap');
-  if(!holder) return;
-  const canvas = paintWorldMap();
-  const relief = paintReliefLayer();
-  holder.innerHTML = '';
-  holder.appendChild(canvas);
-  holder.appendChild(relief);
+function initTerrainMap(): void {
+  const overlay = document.getElementById('mapOverlay');
+  const stage = document.getElementById('tmStage') as HTMLElement | null;
+  const world = document.getElementById('tmWorld') as HTMLElement | null;
+  if(!overlay || !stage || !world) return;
+
+  const { rw, rh, hmap, cuts, lineCuts } = tmBuildTerrain();
+  tmTerrain = { rw, rh, hmap, cuts };
+  const base = tmPaintBase(rw, rh, hmap, lineCuts);
+  base.className = 'tm-base';
+  world.appendChild(base);
+  for(let k = 0; k < cuts.length; k++){
+    const layer = document.createElement('div');
+    layer.className = 'tm-layer';
+    layer.style.setProperty('--i', String(k));
+    layer.style.setProperty('--d', ((k + 1) / TM_LEVELS).toFixed(3));
+    layer.appendChild(tmPaintLayer(rw, rh, hmap, cuts, k));
+    world.appendChild(layer);
+  }
+  tmMarkers = tmPlaceMarkers(rw, rh, hmap, cuts);
+  const mk = document.createElement('div');
+  mk.className = 'tm-markers';
+  mk.innerHTML = tmMarkers.map(tmMarkerHtml).join('');
+  world.appendChild(mk);
+
+  const cam = { s: 1, x: 0, y: 0 };
+  let minS = 1, maxS = 3;
+  const clampCam = (): void => {
+    const vw = stage.clientWidth, vh = stage.clientHeight;
+    cam.s = Math.min(maxS, Math.max(minS, cam.s));
+    cam.x = Math.min(0, Math.max(vw - TM_W * cam.s, cam.x));
+    cam.y = Math.min(0, Math.max(vh - TM_H * cam.s, cam.y));
+  };
+  const apply = (): void => {
+    world.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.s})`;
+    world.style.setProperty('--inv', String(1 / cam.s));
+  };
+  const fit = (): void => {
+    const vw = stage.clientWidth, vh = stage.clientHeight;
+    minS = Math.max(vw / TM_W, vh / TM_H) * 1.02;
+    maxS = minS * 3.2;
+    cam.s = Math.max(cam.s, minS);
+    clampCam(); apply();
+  };
+  fit();
+  cam.s = minS;
+  cam.x = (stage.clientWidth - TM_W * cam.s) / 2;
+  cam.y = (stage.clientHeight - TM_H * cam.s) / 2;
+  clampCam(); apply();
+
+  let tween = 0;
+  const recenter = (): void => {
+    cancelAnimationFrame(tween);
+    const from = { ...cam };
+    const to = { s: minS, x: (stage.clientWidth - TM_W * minS) / 2, y: (stage.clientHeight - TM_H * minS) / 2 };
+    const t0 = performance.now();
+    const step = (now: number): void => {
+      const t = Math.min(1, (now - t0) / 650), e = 1 - Math.pow(1 - t, 3);
+      cam.s = from.s + (to.s - from.s) * e; cam.x = from.x + (to.x - from.x) * e; cam.y = from.y + (to.y - from.y) * e;
+      clampCam(); apply();
+      if(t < 1) tween = requestAnimationFrame(step);
+    };
+    tween = requestAnimationFrame(step);
+  };
+
+  let dragging = false, down: { x: number; y: number; cx: number; cy: number } | null = null;
+  const onDown = (e: PointerEvent): void => { dragging = true; tmMoved = false; down = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y }; cancelAnimationFrame(tween); };
+  const onMove = (e: PointerEvent): void => {
+    const r = stage.getBoundingClientRect();
+    pointer.x = ((e.clientX - r.left) / r.width) * 2 - 1;
+    pointer.y = ((e.clientY - r.top) / r.height) * 2 - 1;
+    pointer.inside = true;
+    if(!dragging || !down) return;
+    const dx = e.clientX - down.x, dy = e.clientY - down.y;
+    if(Math.hypot(dx, dy) > 5){ tmMoved = true; stage.classList.add('dragging'); }
+    cam.x = down.cx + dx; cam.y = down.cy + dy;
+    clampCam(); apply();
+  };
+  const onUp = (): void => { dragging = false; down = null; stage.classList.remove('dragging'); setTimeout(() => { tmMoved = false; }, 0); };
+  const onLeave = (): void => { pointer.inside = false; };
+  const onWheel = (e: WheelEvent): void => {
+    e.preventDefault();
+    cancelAnimationFrame(tween);
+    const r = stage.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const ns = Math.min(maxS, Math.max(minS, cam.s * (e.deltaY > 0 ? 0.9 : 1.1)));
+    const k = ns / cam.s;
+    cam.x = mx - (mx - cam.x) * k; cam.y = my - (my - cam.y) * k; cam.s = ns;
+    clampCam(); apply();
+  };
+  const toggleLegend = (): void => { const l = document.getElementById('tmLegend'); if(l) l.classList.toggle('hidden'); };
+  const onKey = (e: KeyboardEvent): void => {
+    if(e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if(k === 'r') recenter();
+    else if(k === 'l') toggleLegend();
+    else if(k === 'q') tmStepTab(-1);
+    else if(k === 'e') tmStepTab(1);
+  };
+
+  // parallaxe : suit la souris, et ondule doucement quand elle n'est pas sur la carte
+  const pointer = { x: 0, y: 0, inside: false };
+  const cur = { x: 0, y: 0 };
+  let raf = 0;
+  const loop = (now: number): void => {
+    const tx = pointer.inside ? pointer.x : Math.sin(now * 0.00023) * 0.4;
+    const ty = pointer.inside ? pointer.y : Math.cos(now * 0.00031) * 0.28;
+    cur.x += (tx - cur.x) * 0.06; cur.y += (ty - cur.y) * 0.06;
+    world.style.setProperty('--px', (-cur.x * 26).toFixed(2) + 'px');
+    world.style.setProperty('--py', (-cur.y * 18).toFixed(2) + 'px');
+    raf = requestAnimationFrame(loop);
+  };
+  raf = requestAnimationFrame(loop);
+
+  stage.addEventListener('pointerdown', onDown);
+  window.addEventListener('pointermove', onMove);
+  window.addEventListener('pointerup', onUp);
+  stage.addEventListener('pointerleave', onLeave);
+  stage.addEventListener('wheel', onWheel, { passive: false });
+  window.addEventListener('keydown', onKey);
+  window.addEventListener('resize', fit);
+
+  tmState = {
+    recenter, toggleLegend,
+    cleanup(){
+      cancelAnimationFrame(raf); cancelAnimationFrame(tween);
+      stage.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      stage.removeEventListener('pointerleave', onLeave);
+      stage.removeEventListener('wheel', onWheel);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', fit);
+    },
+  };
+
+  requestAnimationFrame(() => {
+    overlay.classList.add('tm-ready');
+    const loading = document.getElementById('tmLoading');
+    if(loading) loading.remove();
+  });
 }
 
-function mapOverlayHtml(): string {
-  return `
-    <div class="map-ov-cover" id="mapOvCover">
-      <div class="map-ov-cover-canvas-wrap" id="mapOvCoverCanvasWrap"></div>
-      <div class="map-ov-cover-scrim"></div>
-      <button class="map-ov-close" onclick="navigate('home')" aria-label="Fermer la carte">✕</button>
-      <div class="map-ov-cover-content">
-        <div class="map-ov-eyebrow">Explorez et découvrez</div>
-        <h1 class="map-ov-title">${esc(CONTINENT_NAME)}</h1>
-        <div class="hero-divider"></div>
-        <button class="map-ov-explore-btn" onclick="startMapExplore()">Commencer à explorer</button>
-      </div>
-    </div>
-    <div class="map-ov-explore" id="mapOvExplore">
-      <button class="map-ov-close" onclick="navigate('home')" aria-label="Fermer la carte">✕</button>
-      <div class="map-box map-box-overlay" id="mapBox">
-        <div class="map-toolbar">
-          <button class="map-toolbar-btn" onclick="closeZonePanel()" title="Recentrer la carte" aria-label="Recentrer la carte">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 11l9-8 9 8"/><path d="M5 10v10h14V10"/></svg>
-          </button>
-        </div>
-        <div class="map-canvas-wrap" id="mapCanvasWrap"></div>
-        <div class="map-tiltshift top"></div>
-        <div class="map-tiltshift bottom"></div>
-        <div class="map-vignette"></div>
-        <div class="map-labels" id="mapLabelsWrap"></div>
-        <div class="map-tooltip" id="mapTooltip"></div>
-        <div class="map-panel" id="mapPanel">
-          <button class="map-panel-close" onclick="closeZonePanel()">✕</button>
-          <div id="mapPanelContent"></div>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-function startMapExplore(): void {
-  const cover = document.getElementById('mapOvCover');
-  const explore = document.getElementById('mapOvExplore');
-  if(!cover || !explore) return;
-  cover.classList.add('leaving');
-  explore.classList.add('active');
-  initMap();
-  setTimeout(()=>{ cover.style.display = 'none'; }, 650);
+function cleanupMap(): void {
+  if(tmState){ tmState.cleanup(); tmState = null; }
+  tmTerrain = null;
 }
 
 function closeMapOverlay(): void {
@@ -7137,7 +6982,7 @@ function closeMapOverlay(): void {
   cleanupMap();
   overlay.classList.remove('open');
   document.body.style.overflow = '';
-  setTimeout(()=>{ const el = document.getElementById('mapOverlay'); if(el) el.remove(); }, 420);
+  setTimeout(() => { const el = document.getElementById('mapOverlay'); if(el && !el.classList.contains('open')) el.remove(); }, 420);
 }
 
 /* ---------------- NOVELANCE — CARTE DE LA CITÉ-BASTION (plan radial) ----------------
