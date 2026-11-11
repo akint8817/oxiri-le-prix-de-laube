@@ -6045,9 +6045,7 @@ function mapOverlayHtml() {
     <button class="tm-close" onclick="navigate('home')" aria-label="Fermer la carte">✕</button>
     <div class="tm-title"><b>${esc(CONTINENT_NAME)}</b><span>Relevé topographique</span></div>
     <nav class="tm-tabs">
-      <span class="tm-key" onclick="tmStepTab(-1)">Q</span>
       ${TM_TABS.map((t, i) => `<a class="tm-tab${i === 0 ? ' active' : ''}" onclick="navigate('${t.route}')">${esc(t.label)}</a>`).join('')}
-      <span class="tm-key" onclick="tmStepTab(1)">E</span>
     </nav>
     <div class="tm-legend" id="tmLegend">
       <div class="tm-legend-title">Légende</div>
@@ -6056,16 +6054,12 @@ function mapOverlayHtml() {
       <div class="tm-legend-alt"><span>Altitude</span><i></i><em><u>bas</u><u>haut</u></em></div>
     </div>
     <div class="tm-hints">
-      <span onclick="tmState && tmState.recenter()"><b>R</b>Recentrer</span>
-      <span onclick="tmState && tmState.toggleLegend()"><b>L</b>Légende</span>
-      <span onclick="navigate('home')"><b>Échap</b>Retour</span>
+      <span onclick="tmState && tmState.recenter()">Recentrer</span>
+      <span onclick="tmState && tmState.toggleLegend()">Légende</span>
+      <span onclick="navigate('home')">Retour</span>
     </div>
     <div class="tm-loading" id="tmLoading">Relevé topographique…</div>
   `;
-}
-function tmStepTab(dir) {
-    const n = TM_TABS.length;
-    navigate(TM_TABS[(0 + dir + n) % n].route);
 }
 function openMapOverlay() {
     let overlay = document.getElementById('mapOverlay');
@@ -6211,19 +6205,6 @@ function initTerrainMap() {
     };
     const toggleLegend = () => { const l = document.getElementById('tmLegend'); if (l)
         l.classList.toggle('hidden'); };
-    const onKey = (e) => {
-        if (e.ctrlKey || e.metaKey || e.altKey)
-            return;
-        const k = e.key.toLowerCase();
-        if (k === 'r')
-            recenter();
-        else if (k === 'l')
-            toggleLegend();
-        else if (k === 'q')
-            tmStepTab(-1);
-        else if (k === 'e')
-            tmStepTab(1);
-    };
     const pointer = { x: 0, y: 0, inside: false };
     const cur = { x: 0, y: 0 };
     let raf = 0;
@@ -6242,7 +6223,6 @@ function initTerrainMap() {
     window.addEventListener('pointerup', onUp);
     stage.addEventListener('pointerleave', onLeave);
     stage.addEventListener('wheel', onWheel, { passive: false });
-    window.addEventListener('keydown', onKey);
     window.addEventListener('resize', fit);
     tmState = {
         recenter, toggleLegend, zoomInto,
@@ -6254,7 +6234,6 @@ function initTerrainMap() {
             window.removeEventListener('pointerup', onUp);
             stage.removeEventListener('pointerleave', onLeave);
             stage.removeEventListener('wheel', onWheel);
-            window.removeEventListener('keydown', onKey);
             window.removeEventListener('resize', fit);
         },
     };
@@ -6858,12 +6837,10 @@ function novelanceOverlayHtml() {
         <div class="nv-title"><b>Novelance</b><span>Cité-bastion de Halcyon</span></div>
       </div>
       <nav class="nv-tabs">
-        <span class="nv-key" onclick="nvStepFloor(-1)">Q</span>
         ${NV_FLOORS.map(f => `<button type="button" class="nv-tab${f.id === 'all' ? ' active' : ''}" data-floor="${f.id}" onclick="nvSetFloor('${f.id}')"><svg viewBox="0 0 24 24">${f.icon}</svg></button>`).join('')}
-        <span class="nv-key" onclick="nvStepFloor(1)">E</span>
       </nav>
       <div class="nv-floor-title" id="nvFloorTitle">Toute la ville</div>
-      <button class="nv-menu-btn" onclick="nvTogglePanel()"><span>Menu de la carte</span><em>F</em></button>
+      <button class="nv-menu-btn" onclick="nvTogglePanel()"><span>Menu de la carte</span></button>
       <aside class="nv-panel open" id="nvPanel">
         <div class="nv-panel-h">Points d'intérêt</div>
         ${NV_CATS.map(c => `<div class="nv-row" data-key="${c.id}" onclick="nvToggle('${c.id}')"><span class="nv-check"></span><span class="nv-row-ico${c.red ? ' red' : ''}"><svg viewBox="0 0 24 24">${c.icon}</svg></span><span class="nv-row-lbl">${esc(c.label)}</span><em class="nv-row-count"></em></div>`).join('')}
@@ -6873,10 +6850,9 @@ function novelanceOverlayHtml() {
       <div class="nv-counters" id="nvCounters"></div>
       <div class="nv-card" id="nvCard"></div>
       <div class="nv-hints">
-        <span onclick="nvRecenter()"><b>R</b>Recentrer</span>
-        <span><b>Molette</b>Zoom</span>
-        <span onclick="nvTogglePanel()"><b>F</b>Filtres</span>
-        <span onclick="navigate('carte')"><b>Échap</b>Retour</span>
+        <span onclick="nvRecenter()">Recentrer</span>
+        <span onclick="nvTogglePanel()">Filtres</span>
+        <span onclick="navigate('carte')">Retour</span>
       </div>
     </div>`;
 }
@@ -6955,10 +6931,6 @@ function nvRefreshUi() {
     }
 }
 function nvSetFloor(id) { nvFloor = id; nvSel = null; nvRefreshUi(); }
-function nvStepFloor(dir) {
-    const i = NV_FLOORS.findIndex(f => f.id === nvFloor);
-    nvSetFloor(NV_FLOORS[(i + dir + NV_FLOORS.length) % NV_FLOORS.length].id);
-}
 function nvToggle(key) { nvFilters[key] = !nvFilters[key]; nvRefreshUi(); }
 function nvTogglePanel() { const p = document.getElementById('nvPanel'); if (p)
     p.classList.toggle('open'); }
@@ -7055,21 +7027,7 @@ function initNovelanceMap() {
         clampCam();
         apply();
     };
-    const onKey = (e) => {
-        if (e.ctrlKey || e.metaKey || e.altKey)
-            return;
-        const k = e.key.toLowerCase();
-        if (k === 'escape')
-            navigate('carte');
-        else if (k === 'r')
-            recenter();
-        else if (k === 'f')
-            nvTogglePanel();
-        else if (k === 'q')
-            nvStepFloor(-1);
-        else if (k === 'e')
-            nvStepFloor(1);
-    };
+    const onKey = (e) => { if (e.key === 'Escape') navigate('carte'); };
     stage.addEventListener('pointerdown', onDown);
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
