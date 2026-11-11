@@ -3118,6 +3118,7 @@ function renderHome() {
     const featured = ENTRIES.filter(e => e.cat === 'personnages').slice(-5);
     return `
     <div class="hero">
+      <div class="hero-flora"></div>
       <svg class="hero-sigil" viewBox="0 0 24 24" fill="none" stroke="#c4c9d1" stroke-width="1"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2"/><line x1="12" y1="1" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="1" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="23" y2="12"/></svg>
       <div class="hero-eyebrow">Codex non-officiel</div>
       <h1>OXIRI<br>LE PRIX DE L'AUBE</h1>

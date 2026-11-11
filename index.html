@@ -481,6 +481,25 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
   background: linear-gradient(180deg, transparent, rgba(0,0,0,0.5));
   pointer-events:none;
 }
+/* Fleurs dorées en bas de l'intro : le noir de l'image disparaît (mélange
+   « écran »), le masque l'estompe en haut et derrière le texte central. */
+.hero-flora{
+  position:absolute; inset:0; z-index:0; pointer-events:none;
+  background:
+    url('assets/hero-fleurs.webp') center calc(100% + 110px) / max(100%, 1100px) auto no-repeat,
+    radial-gradient(ellipse 60% 55% at 50% 100%, rgba(196,150,80,0.16), transparent 70%);
+  mix-blend-mode: screen; opacity:0.9; transform-origin: 50% 100%;
+  -webkit-mask-image: linear-gradient(180deg, transparent 12%, #000 58%), radial-gradient(ellipse 38% 40% at 50% 70%, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.08) 45%, #000 100%);
+  -webkit-mask-composite: source-in;
+  mask-image: linear-gradient(180deg, transparent 12%, #000 58%), radial-gradient(ellipse 38% 40% at 50% 70%, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.08) 45%, #000 100%);
+  mask-composite: intersect;
+  animation: heroFloraBreath 12s ease-in-out infinite alternate;
+}
+@keyframes heroFloraBreath{
+  from{ transform: scale(1); filter: brightness(0.9); }
+  to{ transform: scale(1.035); filter: brightness(1.12); }
+}
+@media (prefers-reduced-motion: reduce){ .hero-flora{ animation:none; } }
 .hero-eyebrow{
   font-family:'IBM Plex Mono', monospace;
   font-size: 11px;
@@ -3888,6 +3907,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=70"></script>
+<script src="dist/main.js?v=71"></script>
 </body>
 </html>
