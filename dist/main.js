@@ -3148,13 +3148,34 @@ function renderHome() {
   `;
 }
 const ORG_FILE_ROTATIONS = [-2.2, 1.4, -0.8, 2, -1.5, 0.9, -2.6, 1.8];
+const ORG_TAPES = [
+    { top: 6, rot: -9, h: 54, dark: true, dur: 38, rev: false, text: 'ZONE DANGEREUSE', size: 22 },
+    { top: 14, rot: 6, h: 92, dark: false, dur: 55, rev: true, text: 'ACCÈS RESTREINT', size: 54, serif: true },
+    { top: 24, rot: -4, h: 40, dark: true, dur: 30, rev: false, text: 'NE PAS FRANCHIR — DO NOT CROSS', size: 16 },
+    { top: 34, rot: 11, h: 70, dark: false, dur: 46, rev: false, text: 'CLASSIFIÉ — HALCYON', size: 34 },
+    { top: 44, rot: -12, h: 100, dark: true, dur: 62, rev: true, text: 'OXIRI', size: 66, serif: true },
+    { top: 54, rot: 3, h: 36, dark: false, dur: 26, rev: false, text: 'AUTORISATION REQUISE', size: 14 },
+    { top: 63, rot: -7, h: 80, dark: true, dur: 50, rev: false, text: 'ENTROPY DÉTECTÉE', size: 40 },
+    { top: 72, rot: 9, h: 46, dark: false, dur: 34, rev: true, text: 'DANGER — ZONE DE CONFINEMENT', size: 20 },
+    { top: 81, rot: -3, h: 96, dark: true, dur: 58, rev: false, text: "LE PRIX DE L'AUBE", size: 58, serif: true },
+    { top: 90, rot: 7, h: 42, dark: false, dur: 28, rev: true, text: 'PROTOCOLE OMEGA', size: 18 },
+    { top: 97, rot: -10, h: 64, dark: true, dur: 44, rev: false, text: 'ACCÈS INTERDIT', size: 30 },
+];
+function orgTapesHtml() {
+    return ORG_TAPES.map(t => {
+        const phrase = t.text + (t.serif ? '   ◆   ' : '   ✕   ');
+        const reps = Math.max(4, Math.ceil(4600 / (phrase.length * t.size * 0.72)));
+        const unit = `<span>${phrase.repeat(reps)}</span>`;
+        return `<div class="org-tape ${t.dark ? 'org-tape-dark' : 'org-tape-light'}${t.serif ? ' org-tape-serif' : ''}" style="top:${t.top}%; --rot:${t.rot}deg; --h:${t.h}px; --fs:${t.size}px; --dur:${t.dur}s;"><div class="org-tape-track${t.rev ? ' rev' : ''}">${unit}${unit}</div></div>`;
+    }).join('');
+}
 function homeOrganisationsHtml() {
     const orgs = getAllOrganisations();
     if (!orgs.length)
         return '';
     return `
     <section class="org-table">
-      <div class="org-table-bg"></div>
+      <div class="org-table-bg"><div class="org-table-tapes">${orgTapesHtml()}</div></div>
       <div class="org-table-inner">
         <div class="org-table-banner"><span>Les</span> Organisations</div>
         <div class="org-table-grid">
