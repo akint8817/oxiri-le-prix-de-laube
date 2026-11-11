@@ -2669,52 +2669,135 @@ h1,h2,h3,h4{
 }
 .roster-ornament span{ flex:1; height:1px; background: linear-gradient(90deg, transparent, currentColor, transparent); }
 
-/* ---- Grille de personnages façon sélection de champions (League of
-   Legends) : portrait + nom + faction en surimpression, léger zoom de
-   l'image au survol — remplace le carrousel 3D pour la page Personnages
-   (le carrousel reste utilisé pour les effectifs d'escadron). ---- */
 #rosterGridWrap{ margin-top:22px; transition: opacity .2s ease; }
 #rosterGridWrap.slide-out{ opacity:0; }
 #rosterGridWrap.slide-in{ animation: rosterIn .34s ease; }
-.champ-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap:26px; }
-.champ-card{
-  position:relative; aspect-ratio: 2/3; overflow:hidden; border-radius:3px;
-  border:1px solid var(--border); background: var(--surface); cursor:pointer;
-  transition: transform .3s ease, border-color .3s ease, box-shadow .3s ease;
-  transform-origin: center;
+/* ---- Page Personnages : toolbar (faction + recherche), cartes cadre tech
+   (numéro, portrait, étiquette de faction, barre de nom) et fond animé très
+   discret (grille qui dérive, halo, balayage lent). ---- */
+.perso-page{ position:relative; margin:-34px -40px -60px; padding:34px 40px 60px; min-height:calc(100vh - 20px); overflow:hidden; }
+.perso-page > *:not(.perso-bg){ position:relative; z-index:1; }
+.perso-bg{ position:absolute; inset:0; z-index:0; pointer-events:none; overflow:hidden; }
+.perso-bg::before{
+  content:''; position:absolute; inset:-48px;
+  background-image:
+    linear-gradient(rgba(138,149,166,0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(138,149,166,0.07) 1px, transparent 1px);
+  background-size:48px 48px;
+  -webkit-mask-image: radial-gradient(ellipse at 50% 25%, #000 15%, transparent 78%);
+  mask-image: radial-gradient(ellipse at 50% 25%, #000 15%, transparent 78%);
+  animation: persoGridDrift 50s linear infinite;
 }
-.champ-card:hover{
-  transform: scale(1.08); z-index:3;
-  border-color: var(--verdigris); box-shadow: 0 16px 34px rgba(0,0,0,0.55);
+.perso-bg::after{
+  content:''; position:absolute; left:-15vw; top:-20vw; width:60vw; height:60vw;
+  background: radial-gradient(circle, rgba(138,149,166,0.10), transparent 62%);
+  animation: persoGlow 34s ease-in-out infinite alternate;
 }
-.champ-card-img{ position:absolute; inset:0; overflow:hidden; }
-.champ-card-img img{ width:100%; height:100%; object-fit:cover; display:block; }
-.champ-card-noimg{
+.perso-bg-scan{
+  position:absolute; left:0; right:0; top:-160px; height:160px;
+  background: linear-gradient(180deg, transparent, rgba(196,201,209,0.05), transparent);
+  animation: persoScan 16s linear infinite;
+}
+@keyframes persoGridDrift{ to{ transform: translate(48px, 48px); } }
+@keyframes persoGlow{ to{ transform: translate(45vw, 35vh); } }
+@keyframes persoScan{ to{ transform: translateY(calc(100vh + 320px)); } }
+@media (prefers-reduced-motion: reduce){
+  .perso-bg::before, .perso-bg::after, .perso-bg-scan{ animation:none; }
+}
+
+.perso-toolbar{ display:flex; align-items:center; gap:14px; flex-wrap:wrap; margin-bottom:26px; }
+.perso-select{
+  appearance:none; -webkit-appearance:none; cursor:pointer;
+  min-width:210px; padding:10px 40px 10px 14px; border:1px solid rgba(196,201,209,0.28); border-radius:2px;
+  background: linear-gradient(180deg, #4b5566, #394253) no-repeat;
+  color:#f0f2f5; font-family:'IBM Plex Mono', monospace; font-size:13px; letter-spacing:0.02em;
+  background-image:
+    url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='14' height='9' viewBox='0 0 14 9'><path d='M1 1.5l6 6 6-6' fill='none' stroke='white' stroke-width='2'/></svg>"),
+    linear-gradient(180deg, #4b5566, #394253);
+  background-repeat:no-repeat, no-repeat; background-position: right 14px center, 0 0;
+}
+.perso-select:hover{ border-color: var(--amber); }
+.perso-select option{ background:#14161a; color:#e8eaee; }
+.perso-search{
+  position:relative; display:flex; align-items:center; min-width:250px;
+  background: rgba(8,8,10,0.85); border:1px solid var(--border);
+}
+.perso-search:focus-within{ border-color: var(--amber-dim); }
+.perso-search input{
+  flex:1; min-width:0; background:transparent; border:0; outline:0; color:var(--text);
+  padding:10px 38px 10px 14px; font-family:'IBM Plex Mono', monospace; font-size:13px;
+}
+.perso-search input::placeholder{ color: var(--text-dim); }
+.perso-search-clear{ position:absolute; right:12px; color:#f0f2f5; font-size:14px; cursor:pointer; opacity:0.8; }
+.perso-search-clear:hover{ opacity:1; }
+.perso-count{ font-family:'IBM Plex Mono', monospace; font-size:13px; color:var(--text); letter-spacing:0.02em; }
+.perso-count b{ color: var(--amber); font-weight:600; margin-left:6px; }
+
+.perso-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(190px,1fr)); gap:26px 20px; }
+.perso-card{
+  position:relative; aspect-ratio: 0.62; border-radius:9px; overflow:hidden; cursor:pointer;
+  background: linear-gradient(180deg, #1c2027 0%, #0c0d10 100%);
+  border:1px solid rgba(138,149,166,0.32);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03), 0 8px 20px rgba(0,0,0,0.45);
+  transition: transform .25s ease, border-color .25s ease, box-shadow .25s ease;
+}
+.perso-card:hover{
+  transform: translateY(-6px); border-color: var(--amber);
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,0.05), 0 16px 32px rgba(0,0,0,0.6), 0 0 22px rgba(196,201,209,0.16);
+}
+.perso-card-bar{
+  position:absolute; top:0; left:12px; right:12px; height:3px; z-index:3;
+  background: linear-gradient(90deg, var(--amber) 0 58%, transparent 58% 62%, rgba(196,201,209,0.55) 62% 78%, transparent 78% 82%, rgba(196,201,209,0.3) 82% 92%, transparent 92% 95%, rgba(196,201,209,0.6) 95%);
+}
+.perso-card-img{ position:absolute; inset:0; overflow:hidden; }
+.perso-card-img img{ width:100%; height:100%; object-fit:cover; object-position:top center; display:block; transition: transform .5s cubic-bezier(.2,.8,.2,1); }
+.perso-card:hover .perso-card-img img{ transform: scale(1.05); }
+.perso-card-img::after{
+  content:''; position:absolute; inset:0;
+  background: linear-gradient(0deg, rgba(8,9,12,0.92) 0%, rgba(8,9,12,0.55) 22%, transparent 48%);
+}
+.perso-card-noimg{
   width:100%; height:100%; display:flex; align-items:center; justify-content:center;
   font-family:'Cinzel', serif; font-size:54px; color: rgba(255,255,255,0.15);
-  background: linear-gradient(160deg, var(--surface-2), var(--surface));
 }
-.champ-card-overlay{
-  position:absolute; left:0; right:0; bottom:0; padding:16px 16px 14px; pointer-events:none;
-  background: linear-gradient(0deg, rgba(4,4,5,0.97) 42%, rgba(4,4,5,0.8) 72%, transparent 100%);
+.perso-card-scan{
+  position:absolute; inset:0; z-index:2; pointer-events:none; opacity:0.7;
+  background: repeating-linear-gradient(0deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 4px);
 }
-.champ-card-name{
-  font-family:'Cinzel', serif; font-size:17px; color:#f0ebdc; line-height:1.3;
-  overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+.perso-card-num{
+  position:absolute; top:12px; left:12px; z-index:3;
+  font-family:'Cinzel', serif; font-size:24px; font-weight:700; line-height:1; color:#f4f5f7;
+  text-shadow: 0 1px 6px rgba(0,0,0,0.85), 0 0 2px rgba(0,0,0,0.9);
 }
-.champ-card-faction{
-  font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.12em; text-transform:uppercase;
-  color: var(--text-dim); margin-top:4px;
+.perso-card-label{
+  position:absolute; left:6px; right:12px; bottom:16px; z-index:3;
+  display:flex; flex-direction:column; align-items:flex-start;
 }
-.champ-card-cta{
-  font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.08em; text-transform:uppercase;
-  color: var(--verdigris); margin-top:8px; opacity:0; transform:translateY(4px);
-  transition: opacity .2s ease, transform .2s ease;
+.perso-card-code{
+  max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  background: rgba(8,9,12,0.92); color:#c9ced6; padding:3px 9px 2px; border-radius:3px 3px 0 0;
+  font-family:'IBM Plex Mono', monospace; font-size:10.5px; font-weight:600; letter-spacing:0.08em; text-transform:uppercase;
 }
-.champ-card:hover .champ-card-cta{ opacity:1; transform:translateY(0); }
+.perso-card-name{
+  box-sizing:border-box; width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;
+  background: rgba(232,235,240,0.94); color:#101216; padding:6px 10px 5px;
+  font-family:'Cinzel', serif; font-size:15px; font-weight:600; letter-spacing:0.02em;
+  transition: background .2s ease;
+}
+.perso-card:hover .perso-card-name{ background:#ffffff; }
+.perso-card::after{
+  content:''; position:absolute; left:18%; right:18%; bottom:5px; height:3px; z-index:3; border-radius:2px;
+  background: var(--amber); box-shadow:0 0 10px rgba(196,201,209,0.8);
+  opacity:0; transition: opacity .25s ease;
+}
+.perso-card:hover::after{ opacity:1; }
+@media (max-width:800px){
+  .perso-page{ margin:-24px -20px -50px; padding:24px 20px 50px; }
+}
 @media (max-width:700px){
-  .champ-grid{ grid-template-columns: repeat(auto-fill, minmax(150px,1fr)); gap:16px; }
-  .champ-card-name{ font-size:14px; }
+  .perso-grid{ grid-template-columns: repeat(auto-fill, minmax(140px,1fr)); gap:18px 12px; }
+  .perso-card-name{ font-size:13px; }
+  .perso-select, .perso-search{ width:100%; min-width:0; }
 }
 
 .roster-stage{
@@ -3521,6 +3604,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=63"></script>
+<script src="dist/main.js?v=64"></script>
 </body>
 </html>

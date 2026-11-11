@@ -3237,44 +3237,131 @@ function rosterBubbleHtml(rosterId: string, e: Entry): string {
   `;
 }
 
-// Carte façon grille de champions (League of Legends) : portrait, nom et
-// faction en surimpression, l'image s'agrandit légèrement au survol. Utilisée
-// uniquement pour la page Personnages (renderPersonnagesRoster) — les
+// Cartes de la page Personnages (renderPersonnagesRoster) : cadre tech
+// sombre, numéro, portrait, étiquette de faction + barre de nom. Les
 // carrousels 3D (rosterCard3dHtml) restent inchangés pour les escadrons.
 function factionNameForEntry(e: Entry): string {
   const f = FACTIONS.find(x => x.id === e.faction);
   return f ? f.name : (e.factionLabel || '');
 }
 
-function champCardHtml(e: Entry): string {
-  const factionName = factionNameForEntry(e);
+// Filtre de la page Personnages : faction (clé normalisée, '' = toutes) et
+// recherche par nom. Les factions proposées sont déduites des personnages
+// eux-mêmes, donc une nouvelle faction apparaît toute seule dès qu'une fiche
+// l'utilise.
+let persoFactionFilter = '';
+let persoSearch = '';
+
+function persoFactionKey(e: Entry): string {
+  const n = factionNameForEntry(e).trim();
+  return n ? n.toLowerCase() : '__none';
+}
+
+function persoNormalize(s: string): string {
+  return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+
+function persoFactionOptions(all: Entry[]): { key: string; label: string }[] {
+  const seen = new Map<string, string>();
+  let hasNone = false;
+  all.forEach(e => {
+    const k = persoFactionKey(e);
+    if(k === '__none'){ hasNone = true; return; }
+    if(!seen.has(k)) seen.set(k, capitalize(factionNameForEntry(e).trim()));
+  });
+  const opts = Array.from(seen, ([key, label]) => ({ key, label }));
+  opts.sort((a,b) => (a.key === 'halcyon' ? -1 : b.key === 'halcyon' ? 1 : a.label.localeCompare(b.label, 'fr')));
+  if(hasNone) opts.push({ key: '__none', label: 'Autre' });
+  return opts;
+}
+
+function filteredPersonnages(all: Entry[]): Entry[] {
+  const q = persoNormalize(persoSearch.trim());
+  return all.filter(e =>
+    (!persoFactionFilter || persoFactionKey(e) === persoFactionFilter) &&
+    (!q || persoNormalize(e.name).includes(q)));
+}
+
+function persoCardHtml(e: Entry, index: number): string {
+  const factionName = factionNameForEntry(e).trim() || 'Autre';
   return `
-    <div class="champ-card" onclick="navigate('entry-${e.id}')">
-      <div class="champ-card-img">
+    <div class="perso-card" onclick="navigate('entry-${e.id}')">
+      <span class="perso-card-bar"></span>
+      <div class="perso-card-img">
         ${e.image
           ? `<img src="${encodeURI(e.image)}" alt="${esc(e.name)}" style="${e.imagePos ? `object-position:${e.imagePos}` : ''}">`
-          : `<div class="champ-card-noimg">${esc(e.name.charAt(0))}</div>`}
+          : `<div class="perso-card-noimg">${esc(e.name.charAt(0))}</div>`}
       </div>
-      <div class="champ-card-overlay">
-        <div class="champ-card-name">${esc(e.name)}</div>
-        ${factionName ? `<div class="champ-card-faction">${esc(factionName)}</div>` : ''}
-        <div class="champ-card-cta">Consulter →</div>
+      <div class="perso-card-scan"></div>
+      <span class="perso-card-num">${String(index+1).padStart(2,'0')}</span>
+      <div class="perso-card-label">
+        <span class="perso-card-code">${esc(factionName)}</span>
+        <span class="perso-card-name">${esc(e.name)}</span>
       </div>
     </div>`;
 }
 
-function personnagesGridHtml(list: Entry[]): string {
-  return list.length
-    ? `<div class="champ-grid">${list.map(e=>champCardHtml(e)).join('')}</div>`
-    : `<div class="roster-empty">Aucun personnage recensé pour l'instant.</div>`;
+function persoGridInnerHtml(all: Entry[]): string {
+  const list = filteredPersonnages(all);
+  if(!all.length) return `<div class="roster-empty">Aucun personnage recensé pour l'instant.</div>`;
+  if(!list.length) return `<div class="roster-empty">Aucun personnage ne correspond à ta recherche.</div>`;
+  return `<div class="perso-grid">${list.map(e => persoCardHtml(e, all.indexOf(e))).join('')}</div>`;
+}
+
+// Met à jour uniquement la grille et le compteur (pas toute la page) quand on
+// change de faction ou qu'on tape dans la recherche : on garde le focus du
+// champ et la position de défilement.
+function refreshPersoGrid(): void {
+  const all = ENTRIES.filter(e => e.cat==='personnages');
+  const grid = document.getElementById('persoGrid');
+  if(grid) grid.innerHTML = persoGridInnerHtml(all);
+  const count = document.getElementById('persoCount');
+  if(count) count.textContent = `${filteredPersonnages(all).length} / ${all.length}`;
+  const clear = document.getElementById('persoSearchClear');
+  if(clear) clear.style.visibility = persoSearch ? 'visible' : 'hidden';
+}
+
+function onPersoFilterChange(): void {
+  const sel = document.getElementById('persoFactionSelect') as HTMLSelectElement | null;
+  persoFactionFilter = sel ? sel.value : '';
+  refreshPersoGrid();
+}
+
+function onPersoSearchInput(): void {
+  const input = document.getElementById('persoSearchInput') as HTMLInputElement | null;
+  persoSearch = input ? input.value : '';
+  refreshPersoGrid();
+}
+
+function clearPersoSearch(): void {
+  persoSearch = '';
+  const input = document.getElementById('persoSearchInput') as HTMLInputElement | null;
+  if(input){ input.value = ''; input.focus(); }
+  refreshPersoGrid();
 }
 
 function renderPersonnagesRoster(): string {
-  const list = ENTRIES.filter(e => e.cat==='personnages');
+  const all = ENTRIES.filter(e => e.cat==='personnages');
+  const options = persoFactionOptions(all);
+  if(persoFactionFilter && !options.some(o => o.key === persoFactionFilter)) persoFactionFilter = '';
   return `
-    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / Personnages</div>
-    <h1 style="font-size:26px; margin-bottom:20px;">Personnages</h1>
-    ${personnagesGridHtml(list)}
+    <div class="perso-page">
+      <div class="perso-bg"><div class="perso-bg-scan"></div></div>
+      <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / Personnages</div>
+      <h1 style="font-size:26px; margin-bottom:20px;">Personnages</h1>
+      <div class="perso-toolbar">
+        <select id="persoFactionSelect" class="perso-select" onchange="onPersoFilterChange()">
+          <option value="">Toutes les factions</option>
+          ${options.map(o => `<option value="${escAttr(o.key)}" ${o.key === persoFactionFilter ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}
+        </select>
+        <div class="perso-search">
+          <input id="persoSearchInput" type="text" placeholder="Chercher par Nom" value="${escAttr(persoSearch)}" oninput="onPersoSearchInput()" autocomplete="off">
+          <span id="persoSearchClear" class="perso-search-clear" style="visibility:${persoSearch ? 'visible' : 'hidden'}" onclick="clearPersoSearch()">✕</span>
+        </div>
+        <div class="perso-count">Personnages <b id="persoCount">${filteredPersonnages(all).length} / ${all.length}</b></div>
+      </div>
+      <div id="persoGrid">${persoGridInnerHtml(all)}</div>
+    </div>
   `;
 }
 

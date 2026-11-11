@@ -2634,33 +2634,113 @@ function factionNameForEntry(e) {
     const f = FACTIONS.find(x => x.id === e.faction);
     return f ? f.name : (e.factionLabel || '');
 }
-function champCardHtml(e) {
-    const factionName = factionNameForEntry(e);
+let persoFactionFilter = '';
+let persoSearch = '';
+function persoFactionKey(e) {
+    const n = factionNameForEntry(e).trim();
+    return n ? n.toLowerCase() : '__none';
+}
+function persoNormalize(s) {
+    return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+}
+function persoFactionOptions(all) {
+    const seen = new Map();
+    let hasNone = false;
+    all.forEach(e => {
+        const k = persoFactionKey(e);
+        if (k === '__none') { hasNone = true; return; }
+        if (!seen.has(k)) seen.set(k, capitalize(factionNameForEntry(e).trim()));
+    });
+    const opts = Array.from(seen, ([key, label]) => ({ key, label }));
+    opts.sort((a, b) => (a.key === 'halcyon' ? -1 : b.key === 'halcyon' ? 1 : a.label.localeCompare(b.label, 'fr')));
+    if (hasNone) opts.push({ key: '__none', label: 'Autre' });
+    return opts;
+}
+function filteredPersonnages(all) {
+    const q = persoNormalize(persoSearch.trim());
+    return all.filter(e => (!persoFactionFilter || persoFactionKey(e) === persoFactionFilter) &&
+        (!q || persoNormalize(e.name).includes(q)));
+}
+function persoCardHtml(e, index) {
+    const factionName = factionNameForEntry(e).trim() || 'Autre';
     return `
-    <div class="champ-card" onclick="navigate('entry-${e.id}')">
-      <div class="champ-card-img">
+    <div class="perso-card" onclick="navigate('entry-${e.id}')">
+      <span class="perso-card-bar"></span>
+      <div class="perso-card-img">
         ${e.image
           ? `<img src="${encodeURI(e.image)}" alt="${esc(e.name)}" style="${e.imagePos ? `object-position:${e.imagePos}` : ''}">`
-          : `<div class="champ-card-noimg">${esc(e.name.charAt(0))}</div>`}
+          : `<div class="perso-card-noimg">${esc(e.name.charAt(0))}</div>`}
       </div>
-      <div class="champ-card-overlay">
-        <div class="champ-card-name">${esc(e.name)}</div>
-        ${factionName ? `<div class="champ-card-faction">${esc(factionName)}</div>` : ''}
-        <div class="champ-card-cta">Consulter →</div>
+      <div class="perso-card-scan"></div>
+      <span class="perso-card-num">${String(index + 1).padStart(2, '0')}</span>
+      <div class="perso-card-label">
+        <span class="perso-card-code">${esc(factionName)}</span>
+        <span class="perso-card-name">${esc(e.name)}</span>
       </div>
     </div>`;
 }
-function personnagesGridHtml(list) {
-    return list.length
-        ? `<div class="champ-grid">${list.map(e => champCardHtml(e)).join('')}</div>`
-        : `<div class="roster-empty">Aucun personnage recensé pour l'instant.</div>`;
+function persoGridInnerHtml(all) {
+    const list = filteredPersonnages(all);
+    if (!all.length)
+        return `<div class="roster-empty">Aucun personnage recensé pour l'instant.</div>`;
+    if (!list.length)
+        return `<div class="roster-empty">Aucun personnage ne correspond à ta recherche.</div>`;
+    return `<div class="perso-grid">${list.map(e => persoCardHtml(e, all.indexOf(e))).join('')}</div>`;
+}
+function refreshPersoGrid() {
+    const all = ENTRIES.filter(e => e.cat === 'personnages');
+    const grid = document.getElementById('persoGrid');
+    if (grid)
+        grid.innerHTML = persoGridInnerHtml(all);
+    const count = document.getElementById('persoCount');
+    if (count)
+        count.textContent = `${filteredPersonnages(all).length} / ${all.length}`;
+    const clear = document.getElementById('persoSearchClear');
+    if (clear)
+        clear.style.visibility = persoSearch ? 'visible' : 'hidden';
+}
+function onPersoFilterChange() {
+    const sel = document.getElementById('persoFactionSelect');
+    persoFactionFilter = sel ? sel.value : '';
+    refreshPersoGrid();
+}
+function onPersoSearchInput() {
+    const input = document.getElementById('persoSearchInput');
+    persoSearch = input ? input.value : '';
+    refreshPersoGrid();
+}
+function clearPersoSearch() {
+    persoSearch = '';
+    const input = document.getElementById('persoSearchInput');
+    if (input) {
+        input.value = '';
+        input.focus();
+    }
+    refreshPersoGrid();
 }
 function renderPersonnagesRoster() {
-    const list = ENTRIES.filter(e => e.cat === 'personnages');
+    const all = ENTRIES.filter(e => e.cat === 'personnages');
+    const options = persoFactionOptions(all);
+    if (persoFactionFilter && !options.some(o => o.key === persoFactionFilter))
+        persoFactionFilter = '';
     return `
-    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / Personnages</div>
-    <h1 style="font-size:26px; margin-bottom:20px;">Personnages</h1>
-    ${personnagesGridHtml(list)}
+    <div class="perso-page">
+      <div class="perso-bg"><div class="perso-bg-scan"></div></div>
+      <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / Personnages</div>
+      <h1 style="font-size:26px; margin-bottom:20px;">Personnages</h1>
+      <div class="perso-toolbar">
+        <select id="persoFactionSelect" class="perso-select" onchange="onPersoFilterChange()">
+          <option value="">Toutes les factions</option>
+          ${options.map(o => `<option value="${escAttr(o.key)}" ${o.key === persoFactionFilter ? 'selected' : ''}>${esc(o.label)}</option>`).join('')}
+        </select>
+        <div class="perso-search">
+          <input id="persoSearchInput" type="text" placeholder="Chercher par Nom" value="${escAttr(persoSearch)}" oninput="onPersoSearchInput()" autocomplete="off">
+          <span id="persoSearchClear" class="perso-search-clear" style="visibility:${persoSearch ? 'visible' : 'hidden'}" onclick="clearPersoSearch()">✕</span>
+        </div>
+        <div class="perso-count">Personnages <b id="persoCount">${filteredPersonnages(all).length} / ${all.length}</b></div>
+      </div>
+      <div id="persoGrid">${persoGridInnerHtml(all)}</div>
+    </div>
   `;
 }
 const ROSTER_MAX_VISIBLE = 3;
