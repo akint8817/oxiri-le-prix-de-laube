@@ -6737,10 +6737,10 @@ function tmBuildBaseSvg(t: TmTerrain): SVGSVGElement {
     if(i % 4 === 0) major += d; else minor += d;
   });
   svg.innerHTML = `
-    <defs><radialGradient id="tmOcean" cx="50%" cy="48%" r="70%"><stop offset="0" stop-color="#1c0d10"/><stop offset="1" stop-color="#070405"/></radialGradient></defs>
+    <defs><radialGradient id="tmOcean" cx="50%" cy="48%" r="70%"><stop offset="0" stop-color="#04202c"/><stop offset="1" stop-color="#010a10"/></radialGradient></defs>
     <rect width="${TM_W}" height="${TM_H}" fill="url(#tmOcean)"/>
-    <path d="${minor}" fill="none" stroke="#c9262e" stroke-opacity="0.55" stroke-width="0.8" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
-    <path d="${major}" fill="none" stroke="#ff3d3d" stroke-opacity="0.85" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
+    <path d="${minor}" fill="none" stroke="#2aa6bf" stroke-opacity="0.55" stroke-width="0.8" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>
+    <path d="${major}" fill="none" stroke="#5fd9ee" stroke-opacity="0.85" stroke-width="1.5" vector-effect="non-scaling-stroke" stroke-linejoin="round"/>`;
   return svg;
 }
 
@@ -6818,9 +6818,9 @@ function tmMarkerHtml(m: TmMarker): string {
     <div class="tm-mk" style="left:${(m.x / TM_W * 100).toFixed(2)}%; top:${(m.y / TM_H * 100).toFixed(2)}%; --d:${(m.level / TM_LEVELS).toFixed(3)}">
       <div class="tm-mk-in" onclick="tmOpenMarker('${escAttr(m.id)}')">
         <div class="tm-hex"><svg viewBox="0 0 44 50">
-          <polygon points="22,2 41,13 41,37 22,48 3,37 3,13" fill="rgba(70,8,12,0.9)" stroke="#e5373a" stroke-width="2.4"/>
-          <polygon points="22,7 36.5,15.5 36.5,34.5 22,43 7.5,34.5 7.5,15.5" fill="none" stroke="rgba(229,55,58,0.45)" stroke-width="1"/>
-          <g transform="translate(10 13)" fill="none" stroke="#ffd9d9" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${icon}</g>
+          <polygon points="22,2 41,13 41,37 22,48 3,37 3,13" fill="rgba(4,42,56,0.9)" stroke="#35c7e0" stroke-width="2.4"/>
+          <polygon points="22,7 36.5,15.5 36.5,34.5 22,43 7.5,34.5 7.5,15.5" fill="none" stroke="rgba(53,199,224,0.45)" stroke-width="1"/>
+          <g transform="translate(10 13)" fill="none" stroke="#e6fbff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">${icon}</g>
         </svg></div>
         <div class="tm-mk-label"><b>${esc(m.label)}</b><small>${esc(m.caption)}</small></div>
       </div>
@@ -6858,8 +6858,8 @@ function mapOverlayHtml(): string {
     </nav>
     <div class="tm-legend" id="tmLegend">
       <div class="tm-legend-title">Légende</div>
-      <div class="tm-legend-row"><svg viewBox="0 0 44 50"><polygon points="22,2 41,13 41,37 22,48 3,37 3,13" fill="rgba(70,8,12,0.9)" stroke="#e5373a" stroke-width="3"/><g transform="translate(10 13)" fill="none" stroke="#ffd9d9" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7.5"/></g></svg>Cité</div>
-      <div class="tm-legend-row"><svg viewBox="0 0 44 50"><polygon points="22,2 41,13 41,37 22,48 3,37 3,13" fill="rgba(70,8,12,0.9)" stroke="#e5373a" stroke-width="3"/><g transform="translate(10 13)" fill="none" stroke="#ffd9d9" stroke-width="2.2" stroke-linecap="round"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.2"/></g></svg>Lieu</div>
+      <div class="tm-legend-row"><svg viewBox="0 0 44 50"><polygon points="22,2 41,13 41,37 22,48 3,37 3,13" fill="rgba(4,42,56,0.9)" stroke="#35c7e0" stroke-width="3"/><g transform="translate(10 13)" fill="none" stroke="#e6fbff" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="3"/><circle cx="12" cy="12" r="7.5"/></g></svg>Cité</div>
+      <div class="tm-legend-row"><svg viewBox="0 0 44 50"><polygon points="22,2 41,13 41,37 22,48 3,37 3,13" fill="rgba(4,42,56,0.9)" stroke="#35c7e0" stroke-width="3"/><g transform="translate(10 13)" fill="none" stroke="#e6fbff" stroke-width="2.2" stroke-linecap="round"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.2"/></g></svg>Lieu</div>
       <div class="tm-legend-alt"><span>Altitude</span><i></i><em><u>bas</u><u>haut</u></em></div>
     </div>
     <div class="tm-hints">
