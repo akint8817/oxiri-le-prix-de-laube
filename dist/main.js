@@ -3144,7 +3144,44 @@ function renderHome() {
     <div class="featured-grid">
       ${featuredGridHtml(featured)}
     </div>
+    ${homeOrganisationsHtml()}
   `;
+}
+const ORG_FILE_ROTATIONS = [-2.2, 1.4, -0.8, 2, -1.5, 0.9, -2.6, 1.8];
+function homeOrganisationsHtml() {
+    const orgs = getAllOrganisations();
+    if (!orgs.length)
+        return '';
+    return `
+    <section class="org-table">
+      <div class="org-table-bg"></div>
+      <div class="org-table-inner">
+        <div class="org-table-banner"><span>Les</span> Organisations</div>
+        <div class="org-table-grid">
+          ${orgs.map((o, i) => {
+        const route = o.id === 'halcyon' ? 'halcyon' : 'organisation-' + o.id;
+        const tag = (o.tag || o.name).toUpperCase();
+        const rot = ORG_FILE_ROTATIONS[i % ORG_FILE_ROTATIONS.length];
+        return `
+            <div class="org-file" style="--rot:${rot}deg" onclick="navigate('${route}')">
+              <span class="org-file-tape tape-l"></span>
+              <span class="org-file-tape tape-r"></span>
+              <div class="org-file-head"><b>Dossier</b><span>ORG-${String(i + 1).padStart(2, '0')}</span></div>
+              <div class="org-file-img">
+                ${o.image ? `<img src="${escAttr(o.image)}" alt="">` : `<div class="org-file-noimg">${esc(o.name.charAt(0))}</div>`}
+                <span class="org-file-tag">${esc(tag)}</span>
+                ${o.logo ? `<span class="org-file-logo"><img src="${escAttr(o.logo)}" alt=""></span>` : ''}
+              </div>
+              <div class="org-file-body">
+                ${o.category ? `<div class="org-file-cat">${esc(o.category)}</div>` : ''}
+                <div class="org-file-name">${esc(o.name)}</div>
+                <p class="org-file-desc">${esc(o.desc)}</p>
+              </div>
+            </div>`;
+    }).join('')}
+        </div>
+      </div>
+    </section>`;
 }
 function featuredGridHtml(list) {
     return list.map((e, i) => {
