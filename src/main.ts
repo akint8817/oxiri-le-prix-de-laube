@@ -6779,6 +6779,11 @@ function tmBuildLayerSvg(t: TmTerrain, k: number): SVGSVGElement {
   return svg;
 }
 
+// la fiche Â« Novelance Â» existe dÃ©jÃ  sous forme de citÃ© : pas de second marqueur
+function tmIsCityEntry(e: Entry): boolean {
+  return e.id === 'novelance' || e.name.normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim().toLowerCase() === 'novelance';
+}
+
 // Place Novelance au cœur des hauteurs, puis chaque lieu écrit sur le site à
 // une position déterminée par son id (donc stable d'une visite à l'autre).
 function tmPlaceMarkers(t: TmTerrain): TmMarker[] {
@@ -6789,13 +6794,51 @@ function tmPlaceMarkers(t: TmTerrain): TmMarker[] {
   };
   let sx = 0, sy = 0, sn = 0;
   for(let y = 0; y < TM_GH; y += 2) for(let x = 0; x < TM_GW; x += 2) if(t.grid[y * TM_GW + x] >= t.cuts[5]){ sx += x; sy += y; sn++; }
+  const hx = sn ? sx / sn : TM_GW / 2, hy = sn ? sy / sn : TM_GH / 2;
+  // Novelance est une citÃ© portuaire : on la pose sur la cÃ´te, au bord de l'ocÃ©an
+  // (pas dans les terres), du cÃ´tÃ© le plus proche du cÅ“ur des hauteurs.
+  const sea = t.cuts[0], N = TM_GW * TM_GH;
+  const ocean = new Uint8Array(N);
+  const dist = new Int16Array(N).fill(-1);
+  let q: number[] = [];
+  const seed = (x: number, y: number): void => { const i = y * TM_GW + x; if(!ocean[i] && t.grid[i] < sea){ ocean[i] = 1; q.push(i); } };
+  for(let x = 0; x < TM_GW; x++){ seed(x, 0); seed(x, TM_GH - 1); }
+  for(let y = 0; y < TM_GH; y++){ seed(0, y); seed(TM_GW - 1, y); }
+  for(let h = 0; h < q.length; h++){
+    const i = q[h], cx = i % TM_GW, cy = (i / TM_GW) | 0;
+    for(const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]){
+      const nx = cx + dx, ny = cy + dy; if(nx < 0 || ny < 0 || nx >= TM_GW || ny >= TM_GH) continue;
+      const j = ny * TM_GW + nx; if(!ocean[j] && t.grid[j] < sea){ ocean[j] = 1; q.push(j); }
+    }
+  }
+  q = q.filter(i => { dist[i] = 0; return true; });
+  for(let h = 0; h < q.length; h++){
+    const i = q[h], cx = i % TM_GW, cy = (i / TM_GW) | 0;
+    for(let dy = -1; dy <= 1; dy++) for(let dx = -1; dx <= 1; dx++){
+      const nx = cx + dx, ny = cy + dy; if(nx < 0 || ny < 0 || nx >= TM_GW || ny >= TM_GH) continue;
+      const j = ny * TM_GW + nx; if(dist[j] < 0){ dist[j] = dist[i] + 1; q.push(j); }
+    }
+  }
+  let bestScore = -1e9, bcx = -1, bcy = -1;
+  for(let y = 14; y < TM_GH - 14; y += 2) for(let x = 30; x < TM_GW - 30; x += 2){
+    const i = y * TM_GW + x;
+    if(t.grid[i] < sea || t.grid[i] >= t.cuts[3] || dist[i] < 6 || dist[i] > 11) continue;
+    let land = 0;
+    for(let yy = -20; yy <= 20; yy += 4) for(let xx = -20; xx <= 20; xx += 4){
+      const a = x + xx, b = y + yy;
+      if(a >= 0 && b >= 0 && a < TM_GW && b < TM_GH && t.grid[b * TM_GW + a] >= sea) land++;
+    }
+    const score = land - 0.3 * Math.hypot(x - hx, y - hy);
+    if(score > bestScore){ bestScore = score; bcx = x; bcy = y; }
+  }
+  if(bcx < 0){ bcx = Math.round(hx); bcy = Math.round(hy); }
   const city: TmMarker = {
-    id: 'novelance', label: 'Novelance', caption: 'Cité-bastion de Halcyon', kind: 'city', route: 'novelance',
-    x: sn ? (sx / sn) * TM_W / (TM_GW - 1) : TM_W * 0.5, y: sn ? (sy / sn) * TM_H / (TM_GH - 1) : TM_H * 0.5, level: 0,
+    id: 'novelance', label: 'Novelance', caption: 'CitÃ©-bastion de Halcyon', kind: 'city', route: 'novelance',
+    x: bcx * TM_W / (TM_GW - 1), y: bcy * TM_H / (TM_GH - 1), level: 0,
   };
   city.level = levelAt(city.x, city.y);
   const out: TmMarker[] = [city];
-  ENTRIES.filter(e => e.cat === 'lieux').forEach(e => {
+  ENTRIES.filter(e => e.cat === 'lieux' && !tmIsCityEntry(e)).forEach(e => {
     const rnd = tmSeeded(tmHash(e.id));
     let best: { x: number; y: number } | null = null;
     for(let tries = 0; tries < 260; tries++){
