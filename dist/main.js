@@ -4903,69 +4903,155 @@ function renderOrganisationDossier(id) {
     `}
   `;
 }
-function renderHalcyonPage() {
-    const f = FACTIONS.find(x => x.id === 'halcyon');
+let halTab = 'presentation';
+let halTopoReady = false;
+const HAL_TABS = [
+    { key: 'presentation', label: 'Présentation', code: 'PRE', icon: '<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h7M9 17h5"/>' },
+    { key: 'hierarchie', label: 'Hiérarchie', code: 'HIE', icon: '<circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/><path d="M12 7.2v4.3M12 11.5H5v5.3M12 11.5h7v5.3"/>' },
+    { key: 'escadrons', label: 'Escadrons', code: 'ESC', icon: '<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.4"/><path d="M16 14.2c2.9 0 5 2.1 5 5.8"/>' },
+    { key: 'archives', label: 'Archives', code: 'ARC', icon: '<rect x="4" y="4" width="16" height="16" rx="1"/><path d="M4 9h16M9 13h6"/>' },
+];
+function ensureHalTopo() {
+    if (halTopoReady)
+        return;
+    halTopoReady = true;
+    const W = 1400, H = 1000;
+    const centers = [[300, 260, 1], [1050, 380, 2], [620, 800, 3]];
+    let paths = '';
+    centers.forEach(([cx, cy, seed]) => {
+        for (let r = 36; r <= 250; r += 22) {
+            let d = '';
+            for (let i = 0; i <= 72; i++) {
+                const a = (i / 72) * Math.PI * 2;
+                const wob = 1 + 0.14 * Math.sin(3 * a + seed) + 0.08 * Math.sin(5 * a + seed * 2.1) + 0.05 * Math.sin(7 * a + seed * 0.7);
+                const x = cx + Math.cos(a) * r * wob, y = cy + Math.sin(a) * r * wob * 0.82;
+                d += (i ? 'L' : 'M') + x.toFixed(1) + ' ' + y.toFixed(1);
+            }
+            paths += `<path d="${d}Z"/>`;
+        }
+    });
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}"><g fill="none" stroke="rgba(190,196,208,0.07)" stroke-width="1">${paths}</g></svg>`;
+    document.documentElement.style.setProperty('--hal-topo', `url("data:image/svg+xml;utf8,${encodeURIComponent(svg)}")`);
+}
+function halPanelHtml(title, code, body, wm) {
     return `
-    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / Halcyon</div>
-    <div class="halcyon-page">
-      <div class="halcyon-page-header">
-        <img class="halcyon-page-crest" src="${encodeURI(HALCYON_LOGO)}" alt="Halcyon">
-        <div class="halcyon-page-eyebrow">Organisation Oxirienne</div>
-        <h1 class="halcyon-page-title">HALCYON</h1>
-        <div class="halcyon-page-divider"></div>
-        <p class="halcyon-page-desc">${esc(f.desc)}</p>
-        ${halcyonEditMode ? `
-        <div class="write-form halcyon-edit-panel">
-          <div class="write-row"><label>Dirigeant actuel</label><input id="hiDirigeant" type="text" value="${escAttr(halcyonInfoCache.dirigeant)}" placeholder="Ex : Sariah Frosleaf"></div>
-          <div class="write-row"><label>Titre / description courte</label><input id="hiDirigeantDesc" type="text" value="${escAttr(halcyonInfoCache.dirigeantDesc)}" placeholder="Ex : Commandante suprême de Halcyon"></div>
-          <div class="write-error" id="hiError"></div>
-          <span class="btn btn-primary" onclick="saveHalcyonDirigeant()">Enregistrer</span>
-        </div>` : (halcyonInfoCache.dirigeant ? `
-        <div class="halcyon-page-leader">
-          <span class="halcyon-page-leader-label">Dirigeant actuel</span>
-          <span class="halcyon-page-leader-name">${esc(halcyonInfoCache.dirigeant)}</span>
-          ${halcyonInfoCache.dirigeantDesc ? `<span class="halcyon-page-leader-desc">${esc(halcyonInfoCache.dirigeantDesc)}</span>` : ''}
-        </div>` : '')}
-        ${isLoggedIn() ? `<span class="btn btn-ghost halcyon-edit-toggle" onclick="toggleHalcyonEditMode()">${halcyonEditMode ? "Fermer l'édition" : '✎ Modifier'}</span>` : ''}
-      </div>
+    <div class="hal-panel">
+      ${wm ? `<div class="hal-wm-wrap"><span class="hal-wm">${esc(wm)}</span></div>` : ''}
+      <div class="hal-panel-head"><span class="hal-ico"></span><span>${esc(title)}</span><span class="hal-panel-code">${esc(code)}<i></i></span></div>
+      <div class="hal-panel-body">${body}</div>
+    </div>`;
+}
+function halTitleHtml(title, code) {
+    return `<div class="hal-title"><b>//</b><h2>${esc(title)}</h2><span>${esc(code)}</span></div>`;
+}
+function switchHalTab(key) {
+    halTab = key;
+    document.querySelectorAll('.hal-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === key));
+    document.querySelectorAll('.hal-pane').forEach(p => p.classList.toggle('active', p.dataset.tab === key));
+}
+function stepHalTab(dir) {
+    const idx = HAL_TABS.findIndex(t => t.key === halTab);
+    const next = HAL_TABS[(Math.max(idx, 0) + dir + HAL_TABS.length) % HAL_TABS.length];
+    switchHalTab(next.key);
+}
+function renderHalcyonPage() {
+    ensureHalTopo();
+    const f = FACTIONS.find(x => x.id === 'halcyon');
+    const org = getAllOrganisations().find(o => o.id === 'halcyon');
+    const desc = (org && org.desc) || f.desc;
+    const category = (org && org.category) || 'Organisation Oxirienne';
+    const tag = ((org && org.tag) || 'Halcyon').toUpperCase();
+    const logoSrc = encodeURI(HALCYON_LOGO);
+    const dirigeant = halcyonInfoCache.dirigeant;
+    const dirigeantDesc = halcyonInfoCache.dirigeantDesc;
+    const members = ENTRIES.filter(e => e.cat === 'personnages' && e.faction === 'halcyon').length;
+    const squadCount = getAllSquads().length;
+    const tierCount = getAllHierarchyTiers().length;
+    if (!HAL_TABS.some(t => t.key === halTab))
+        halTab = 'presentation';
+    const pane = (key, inner) => `<div class="hal-pane${key === halTab ? ' active' : ''}" data-tab="${key}">${inner}</div>`;
+    const kv = (k, v) => `<div class="hal-kv"><span>${esc(k)}</span><b>${v}</b></div>`;
+    const entityBody = `
+    <div class="hal-entity-logo"><img src="${logoSrc}" alt="Halcyon"></div>
+    ${kv('Nature', esc(category))}
+    ${kv('Dirigeant', dirigeant ? `${esc(dirigeant)}${dirigeantDesc ? `<small>${esc(dirigeantDesc)}</small>` : ''}` : '—')}
+    ${kv('Effectif', `${members} personnage${members > 1 ? 's' : ''} recensé${members > 1 ? 's' : ''}`)}
+    ${kv('Escadrons', String(squadCount))}
+    ${kv('Hiérarchie', `${tierCount} palier${tierCount > 1 ? 's' : ''}`)}
+    ${halcyonEditMode ? `
+    <div class="write-form hal-edit-form">
+      <div class="write-row"><label>Dirigeant actuel</label><input id="hiDirigeant" type="text" value="${escAttr(halcyonInfoCache.dirigeant)}" placeholder="Ex : Sariah Frosleaf"></div>
+      <div class="write-row"><label>Titre / description courte</label><input id="hiDirigeantDesc" type="text" value="${escAttr(halcyonInfoCache.dirigeantDesc)}" placeholder="Ex : Commandante suprême de Halcyon"></div>
+      <div class="write-error" id="hiError"></div>
+      <span class="btn btn-primary" onclick="saveHalcyonDirigeant()">Enregistrer</span>
+    </div>` : ''}`;
+    const researchItems = [
+        "Augmentation et création d'hybrides de rang, employés comme armes vivantes.",
+        "Étude et exploitation de l'énergie d'Oxiri et des Entropy.",
+        "Conservation et classification des artefacts Oxiriens perdus (Département des Reliques).",
+        "Développement de technologies de combat avancées, dont l'Armure d'Exusial.",
+    ];
+    return `
+    <div class="hal">
+      <div class="hal-bg"></div>
+      <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / Halcyon</div>
 
-      <div class="halcyon-page-grid">
-        <div class="halcyon-page-block">
-          <h3>Domaines de recherche</h3>
-          <ul class="dossier-list-block">
-            <li>Augmentation et création d'hybrides de rang, employés comme armes vivantes.</li>
-            <li>Étude et exploitation de l'énergie d'Oxiri et des Entropy.</li>
-            <li>Conservation et classification des artefacts Oxiriens perdus (Département des Reliques).</li>
-            <li>Développement de technologies de combat avancées, dont l'Armure d'Exusial.</li>
-          </ul>
+      <header class="hal-id">
+        <img class="hal-id-crest" src="${logoSrc}" alt="Halcyon">
+        <div class="hal-id-text">
+          <div class="hal-id-eyebrow">${esc(category)}</div>
+          <h1 class="hal-id-name">HALCYON</h1>
         </div>
-        <div class="halcyon-page-block">
-          <h3>Doctrine officielle</h3>
-          <div class="dossier-quote">L'intégrité biologique du sujet constitue une variable acceptable au regard de la nécessité militaire.</div>
-          <p class="halcyon-page-block-note">— Extrait du protocole interne Halcyon, dossier Exusial.</p>
+        <div class="hal-id-side">
+          <span class="hal-id-code">DOC-001 <i></i></span>
+          ${isLoggedIn() ? `<span class="btn btn-ghost" onclick="toggleHalcyonEditMode()">${halcyonEditMode ? "Fermer l'édition" : '✎ Modifier'}</span>` : ''}
         </div>
-      </div>
+      </header>
 
-      <div class="section-title"><h2>Hiérarchie</h2></div>
-      <p class="halcyon-page-desc" style="margin:0 0 22px;max-width:none;">Au sein de Halcyon, il y a une hiérarchie bien définie où chaque membre possède son rôle en fonction de son rang et de son expérience. Il est possible pour n'importe quel membre de grimper dans les échelons selon ses actions.</p>
-      ${renderOrgTree()}
-
-      <div class="section-title"><h2>Escadrons</h2></div>
-      ${renderSquads()}
-
-      <div class="halcyon-archive-card" onclick="navigate('armes')">
-        <img class="halcyon-archive-card-logo" src="${encodeURI(HALCYON_LOGO)}" alt="">
-        <div class="halcyon-archive-card-info">
-          <div class="halcyon-archive-card-eyebrow">Niveau d'accès : OMEGA</div>
-          <div class="halcyon-archive-card-title">Archives des Artefacts Oxiriens</div>
-          <div class="halcyon-archive-card-desc">Dossiers classifiés sur les sept artefacts nés de l'énergie d'Oxiri.</div>
+      <nav class="hal-tabs">
+        <span class="hal-tabkey" onclick="stepHalTab(-1)">Q</span>
+        <div class="hal-tabs-list">
+          ${HAL_TABS.map(t => `<button type="button" class="hal-tab${t.key === halTab ? ' active' : ''}" data-tab="${t.key}" onclick="switchHalTab('${t.key}')"><svg viewBox="0 0 24 24">${t.icon}</svg>${esc(t.label)}</button>`).join('')}
         </div>
-        <div class="halcyon-archive-card-arrow">→</div>
-      </div>
+        <span class="hal-tabkey" onclick="stepHalTab(1)">E</span>
+      </nav>
+
+      ${pane('presentation', `
+        ${halTitleHtml('Présentation', 'DOC-001 / PRE')}
+        <div class="hal-cols">
+          <div class="hal-col">
+            ${halPanelHtml(category, 'DOC-001', `
+              <div class="hal-tag"><b>${esc(tag)}</b><i></i></div>
+              <div class="hal-text"><p>${esc(desc)}</p></div>`, 'HALCYON')}
+            ${halPanelHtml('Domaines de recherche', 'DOC-002', `
+              <ol class="hal-list">${researchItems.map((t, i) => `<li><em>${String(i + 1).padStart(2, '0')}</em><span>${esc(t)}</span></li>`).join('')}</ol>`)}
+            ${halPanelHtml('Doctrine officielle', 'DOC-003', `
+              <div class="hal-quote">L'intégrité biologique du sujet constitue une variable acceptable au regard de la nécessité militaire.</div>
+              <div class="hal-cite">— Extrait du protocole interne Halcyon, dossier Exusial.</div>`)}
+          </div>
+          <div class="hal-col">
+            ${halPanelHtml("Fiche d'entité", '01-H', entityBody)}
+          </div>
+        </div>`)}
+
+      ${pane('hierarchie', `
+        ${halTitleHtml('Hiérarchie', 'DOC-001 / HIE')}
+        ${halPanelHtml('Chaîne de commandement', 'DOC-004', `
+          <div class="hal-text"><p>Au sein de Halcyon, il y a une hiérarchie bien définie où chaque membre possède son rôle en fonction de son rang et de son expérience. Il est possible pour n'importe quel membre de grimper dans les échelons selon ses actions.</p></div>`)}
+        <div class="hal-tree">${renderOrgTree()}</div>`)}
+
+      ${pane('escadrons', `
+        ${halTitleHtml('Escadrons', 'DOC-001 / ESC')}
+        ${renderSquads()}`)}
+
+      ${pane('archives', `
+        ${halTitleHtml('Archives', 'DOC-001 / ARC')}
+        ${halPanelHtml('Archives des Artefacts Oxiriens', 'OMEGA', `
+          <div class="hal-text"><p>Dossiers classifiés sur les sept artefacts nés de l'énergie d'Oxiri. L'accès est réservé au niveau d'habilitation OMEGA.</p></div>
+          <div class="hal-access" onclick="navigate('armes')"><span>Accéder aux archives</span><em>ENTRÉE →</em></div>`)}`)}
     </div>
   `;
 }
-/* ---------------- ARCHIVES HALCYON — dossiers secrets des artefacts Oxiriens ---------------- */
 function dangerClass(d) {
     const s = d.toLowerCase();
     if (s.includes('catastrophique'))
@@ -7309,6 +7395,11 @@ window.addEventListener('resize', () => { Object.keys(rosterStates).forEach(id =
 window.addEventListener('mousemove', onRosterDragMove);
 window.addEventListener('mouseup', onRosterDragEnd);
 window.addEventListener('keydown', (ev) => {
+    if ((ev.key === 'q' || ev.key === 'Q' || ev.key === 'e' || ev.key === 'E') && !ev.ctrlKey && !ev.metaKey && !ev.altKey && document.querySelector('.hal-tabs')) {
+        const tag = (document.activeElement?.tagName || '').toUpperCase();
+        if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT')
+            stepHalTab(ev.key.toLowerCase() === 'q' ? -1 : 1);
+    }
     if (ev.key === 'Escape') {
         const mapOv = document.getElementById('mapOverlay');
         const codeOv = document.getElementById('corruptCodeOverlay');

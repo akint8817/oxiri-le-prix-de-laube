@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OXIRI — Le Prix de l'Aube — Codex</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:wght@300;400;500&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Anton&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:wght@300;400;500&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Anton&family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap');
 
 :root{
   --bg: #08080a;
@@ -1609,46 +1609,156 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 /* ---- Mode plein écran de la section Halcyon : la navigation disparaît, le logo (en haut à gauche) la ramène ---- */
 .shell.immersive .content{ padding-top: 76px; padding-left: 76px; transition: padding .3s ease; }
 
-/* ---- Page Halcyon (présentation de l'organisation) ---- */
-.halcyon-page-header{ text-align:center; padding: 20px 20px 30px; margin-bottom: 28px; border-bottom: 1px solid var(--border); }
-.halcyon-page-crest{ width: 110px; height:auto; margin: 0 auto 18px; display:block; filter: drop-shadow(0 0 20px rgba(178,90,82,0.35)); opacity:0.92; }
-.halcyon-page-eyebrow{ font-family:'IBM Plex Mono', monospace; font-size:12.5px; letter-spacing:0.28em; text-transform:uppercase; color:#b25a52; margin-bottom:10px; }
-.halcyon-page-title{ font-family:'Cinzel', serif; font-size: 42px; letter-spacing:0.1em; color:#f0ebdc; margin-bottom:16px; }
-.halcyon-page-divider{ width:120px; height:1px; margin:0 auto 20px; background: linear-gradient(90deg, transparent, #b25a52, transparent); }
-.halcyon-page-desc{ max-width: 56ch; margin: 0 auto; color: var(--text-dim); font-size: 14.5px; line-height:1.75; }
-.halcyon-page-leader{ display:inline-flex; flex-direction:column; align-items:center; gap:3px; margin-top:20px; padding-top:16px; border-top:1px solid var(--border); }
-.halcyon-page-leader-label{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color: var(--verdigris); }
-.halcyon-page-leader-name{ font-family:'Cinzel', serif; font-size:20px; color:#f0ebdc; }
-.halcyon-page-leader-desc{ font-size:12.5px; color: var(--text-dim); }
+/* ---- Page Halcyon : dossier d'organisation façon terminal tech — bandeau
+   d'identité, onglets, panneaux à barre de titre, fiche d'entité, courbes de
+   niveau animées en fond. L'accent est le rouge Halcyon. ---- */
 .halcyon-edit-panel{ max-width:420px; margin:20px auto 0; text-align:left; }
 .halcyon-edit-toggle{ display:inline-block; margin-top:16px; }
 
-.halcyon-page-grid{ display:grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 30px; }
-@media (max-width:700px){ .halcyon-page-grid{ grid-template-columns: 1fr; } }
-.halcyon-page-block{ border:1px solid var(--border); background: var(--surface); padding: 20px 22px; }
-.halcyon-page-block h3{
-  font-family:'IBM Plex Mono', monospace; font-size: 12.5px; letter-spacing:0.1em; text-transform:uppercase;
-  color: var(--verdigris); margin-bottom: 12px;
+.hal{
+  --hal:#c8463d; --hal-dim:#6b2f2a; --hx:rgba(196,201,209,0.38);
+  --hal-head:'Barlow Condensed','Arial Narrow',sans-serif; --hal-body:'Barlow','Helvetica Neue',Arial,sans-serif;
+  position:relative; max-width:1640px; margin:0 auto;
 }
-.halcyon-page-block-note{ font-size:12.5px; color: var(--text-dim); margin-top:6px; }
+.hal-bg{
+  position:absolute; inset:-80px 0; z-index:0; pointer-events:none; overflow:hidden;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 10%, #000 90%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 10%, #000 90%, transparent);
+}
+.hal-bg::before{
+  content:''; position:absolute; inset:0;
+  background: var(--hal-topo, none) 0 0 / 1400px 1000px repeat;
+  animation: halTopoDrift 160s linear infinite;
+}
+@keyframes halTopoDrift{ to{ background-position: 1400px 1000px; } }
+.hal > *:not(.hal-bg){ position:relative; z-index:1; }
+@media (prefers-reduced-motion: reduce){ .hal-bg::before{ animation:none; } }
 
-.halcyon-archive-card{
-  display:flex; align-items:center; gap: 20px;
-  border: 1px solid #5a2320;
-  background: linear-gradient(120deg, rgba(90,35,32,0.12), var(--surface) 60%);
-  padding: 22px 26px;
-  cursor:pointer;
-  margin-bottom: 26px;
-  transition: border-color .2s ease, background .2s ease;
+/* identité */
+.hal-id{ display:flex; align-items:center; gap:clamp(18px, 2vw, 38px); padding: clamp(14px, 1.6vw, 30px) 0 clamp(20px, 2vw, 38px); }
+.hal-id-crest{ width:clamp(72px, 7vw, 130px); height:auto; flex-shrink:0; filter: drop-shadow(0 0 18px rgba(200,70,61,0.42)); }
+.hal-id-eyebrow{ font-family:'IBM Plex Mono', monospace; font-size:clamp(11px, 0.85vw, 14px); letter-spacing:0.3em; text-transform:uppercase; color:var(--hal); }
+.hal-id-name{
+  font-family:var(--hal-head); font-weight:700; font-size:clamp(56px, 7.4vw, 140px); line-height:0.9;
+  letter-spacing:0.02em; color:#f4f2ec; margin:6px 0 0; text-shadow: 0.045em 0.045em 0 rgba(200,70,61,0.55);
 }
-.halcyon-archive-card:hover{ border-color:#b25a52; background: linear-gradient(120deg, rgba(90,35,32,0.2), var(--surface) 60%); }
-.halcyon-archive-card-logo{ width:52px; height:52px; object-fit:contain; flex-shrink:0; filter: drop-shadow(0 0 10px rgba(178,90,82,0.4)); }
-.halcyon-archive-card-info{ flex:1; }
-.halcyon-archive-card-eyebrow{ font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color:#b25a52; margin-bottom:4px; }
-.halcyon-archive-card-title{ font-family:'Cinzel', serif; font-size:19px; color:#f0ebdc; margin-bottom:4px; }
-.halcyon-archive-card-desc{ font-size:12.5px; color: var(--text-dim); }
-.halcyon-archive-card-arrow{ font-size:18px; color: var(--text-dim); transition: transform .15s ease, color .15s ease; }
-.halcyon-archive-card:hover .halcyon-archive-card-arrow{ color:#e0857c; transform: translateX(4px); }
+.hal-id-side{ margin-left:auto; display:flex; flex-direction:column; align-items:flex-end; gap:12px; }
+.hal-id-code{ display:flex; align-items:center; gap:10px; font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.12em; color:#6d7380; }
+.hal-id-code i, .hal-panel-code i{ display:inline-block; width:38px; height:7px; background: repeating-linear-gradient(90deg, #4b5160 0 1px, transparent 1px 4px); }
+
+/* onglets */
+.hal-tabs{
+  display:flex; align-items:stretch; background: rgba(10,11,14,0.78);
+  border-top:1px solid rgba(255,255,255,0.07); border-bottom:1px solid rgba(255,255,255,0.07);
+}
+.hal-tabkey{
+  align-self:center; margin:0 12px; padding:2px 7px; cursor:pointer; user-select:none;
+  border:1px solid #3a3f4a; color:#8a91a0; font-family:'IBM Plex Mono', monospace; font-size:11px;
+}
+.hal-tabkey:hover{ color:#fff; border-color:#8a91a0; }
+.hal-tabs-list{ display:flex; flex:1; flex-wrap:wrap; min-width:0; }
+.hal-tab{
+  display:flex; align-items:center; gap:10px; background:none; border:0; border-bottom:3px solid transparent; cursor:pointer;
+  color:#d6d9df; font-family:var(--hal-head); font-weight:600; font-size:clamp(17px, 1.3vw, 23px); letter-spacing:0.01em;
+  padding: clamp(12px, 1vw, 18px) clamp(18px, 1.6vw, 30px);
+  transition: background .15s ease, color .15s ease;
+}
+.hal-tab svg{ width:1.05em; height:1.05em; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round; flex-shrink:0; }
+.hal-tab:hover{ background: rgba(255,255,255,0.05); }
+.hal-tab.active{ background:var(--hal); color:#fff; border-bottom-color:#fff; }
+.hal-pane{ display:none; }
+.hal-pane.active{ display:block; animation: halPaneIn .35s ease both; }
+@keyframes halPaneIn{ from{ opacity:0; transform: translateY(10px); } to{ opacity:1; transform:none; } }
+
+/* titre de section */
+.hal-title{ display:flex; align-items:baseline; gap:12px; margin: clamp(26px, 2.6vw, 48px) 0 clamp(16px, 1.5vw, 26px); }
+.hal-title b{ font-family:var(--hal-head); font-style:italic; font-weight:700; font-size:clamp(26px, 2.6vw, 46px); color:var(--hal); line-height:1; }
+.hal-title h2{ font-family:var(--hal-head); font-weight:700; text-transform:uppercase; font-size:clamp(36px, 3.6vw, 66px); line-height:1; letter-spacing:0.01em; color:#f2f3f5; margin:0; }
+.hal-title span{ margin-left:auto; font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.12em; color:#6d7380; }
+
+/* mise en page */
+.hal-cols{ display:grid; grid-template-columns: minmax(0,1fr) clamp(320px, 27vw, 500px); gap: clamp(20px, 2vw, 40px); align-items:start; }
+@media (max-width:1000px){ .hal-cols{ grid-template-columns:1fr; } }
+
+/* panneau */
+.hal-panel{
+  position:relative; margin-bottom: clamp(20px, 1.8vw, 34px);
+  background: rgba(19,20,24,0.94); border:1px solid rgba(255,255,255,0.05);
+}
+.hal-panel::before{
+  content:''; position:absolute; inset:-6px; pointer-events:none; z-index:2;
+  background:
+    linear-gradient(var(--hx), var(--hx)) left 0 top 6px / 13px 1px no-repeat,
+    linear-gradient(var(--hx), var(--hx)) left 6px top 0 / 1px 13px no-repeat,
+    linear-gradient(var(--hx), var(--hx)) right 0 top 6px / 13px 1px no-repeat,
+    linear-gradient(var(--hx), var(--hx)) right 6px top 0 / 1px 13px no-repeat,
+    linear-gradient(var(--hx), var(--hx)) left 0 bottom 6px / 13px 1px no-repeat,
+    linear-gradient(var(--hx), var(--hx)) left 6px bottom 0 / 1px 13px no-repeat,
+    linear-gradient(var(--hx), var(--hx)) right 0 bottom 6px / 13px 1px no-repeat,
+    linear-gradient(var(--hx), var(--hx)) right 6px bottom 0 / 1px 13px no-repeat;
+}
+.hal-panel-head{
+  position:relative; z-index:1; display:flex; align-items:center; gap:10px; padding: clamp(10px, 0.9vw, 15px) 16px;
+  background:#0a0b0e; color:#f2f3f5; font-family:var(--hal-head); font-weight:600; font-size:clamp(17px, 1.25vw, 23px); letter-spacing:0.01em;
+}
+.hal-ico{ width:0.8em; height:0.8em; flex-shrink:0; background:var(--hal); clip-path: polygon(0 0, 100% 0, 100% 100%, 38% 100%, 0 62%); }
+.hal-panel-code{ margin-left:auto; display:flex; align-items:center; gap:10px; font-family:'IBM Plex Mono', monospace; font-size:11px; font-weight:400; letter-spacing:0.1em; color:#6d7380; }
+.hal-panel-body{ position:relative; z-index:1; padding: clamp(16px, 1.6vw, 30px); }
+.hal-wm-wrap{ position:absolute; inset:0; overflow:hidden; pointer-events:none; }
+.hal-wm{
+  position:absolute; right:10px; bottom:-0.12em; font-family:var(--hal-head); font-weight:700; line-height:1;
+  font-size:clamp(90px, 10.5vw, 200px); color: rgba(255,255,255,0.045); user-select:none;
+}
+
+/* contenu */
+.hal-tag{ display:flex; align-items:center; gap:8px; margin-bottom:16px; }
+.hal-tag b{ background:var(--hal); color:#fff; font-family:'IBM Plex Mono', monospace; font-size:10.5px; font-weight:500; letter-spacing:0.06em; padding:2px 8px; }
+.hal-tag i{ width:clamp(70px, 7vw, 120px); height:9px; background: repeating-linear-gradient(135deg, #7b8190 0 1px, transparent 1px 4px); }
+.hal-text p{ margin:0 0 14px; font-family:var(--hal-body); font-size:clamp(15px, 1.12vw, 19.5px); line-height:1.85; color:#cdd0d7; }
+.hal-text p:last-child{ margin-bottom:0; }
+.hal-list{ list-style:none; margin:0; padding:0; counter-reset:none; }
+.hal-list li{ display:flex; gap:16px; align-items:baseline; padding:12px 0; border-top:1px solid rgba(255,255,255,0.07); font-family:var(--hal-body); font-size:clamp(15px, 1.1vw, 19px); line-height:1.6; color:#d2d5db; }
+.hal-list li:first-child{ border-top:0; padding-top:0; }
+.hal-list li:last-child{ padding-bottom:0; }
+.hal-list em{ font-style:normal; flex-shrink:0; font-family:'IBM Plex Mono', monospace; font-size:12px; letter-spacing:0.1em; color:var(--hal); }
+.hal-quote{
+  border-left:3px solid var(--hal); padding:6px 0 6px 20px; margin-bottom:12px;
+  font-family:'EB Garamond', serif; font-style:italic; font-size:clamp(18px, 1.5vw, 28px); line-height:1.5; color:#e6a59e;
+}
+.hal-cite{ font-family:'IBM Plex Mono', monospace; font-size:11.5px; letter-spacing:0.04em; color:#6d7380; padding-left:23px; }
+
+/* fiche d'entité */
+.hal-entity-logo{
+  position:relative; height:clamp(130px, 11vw, 200px); margin-bottom:6px;
+  display:flex; align-items:center; justify-content:center; background:#0e0f12; border:1px solid rgba(255,255,255,0.04);
+}
+.hal-entity-logo::before, .hal-entity-logo::after{ content:''; position:absolute; width:13px; height:13px; border:0 solid #e8eaee; }
+.hal-entity-logo::before{ top:-1px; left:-1px; border-top-width:2px; border-left-width:2px; }
+.hal-entity-logo::after{ bottom:-1px; right:-1px; border-bottom-width:2px; border-right-width:2px; }
+.hal-entity-logo img{ max-width:56%; max-height:72%; object-fit:contain; filter: drop-shadow(0 0 16px rgba(200,70,61,0.4)); }
+.hal-kv{ display:grid; grid-template-columns: 36% 1fr; align-items:center; gap:10px; padding: clamp(11px, 0.9vw, 16px) 2px; border-top:1px solid rgba(255,255,255,0.07); }
+.hal-kv span{ font-family:'IBM Plex Mono', monospace; font-size:clamp(10.5px, 0.75vw, 12.5px); letter-spacing:0.12em; text-transform:uppercase; color:#6d7380; }
+.hal-kv b{ font-family:var(--hal-body); font-weight:600; font-size:clamp(15px, 1.1vw, 19px); color:#f2f3f5; }
+.hal-kv b small{ display:block; margin-top:2px; font-weight:400; font-size:0.78em; color:#8a91a0; }
+.hal-edit-form{ margin-top:14px; padding-top:14px; border-top:1px solid rgba(255,255,255,0.07); max-width:none; }
+
+/* accès archives */
+.hal-access{
+  display:flex; align-items:center; justify-content:space-between; gap:12px; margin-top:20px; padding: clamp(14px, 1.2vw, 20px) clamp(18px, 1.6vw, 28px);
+  background:var(--hal); color:#fff; cursor:pointer; transition: background .15s ease, transform .15s ease;
+  font-family:var(--hal-head); font-weight:700; text-transform:uppercase; font-size:clamp(18px, 1.5vw, 26px); letter-spacing:0.02em;
+}
+.hal-access:hover{ background:#d95a50; transform: translateX(4px); }
+.hal-access em{ font-style:normal; font-family:'IBM Plex Mono', monospace; font-weight:400; font-size:11.5px; letter-spacing:0.14em; opacity:0.85; }
+
+/* organigramme dans l'onglet hiérarchie */
+.hal-tree{ margin-top: clamp(10px, 1vw, 20px); }
+
+@media (max-width:700px){
+  .hal-id{ flex-wrap:wrap; }
+  .hal-id-side{ margin-left:0; flex-direction:row; align-items:center; }
+  .hal-tabkey{ display:none; }
+}
 
 /* ---- Hiérarchie Halcyon : organigramme (nœuds reliés par des connecteurs) ---- */
 .org-chart{ display:flex; flex-direction:column; align-items:center; margin-bottom: 36px; }
@@ -3759,6 +3869,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=68"></script>
+<script src="dist/main.js?v=69"></script>
 </body>
 </html>
