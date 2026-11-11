@@ -6554,7 +6554,7 @@ const TM_GW = 320, TM_GH = 180;
 interface TmMarker { id: string; label: string; caption: string; kind: 'city' | 'place'; route: string; x: number; y: number; level: number; }
 interface TmTerrain { grid: Float32Array; cuts: number[]; lineCuts: number[]; hAt(wx: number, wy: number): number; }
 
-let tmState: { cleanup(): void; recenter(): void; toggleLegend(): void } | null = null;
+let tmState: { cleanup(): void; recenter(): void; toggleLegend(): void; zoomInto(x: number, y: number, cb: () => void): void } | null = null;
 let tmMarkers: TmMarker[] = [];
 let tmMoved = false;
 let tmTerrain: TmTerrain | null = null;
@@ -6830,7 +6830,10 @@ function tmMarkerHtml(m: TmMarker): string {
 function tmOpenMarker(id: string): void {
   if(tmMoved) return;
   const m = tmMarkers.find(x => x.id === id);
-  if(m) navigate(m.route);
+  if(!m) return;
+  // plongeon dans la cité : la caméra fonce sur Novelance avant d'ouvrir son plan
+  if(m.kind === 'city' && tmState){ const go = m.route; tmState.zoomInto(m.x, m.y, () => navigate(go)); return; }
+  navigate(m.route);
 }
 
 const TM_TABS: { label: string; route: string }[] = [
@@ -6879,9 +6882,9 @@ function openMapOverlay(): void {
   if(!overlay){
     overlay = document.createElement('div');
     overlay.id = 'mapOverlay';
-    overlay.className = 'tm-overlay';
     document.body.appendChild(overlay);
   }
+  overlay.className = 'tm-overlay';
   overlay.innerHTML = mapOverlayHtml();
   document.body.style.overflow = 'hidden';
   tmBooting = true;
@@ -6954,6 +6957,23 @@ function initTerrainMap(): void {
     tween = requestAnimationFrame(step);
   };
 
+  const zoomInto = (wx: number, wy: number, cb: () => void): void => {
+    cancelAnimationFrame(tween);
+    overlay.classList.add('tm-diving');
+    const from = { ...cam };
+    const s = maxS * 0.92;
+    const to = { s, x: stage.clientWidth / 2 - wx * s, y: stage.clientHeight / 2 - wy * s };
+    const t0 = performance.now();
+    const step = (now: number): void => {
+      const t = Math.min(1, (now - t0) / 950);
+      const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+      cam.s = from.s + (to.s - from.s) * e; cam.x = from.x + (to.x - from.x) * e; cam.y = from.y + (to.y - from.y) * e;
+      clampCam(); apply();
+      if(t < 1) tween = requestAnimationFrame(step); else cb();
+    };
+    tween = requestAnimationFrame(step);
+  };
+
   let dragging = false, down: { x: number; y: number; cx: number; cy: number } | null = null;
   const onDown = (e: PointerEvent): void => { dragging = true; tmMoved = false; down = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y }; cancelAnimationFrame(tween); };
   const onMove = (e: PointerEvent): void => {
@@ -7012,7 +7032,7 @@ function initTerrainMap(): void {
   window.addEventListener('resize', fit);
 
   tmState = {
-    recenter, toggleLegend,
+    recenter, toggleLegend, zoomInto,
     cleanup(){
       cancelAnimationFrame(raf); cancelAnimationFrame(tween);
       stage.removeEventListener('pointerdown', onDown);
@@ -7047,10 +7067,15 @@ function closeMapOverlay(): void {
   setTimeout(() => { const el = document.getElementById('mapOverlay'); if(el && !el.classList.contains('open')) el.remove(); }, 420);
 }
 
-/* ---------------- NOVELANCE — CARTE DE LA CITÉ-BASTION (plan radial) ----------------
-   Carte statique (illustration SVG, pas de pan/zoom) d'une ville à part sur le
-   continent, accessible depuis un point sur la carte du monde. Les quartiers
-   sont cliquables et affichent leur description dans le panneau sous la carte.
+/* ---------------- NOVELANCE — PLAN DE LA CITÉ-BASTION (style carte de jeu) ----------------
+   Plein écran, ouvert en « plongeant » depuis le marqueur de la carte du monde
+   (voir tmState.zoomInto). Plan radial sombre : courbes de niveau, quartiers
+   hachurés, routes et rocades vertes, icônes blanches (rouges pour Halcyon et
+   les zones à risque). Les « étages » (haute ville, ville médiane, basse ville,
+   souterrains) et les catégories de points d'intérêt (commerces, services,
+   transports...) se filtrent depuis les onglets du haut et le menu de gauche.
+   Les points d'intérêt sont dans NV_POIS : modifie ce tableau pour en ajouter
+   ou en changer (coordonnées en unités du monde, 2000 x 1125, centre 1000;562).
 */
 interface NovelanceDistrict { id: string; label: string; color: string; desc: string; }
 
@@ -7071,589 +7096,512 @@ const NOVELANCE_DISTRICTS: NovelanceDistrict[] = [
     desc:"La ceinture extérieure de la cité : lotissements épars, entrepôts et petites exploitations qui s'étendent bien au-delà des remparts, là où Novelance se dissout peu à peu dans la campagne." },
 ];
 
-function novelancePolar(cx: number, cy: number, r: number, angleDeg: number): [number, number] {
-  const a = (angleDeg - 90) * Math.PI / 180;
-  return [cx + r*Math.cos(a), cy + r*Math.sin(a)];
+const NV_W = 2000, NV_H = 1125, NV_CX = 1000, NV_CY = 562;
+const NV_R = [60, 130, 205, 280, 385];
+const NV_DX = NV_CX - 430, NV_DY = NV_CY - 400;
+
+type NvCatId = 'commerce' | 'halcyon' | 'transport' | 'service' | 'industrie' | 'danger';
+interface NvCat { id: NvCatId; label: string; red: boolean; icon: string; }
+interface NvFloor { id: string; label: string; districts: string[]; icon: string; }
+interface NvPoi { id: string; name: string; cat: NvCatId; district: string; at: [number, number]; desc: string; link?: string; }
+
+const NV_CATS: NvCat[] = [
+  { id:'commerce',  label:'Commerces',      red:false, icon:'<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>' },
+  { id:'halcyon',   label:'Halcyon',        red:true,  icon:'<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/>' },
+  { id:'transport', label:'Transports',     red:false, icon:'<rect x="6" y="4" width="12" height="13" rx="3"/><path d="M6 11h12M9 20l-2 2M15 20l2 2"/><circle cx="9.5" cy="14.5" r="0.8"/><circle cx="14.5" cy="14.5" r="0.8"/>' },
+  { id:'service',   label:'Services',       red:false, icon:'<path d="M10 4h4v6h6v4h-6v6h-4v-6H4v-4h6z"/>' },
+  { id:'industrie', label:'Industrie',      red:false, icon:'<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>' },
+  { id:'danger',    label:'Zones à risque', red:true,  icon:'<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/>' },
+];
+
+const NV_FLOORS: NvFloor[] = [
+  { id:'all',     label:'Toute la ville', districts:['centre','superieurs','intermediaires','populaires','industrielle','ruines','faubourgs'],
+    icon:'<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><circle cx="12" cy="12" r="1.4"/>' },
+  { id:'haute',   label:'Haute ville',    districts:['centre','superieurs'],
+    icon:'<path d="M12 3v18M8 21h8M9 8h6M7 13h10"/>' },
+  { id:'mediane', label:'Ville médiane',  districts:['intermediaires','industrielle'],
+    icon:'<path d="M5 21V8l7-4 7 4v13M9 21v-6h6v6M9 11h.01M15 11h.01"/>' },
+  { id:'basse',   label:'Basse ville',    districts:['populaires','faubourgs','ruines'],
+    icon:'<path d="M3 21V12l5-4 5 4v9M13 21v-7l4-3 4 3v7M2 21h20"/>' },
+  { id:'sous',    label:'Souterrains',    districts:[],
+    icon:'<path d="M5 21V11a7 7 0 0 1 14 0v10"/><path d="M9 21v-6h6v6"/>' },
+];
+
+function nvPolar(r: number, ang: number): [number, number] {
+  const a = (ang - 90) * Math.PI / 180;
+  return [NV_CX + r * Math.cos(a), NV_CY + r * Math.sin(a)];
 }
 
-// Éclaircit (facteur > 1) ou assombrit (facteur < 1) une couleur hex — sert à
-// donner à chaque bâtiment une face "toit" claire et une face "mur" sombre,
-// pour un effet de relief/extrusion façon mini-carte de jeu.
-function novelanceShade(hex: string, factor: number): string {
-  const h = hex.replace('#','');
-  const r = Math.min(255, Math.round(parseInt(h.substring(0,2),16)*factor));
-  const g = Math.min(255, Math.round(parseInt(h.substring(2,4),16)*factor));
-  const b = Math.min(255, Math.round(parseInt(h.substring(4,6),16)*factor));
-  return `rgb(${r},${g},${b})`;
+const NV_POIS: NvPoi[] = [
+  { id:'hq', name:'Quartier général de Halcyon', cat:'halcyon', district:'centre', at:nvPolar(16, 30), desc:"Le siège de l'organisation : bureaux de commandement et laboratoires, derrière plusieurs anneaux de sécurité." },
+  { id:'palais', name:'Palais administratif', cat:'halcyon', district:'centre', at:nvPolar(38, 150), desc:"Les services qui gèrent la cité au quotidien, sous la tutelle directe de Halcyon." },
+  { id:'controle', name:'Poste de contrôle central', cat:'danger', district:'centre', at:nvPolar(44, 255), desc:"Dernier filtre avant le cœur de la cité : habilitation exigée, aucune exception." },
+  { id:'residences', name:'Résidences des dirigeants', cat:'halcyon', district:'superieurs', at:nvPolar(100, 20), desc:"Les demeures des cadres et des hybrides de haut rang, surveillées jour et nuit." },
+  { id:'galerie-haute', name:'Galerie des Hauts-Quartiers', cat:'commerce', district:'superieurs', at:nvPolar(92, 110), desc:"Boutiques de luxe et salons privés réservés à la haute société de Novelance." },
+  { id:'clinique', name:'Clinique privée', cat:'service', district:'superieurs', at:nvPolar(106, 200), desc:"Soins de pointe pour l'élite, avec un accès direct aux technologies de Halcyon." },
+  { id:'gare-cercle', name:'Gare du Cercle', cat:'transport', district:'superieurs', at:nvPolar(98, 290), desc:"Le terminal des lignes rapides qui relient les quartiers supérieurs au reste de la cité." },
+  { id:'marche-couvert', name:'Grand marché couvert', cat:'commerce', district:'intermediaires', at:nvPolar(170, 35), desc:"Le plus fréquenté de la ville : étals, restauration et artisans sous une même halle." },
+  { id:'avenue-marchande', name:'Avenue marchande', cat:'commerce', district:'intermediaires', at:nvPolar(160, 130), desc:"Boutiques, cafés et enseignes qui bordent la grande avenue radiale." },
+  { id:'hopital', name:'Hôpital général', cat:'service', district:'intermediaires', at:nvPolar(175, 205), desc:"L'établissement de soins ouvert à tous, toujours saturé." },
+  { id:'lycee', name:'Lycée de Novelance', cat:'service', district:'intermediaires', at:nvPolar(165, 270), desc:"Là où se forment les futurs techniciens, chercheurs et soldats de la cité." },
+  { id:'station-centrale', name:'Station Centrale', cat:'transport', district:'intermediaires', at:nvPolar(150, 330), desc:"Le grand nœud des transports en commun, entre la rocade et le centre." },
+  { id:'marche-ruelles', name:'Marché des ruelles', cat:'commerce', district:'populaires', at:nvPolar(245, 60), desc:"Un dédale d'étals où l'on trouve de tout, souvent à moindre prix." },
+  { id:'puces', name:'Marché aux puces', cat:'commerce', district:'populaires', at:nvPolar(255, 170), desc:"Récupération, troc et pièces détachées : l'économie parallèle des quartiers populaires." },
+  { id:'dispensaire', name:'Dispensaire', cat:'service', district:'populaires', at:nvPolar(240, 235), desc:"Un centre de soins de quartier, tenu à bout de bras par des bénévoles." },
+  { id:'station-rocade', name:'Station de la Rocade', cat:'transport', district:'populaires', at:nvPolar(250, 305), desc:"Dessert les quartiers populaires et les faubourgs par la grande rocade." },
+  { id:'usines', name:"Usines d'Essence", cat:'industrie', district:'industrielle', at:[1300, 530], desc:"Les complexes qui transforment et distribuent l'Essence qui alimente la cité." },
+  { id:'entrepots', name:'Entrepôts du port', cat:'industrie', district:'industrielle', at:[1390, 570], desc:"Stockage des marchandises avant leur départ vers le centre ou le reste du monde." },
+  { id:'quais', name:'Quais de chargement', cat:'transport', district:'industrielle', at:[1430, 640], desc:"Cargos, grues et convois : le port ne dort jamais." },
+  { id:'depot', name:'Dépôt de convois', cat:'transport', district:'industrielle', at:[1330, 650], desc:"Point de départ des convois de ravitaillement vers le centre." },
+  { id:'vestiges', name:"Vestiges de l'ancienne cité", cat:'danger', district:'ruines', at:[880, 840], desc:"Des bâtiments à moitié effondrés, que Halcyon ne patrouille presque jamais." },
+  { id:'squat', name:'Quartier des squats', cat:'service', district:'ruines', at:[790, 770], desc:"Ceux qui vivent en marge de la Novelance officielle s'y sont installés." },
+  { id:'marche-bordure', name:'Marché de bordure', cat:'commerce', district:'faubourgs', at:nvPolar(345, 20), desc:"Les maraîchers et les petits commerçants des faubourgs y vendent leurs produits." },
+  { id:'exploitations', name:'Exploitations agricoles', cat:'industrie', district:'faubourgs', at:nvPolar(350, 100), desc:"Champs et serres qui nourrissent une partie de la cité." },
+  { id:'gare-banlieue', name:'Gare de banlieue', cat:'transport', district:'faubourgs', at:nvPolar(340, 225), desc:"Le dernier arrêt avant les routes qui filent vers l'horizon." },
+  { id:'poste-frontiere', name:'Poste-frontière', cat:'danger', district:'faubourgs', at:nvPolar(352, 300), desc:"Un contrôle de Halcyon à la sortie de la cité, là où commence la zone non surveillée." },
+  { id:'sous-acces', name:"Accès — Cité d'en dessous", cat:'transport', district:'sous', at:[800, 760], desc:"Un escalier dissimulé dans les ruines, qui descend vers les galeries de la Cité d'en dessous.", link:'souterrains' },
+  { id:'sous-refuge', name:'Refuge', cat:'service', district:'sous', at:[760, 640], desc:"Un abri de fortune où trouvent asile ceux que la ville d'en haut ne veut plus voir." },
+  { id:'sous-marche', name:'Marché clandestin', cat:'commerce', district:'sous', at:[900, 700], desc:"Tout ce qui est interdit en surface s'y échange, à la lueur de lampes bricolées." },
+  { id:'sous-reservoirs', name:'Réservoirs', cat:'industrie', district:'sous', at:[1160, 700], desc:"D'anciennes cuves d'Essence, encore partiellement alimentées." },
+  { id:'sous-secure', name:'Accès sécurisé de Halcyon', cat:'halcyon', district:'sous', at:[1010, 640], desc:"Une entrée discrète sous le centre politique, que les habitants des galeries évitent." },
+  { id:'sous-galerie', name:'Galerie corrompue', cat:'danger', district:'sous', at:[1130, 790], desc:"Une section des tunnels envahie par la Corruption : personne n'y retourne." },
+];
+
+const NV_TUNNELS: [string, string][] = [
+  ['sous-acces', 'sous-refuge'], ['sous-refuge', 'sous-marche'], ['sous-marche', 'sous-secure'],
+  ['sous-marche', 'sous-reservoirs'], ['sous-reservoirs', 'sous-galerie'],
+];
+
+let nvFloor = 'all';
+let nvFilters: Record<string, boolean> = { commerce: true, halcyon: true, transport: true, service: true, industrie: true, danger: true, routes: true, noms: true, souterrains: false, grille: true };
+let nvSel: { kind: 'poi' | 'district'; id: string } | null = null;
+let nvMoved = false;
+let nvState: { recenter(): void; cleanup(): void } | null = null;
+let nvBooting = false;
+
+// Courbe fermée lissée (quadratiques entre les milieux des segments).
+function nvSmooth(pts: [number, number][]): string {
+  const n = pts.length;
+  const f = (v: number): string => (Math.round(v * 10) / 10).toString();
+  const mid = (a: [number, number], b: [number, number]): [number, number] => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  const m0 = mid(pts[n - 1], pts[0]);
+  let d = `M${f(m0[0])} ${f(m0[1])}`;
+  for(let i = 0; i < n; i++){
+    const p = pts[i], q = mid(p, pts[(i + 1) % n]);
+    d += `Q${f(p[0])} ${f(p[1])} ${f(q[0])} ${f(q[1])}`;
+  }
+  return d + 'Z';
 }
 
-function novelancePointInPolygon(pt: [number,number], poly: [number,number][]): boolean {
+function nvBlob(r: number, seed: number): string {
+  const pts: [number, number][] = [];
+  for(let i = 0; i < 72; i++){
+    const a = (i / 72) * Math.PI * 2;
+    const w = 1 + 0.032 * Math.sin(3 * a + seed) + 0.026 * Math.sin(5 * a + seed * 2.3) + 0.012 * Math.sin(8 * a + seed * 1.7);
+    pts.push([NV_CX + Math.cos(a) * r * w, NV_CY + Math.sin(a) * r * w]);
+  }
+  return nvSmooth(pts);
+}
+
+// Petits rectangles semés au hasard (empreintes de bâtiments) dans un anneau.
+function nvFootprints(rInner: number, rOuter: number, count: number, seed: number): string {
+  const rnd = tmSeeded(seed);
+  let d = '';
+  for(let i = 0; i < count; i++){
+    const a = rnd() * Math.PI * 2;
+    const r = rInner + 6 + rnd() * (rOuter - rInner - 12);
+    const x = NV_CX + Math.cos(a) * r, y = NV_CY + Math.sin(a) * r;
+    const w = 4 + rnd() * 7, h = 4 + rnd() * 7;
+    d += `M${x.toFixed(0)} ${y.toFixed(0)}h${w.toFixed(0)}v${h.toFixed(0)}h${(-w).toFixed(0)}z`;
+  }
+  return d;
+}
+
+function novelancePointInPolygon(pt: [number, number], poly: [number, number][]): boolean {
   let inside = false;
-  for(let i=0, j=poly.length-1; i<poly.length; j=i++){
-    const xi=poly[i][0], yi=poly[i][1], xj=poly[j][0], yj=poly[j][1];
-    const intersect = ((yi>pt[1]) !== (yj>pt[1])) && (pt[0] < (xj-xi)*(pt[1]-yi)/(yj-yi)+xi);
+  for(let i = 0, j = poly.length - 1; i < poly.length; j = i++){
+    const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+    const intersect = ((yi > pt[1]) !== (yj > pt[1])) && (pt[0] < (xj - xi) * (pt[1] - yi) / (yj - yi) + xi);
     if(intersect) inside = !inside;
   }
   return inside;
 }
 
-// Projection isométrique (30°) : un point du plan du monde (x,y), avec une
-// hauteur z optionnelle, devient un point écran. Seuls les bâtiments (qui ont
-// une vraie hauteur) utilisent cette fonction point par point — le reste du
-// décor (sol, routes, tout ce qui est à z=0) passe par une simple matrice SVG
-// appliquant la même transformation (voir novelanceMapSvg).
-const NOVELANCE_ISO_C = Math.cos(Math.PI/6);
-const NOVELANCE_ISO_S = Math.sin(Math.PI/6);
-// Décalage pour centrer le losange isométrique dans le viewBox — doit être le
-// même que celui utilisé par la matrice SVG du décor à plat (voir
-// novelanceMapSvg), sinon bâtiments et sol ne tombent pas au même endroit.
-const NOVELANCE_ISO_TX = 1300, NOVELANCE_ISO_TY = 550;
-function novelanceIsoProject(x: number, y: number, z: number = 0): [number, number] {
-  return [NOVELANCE_ISO_C*(x-y) + NOVELANCE_ISO_TX, NOVELANCE_ISO_S*(x+y) - z + NOVELANCE_ISO_TY];
-}
-
-// Fait pivoter un point du plan du monde autour du centre de la cité — permet
-// de "tourner" la carte : les éléments dessinés via une matrice SVG (sol,
-// routes) n'en ont pas besoin (une rotation supplémentaire suffit dans le
-// SVG), mais tout ce qui est pré-projeté en JS (bâtiments) doit être pivoté
-// avant la projection isométrique.
-function novelanceRotatePoint(x: number, y: number, cx: number, cy: number, angleDeg: number): [number, number] {
-  const a = angleDeg * Math.PI / 180;
-  const dx = x - cx, dy = y - cy;
-  return [cx + dx*Math.cos(a) - dy*Math.sin(a), cy + dx*Math.sin(a) + dy*Math.cos(a)];
-}
-
-function novelanceShrinkQuad(corners: [number,number][], factor: number): [number,number][] {
-  const ccx = corners.reduce((s,p)=>s+p[0],0)/corners.length;
-  const ccy = corners.reduce((s,p)=>s+p[1],0)/corners.length;
-  return corners.map(p => [ccx+(p[0]-ccx)*factor, ccy+(p[1]-ccy)*factor] as [number,number]);
-}
-
-interface NovelancePiece { key: number; svg: string; }
-
-// Extrude un bâtiment entre les hauteurs baseZ et topZ : le toit, plus
-// uniquement les faces "mur" tournées vers la caméra (les deux autres sont
-// cachées derrière le bâtiment lui-même, comme dans une vraie vue iso).
-function novelanceIsoBuilding(corners: [number,number][], baseZ: number, topZ: number, topColor: string, wallColor: string): NovelancePiece {
-  const ccx = corners.reduce((s,p)=>s+p[0],0)/corners.length;
-  const ccy = corners.reduce((s,p)=>s+p[1],0)/corners.length;
-  const base = corners.map(p => novelanceIsoProject(p[0],p[1],baseZ));
-  const top = corners.map(p => novelanceIsoProject(p[0],p[1],topZ));
-  const n = corners.length;
-  let walls = '';
-  for(let i=0;i<n;i++){
-    const j = (i+1)%n;
-    const mx = (corners[i][0]+corners[j][0])/2, my = (corners[i][1]+corners[j][1])/2;
-    if((mx-ccx)+(my-ccy) <= 0) continue;
-    const pts = [base[i], base[j], top[j], top[i]];
-    walls += `<polygon points="${pts.map(p=>`${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')}" fill="${wallColor}" pointer-events="none"/>`;
-  }
-  const roof = `<polygon points="${top.map(p=>`${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')}" fill="${topColor}" pointer-events="none"/>`;
-  return { key: ccx+ccy, svg: walls + roof };
-}
-
-// Remplit un anneau (entre rInner et rOuter, tout autour du centre) d'un
-// pâté de petits bâtiments suivant la grille radiale (avenues/rocades), avec
-// une face toit + une face mur légèrement décalée pour un rendu extrudé.
-function novelanceRingBuildings(cx: number, cy: number, rInner: number, rOuter: number, color: string, angStepDeg: number, radialBands: number, seed: number, baseHeight: number, districtId: string, rotation: number, ruined?: boolean, tierChance: number = 0.3): NovelancePiece[] {
-  let s = seed;
-  const rand = () => { s = (s*1103515245+12345) & 0x7fffffff; return (s % 1000)/1000; };
-  const pieces: NovelancePiece[] = [];
-  const angCount = Math.round(360/angStepDeg);
-  const inset = 0.14;
-  for(let ai=0; ai<angCount; ai++){
-    const aStart = ai*angStepDeg + rotation, aEnd = aStart+angStepDeg;
-    for(let ri=0; ri<radialBands; ri++){
-      if(rand() < 0.09) continue;
-      const uStart = ri/radialBands, uEnd = (ri+1)/radialBands;
-      const rS = rInner + (rOuter-rInner)*uStart, rE = rInner + (rOuter-rInner)*uEnd;
-      const c00 = novelancePolar(cx,cy,rS,aStart), c10 = novelancePolar(cx,cy,rE,aStart);
-      const c11 = novelancePolar(cx,cy,rE,aEnd), c01 = novelancePolar(cx,cy,rS,aEnd);
-      const bilerp = (u: number, v: number): [number,number] => {
-        const top: [number,number] = [c00[0]+(c10[0]-c00[0])*u, c00[1]+(c10[1]-c00[1])*u];
-        const bot: [number,number] = [c01[0]+(c11[0]-c01[0])*u, c01[1]+(c11[1]-c01[1])*u];
-        return [top[0]+(bot[0]-top[0])*v, top[1]+(bot[1]-top[1])*v];
-      };
-      const pts = [bilerp(inset,inset), bilerp(1-inset,inset), bilerp(1-inset,1-inset), bilerp(inset,1-inset)];
-      const ccx = pts.reduce((s2,p)=>s2+p[0],0)/4, ccy = pts.reduce((s2,p)=>s2+p[1],0)/4;
-      const shade = 0.78 + rand()*0.4;
-      if(ruined && rand() < 0.4){
-        const flat = pts.map(p => novelanceIsoProject(p[0],p[1],0));
-        pieces.push({ key: ccx+ccy, svg: `<polygon points="${flat.map(p=>`${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')}" fill="none" stroke="${novelanceShade(color,shade)}" stroke-width="1.2" opacity="0.5" pointer-events="none"/>` });
-        continue;
-      }
-      const h = baseHeight * (0.55 + rand()*0.9);
-      const piece = novelanceIsoBuilding(pts, 0, h, novelanceShade(color, shade), novelanceShade(color, shade*0.5));
-      if(rand() < tierChance){
-        const small = novelanceShrinkQuad(pts, 0.5);
-        const h2 = h + baseHeight*(0.3+rand()*0.6);
-        const topTier = novelanceIsoBuilding(small, h, h2, novelanceShade(color, Math.min(1.35,shade*1.08)), novelanceShade(color, shade*0.45));
-        piece.svg += topTier.svg;
-      }
-      piece.svg = `<g class="novelance-building" onclick="onNovelanceBuildingClick(event,'${districtId}')">${piece.svg}</g>`;
-      pieces.push(piece);
-    }
-  }
-  return pieces;
-}
-
-// Disperse des petits bâtiments (rectangles, même traitement toit/mur) à
-// l'intérieur d'un polygone quelconque — utilisé pour les zones qui ne
-// suivent pas la grille radiale (port industriel, ruines). Le polygone reçu
-// est celui, NON pivoté, du monde de base : on tire les positions dans son
-// repère canonique (sinon, avec un polygone déjà pivoté, sa boîte englobante
-// change de taille à chaque degré de rotation et les bâtiments "sautent"
-// d'une position à l'autre pendant qu'on tourne la carte) puis on pivote
-// seulement les coins de chaque bâtiment obtenu, comme pour les anneaux.
-function novelanceScatterBuildings(poly: [number,number][], color: string, count: number, seed: number, baseHeight: number, districtId: string, cx: number, cy: number, rotation: number, ruined?: boolean): NovelancePiece[] {
-  let s = seed;
-  const rand = () => { s = (s*1103515245+12345) & 0x7fffffff; return (s % 1000)/1000; };
-  const xs = poly.map(p=>p[0]), ys = poly.map(p=>p[1]);
-  const minX = Math.min(...xs), maxX = Math.max(...xs), minY = Math.min(...ys), maxY = Math.max(...ys);
-  const pieces: NovelancePiece[] = [];
-  let placed = 0, attempts = 0;
-  while(placed < count && attempts < count*10){
-    attempts++;
-    const x = minX + rand()*(maxX-minX), y = minY + rand()*(maxY-minY);
-    if(!novelancePointInPolygon([x,y], poly)) continue;
-    const w = 9+rand()*15, hlen = 9+rand()*15;
-    const corners: [number,number][] = [[x-w/2,y-hlen/2],[x+w/2,y-hlen/2],[x+w/2,y+hlen/2],[x-w/2,y+hlen/2]]
-      .map(p => novelanceRotatePoint(p[0], p[1], cx, cy, rotation));
-    const [rx,ry] = novelanceRotatePoint(x, y, cx, cy, rotation);
-    const shade = 0.72 + rand()*0.42;
-    if(ruined && rand() < 0.4){
-      const flat = corners.map(p => novelanceIsoProject(p[0],p[1],0));
-      pieces.push({ key: rx+ry, svg: `<polygon points="${flat.map(p=>`${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(' ')}" fill="none" stroke="${novelanceShade(color, shade)}" stroke-width="1.2" opacity="0.5" pointer-events="none"/>` });
-      placed++;
-      continue;
-    }
-    const h = baseHeight * (0.5 + rand()*1.1);
-    const piece = novelanceIsoBuilding(corners, 0, h, novelanceShade(color, shade), novelanceShade(color, shade*0.5));
-    piece.svg = `<g class="novelance-building" onclick="onNovelanceBuildingClick(event,'${districtId}')">${piece.svg}</g>`;
-    pieces.push(piece);
+function nvPolyFootprints(poly: [number, number][], count: number, seed: number): string {
+  const rnd = tmSeeded(seed);
+  const xs = poly.map(p => p[0]), ys = poly.map(p => p[1]);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs), y0 = Math.min(...ys), y1 = Math.max(...ys);
+  let d = '', placed = 0, guard = 0;
+  while(placed < count && guard++ < count * 20){
+    const x = x0 + rnd() * (x1 - x0), y = y0 + rnd() * (y1 - y0);
+    if(!novelancePointInPolygon([x, y], poly)) continue;
+    const w = 6 + rnd() * 12, h = 5 + rnd() * 9;
+    d += `M${x.toFixed(0)} ${y.toFixed(0)}h${w.toFixed(0)}v${h.toFixed(0)}h${(-w).toFixed(0)}z`;
     placed++;
   }
-  return pieces;
+  return d;
 }
 
-// Un bâtiment cliqué s'illumine (bascule, un seul à la fois) et affiche la
-// description de son quartier, comme si on avait cliqué sur le quartier
-// lui-même.
-function onNovelanceBuildingClick(evt: Event, districtId: string): void {
-  evt.stopPropagation();
-  const g = evt.currentTarget as Element;
-  document.querySelectorAll('.novelance-building.novelance-lit').forEach(el => { if(el !== g) el.classList.remove('novelance-lit'); });
-  g.classList.toggle('novelance-lit');
-  showNovelanceDistrict(districtId);
+function nvSvgHtml(): string {
+  const industriePoly = ([[685,300],[790,255],[865,285],[885,340],[860,400],[885,460],[865,520],[790,548],[685,500]] as [number, number][]).map(p => [p[0] + NV_DX, p[1] + NV_DY] as [number, number]);
+  const ruinesPoly = ([[150,560],[232,518],[322,540],[382,582],[420,650],[400,720],[318,742],[216,720],[146,680],[120,618]] as [number, number][]).map(p => [p[0] + NV_DX, p[1] + NV_DY] as [number, number]);
+
+  // courbes de niveau décoratives autour de la cité
+  let decor = '';
+  for(let k = 0; k < 33; k++){
+    const r = 430 + k * 24;
+    const pts: [number, number][] = [];
+    for(let i = 0; i < 90; i++){
+      const a = (i / 90) * Math.PI * 2;
+      const w = 1 + 0.05 * Math.sin(3 * a + k * 0.35) + 0.035 * Math.sin(5 * a + 1.7 - k * 0.28) + 0.02 * Math.sin(9 * a + k);
+      pts.push([NV_CX + Math.cos(a) * r * w * 1.45, NV_CY + Math.sin(a) * r * w]);
+    }
+    const major = k % 5 === 0;
+    decor += `<path d="${nvSmooth(pts)}" fill="none" stroke="${major ? '#4f7592' : '#2c4a63'}" stroke-opacity="${(major ? 0.8 : 0.55) * (1 - k / 48)}" stroke-width="${major ? 1.3 : 0.8}" vector-effect="non-scaling-stroke"/>`;
+  }
+
+  const shape = (id: string, d: string, fp: string): string => `
+      <g class="nv-dg" data-id="${id}" onclick="nvSelectDistrict('${id}')">
+        <path class="nv-d" d="${d}" fill="rgba(34,70,108,0.2)" stroke="#6f98bb" stroke-opacity="0.8" stroke-width="1.2" vector-effect="non-scaling-stroke"/>
+        <path d="${d}" fill="url(#nvHatch)" pointer-events="none"/>
+        <path d="${fp}" fill="none" stroke="#7fa6c8" stroke-opacity="0.4" stroke-width="0.9" vector-effect="non-scaling-stroke" pointer-events="none"/>
+      </g>`;
+  const polyCenter = (poly: [number, number][]): [number, number] => [poly.reduce((s, p) => s + p[0], 0) / poly.length, poly.reduce((s, p) => s + p[1], 0) / poly.length];
+  const label = (text: string, x: number, y: number): string => `<text class="nv-label" x="${x.toFixed(0)}" y="${y.toFixed(0)}" text-anchor="middle">${esc(text)}</text>`;
+  const lbl = (id: string, x: number, y: number): string => label(NOVELANCE_DISTRICTS.find(d => d.id === id)!.label, x, y);
+  const ic = polyCenter(industriePoly), rc = polyCenter(ruinesPoly);
+  const L = (r: number, a: number): [number, number] => nvPolar(r, a);
+
+  const districts = [
+    shape('faubourgs', nvBlob(NV_R[4], 5), nvFootprints(NV_R[3], NV_R[4], 120, 41)),
+    shape('industrielle', nvSmooth(industriePoly), nvPolyFootprints(industriePoly, 70, 71)),
+    shape('ruines', nvSmooth(ruinesPoly), nvPolyFootprints(ruinesPoly, 28, 89)),
+    shape('populaires', nvBlob(NV_R[3], 3), nvFootprints(NV_R[2], NV_R[3], 260, 53)),
+    shape('intermediaires', nvBlob(NV_R[2], 2), nvFootprints(NV_R[1], NV_R[2], 210, 37)),
+    shape('superieurs', nvBlob(NV_R[1], 1), nvFootprints(NV_R[0], NV_R[1], 110, 23)),
+    shape('centre', nvBlob(NV_R[0], 0), nvFootprints(0, NV_R[0], 40, 11)),
+  ].join('');
+  const labels = [
+    lbl('faubourgs', ...L((NV_R[3] + NV_R[4]) / 2, 322)),
+    lbl('populaires', ...L((NV_R[2] + NV_R[3]) / 2, 322)),
+    lbl('intermediaires', ...L((NV_R[1] + NV_R[2]) / 2, 322)),
+    lbl('superieurs', ...L((NV_R[0] + NV_R[1]) / 2, 322)),
+    label('Centre politique', NV_CX, NV_CY + 5),
+    lbl('industrielle', ic[0], ic[1] - 6),
+    lbl('ruines', rc[0], rc[1] - 6),
+  ].join('');
+
+  const spokes = Array.from({ length: 12 }, (_, i) => {
+    const a = nvPolar(NV_R[0], i * 30), b = nvPolar(NV_R[4], i * 30);
+    return `M${a[0].toFixed(1)} ${a[1].toFixed(1)}L${b[0].toFixed(1)} ${b[1].toFixed(1)}`;
+  }).join('');
+  const rings = NV_R.map((r, i) => nvBlob(r, [0, 1, 2, 3, 5][i])).join('');
+  const farRoads = [15, 75, 135, 195, 255, 315].map(a => {
+    const p = nvPolar(NV_R[4], a), q = nvPolar(NV_R[4] + 420, a);
+    return `M${p[0].toFixed(1)} ${p[1].toFixed(1)}L${q[0].toFixed(1)} ${q[1].toFixed(1)}`;
+  }).join('');
+  const poiById = (id: string): NvPoi => NV_POIS.find(p => p.id === id)!;
+  const tunnels = NV_TUNNELS.map(([a, b]) => {
+    const pa = poiById(a).at, pb = poiById(b).at;
+    return `M${pa[0]} ${pa[1]}L${pb[0]} ${pb[1]}`;
+  }).join('');
+
+  return `
+    <svg class="nv-svg" viewBox="0 0 ${NV_W} ${NV_H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <radialGradient id="nvBg" cx="50%" cy="50%" r="75%"><stop offset="0" stop-color="#0c1724"/><stop offset="0.6" stop-color="#070d16"/><stop offset="1" stop-color="#03060b"/></radialGradient>
+        <pattern id="nvHatch" width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><line x1="0" y1="0" x2="0" y2="7" stroke="#5b86aa" stroke-opacity="0.22" stroke-width="1"/></pattern>
+      </defs>
+      <rect width="${NV_W}" height="${NV_H}" fill="url(#nvBg)"/>
+      <g class="nv-decor">${decor}</g>
+      <g class="nv-roads">
+        <path d="${farRoads}" fill="none" stroke="#4f7a45" stroke-opacity="0.4" stroke-width="1" vector-effect="non-scaling-stroke"/>
+      </g>
+      ${districts}
+      <g class="nv-roads" pointer-events="none">
+        <path d="${spokes}" fill="none" stroke="#5f8f52" stroke-opacity="0.4" stroke-width="1" vector-effect="non-scaling-stroke"/>
+        <path d="${rings}" fill="none" stroke="#6da35d" stroke-opacity="0.85" stroke-width="1.6" vector-effect="non-scaling-stroke"/>
+      </g>
+      <g class="nv-tunnels" pointer-events="none"><path d="${tunnels}" fill="none" stroke="#8fc1ea" stroke-opacity="0.8" stroke-width="1.6" stroke-dasharray="7 6" vector-effect="non-scaling-stroke"/></g>
+      <g class="nv-labels" pointer-events="none">${labels}</g>
+    </svg>`;
 }
 
-function novelanceMapSvg(rotation: number = 0): string {
-  const cx = 430, cy = 400;
-  const r0 = 60, r1 = 130, r2 = 205, r3 = 280, r4 = 385;
-  const road = '#5be6ee';
-  const roadDim = 'rgba(91,230,238,0.4)';
-  // Décor "à plat" (sol, routes) : coordonnées du monde inchangées, passées
-  // par une matrice SVG qui applique la même projection iso (en z=0) que les
-  // bâtiments, plus une rotation autour du centre pour "tourner" la carte.
-  const isoMatrix = `matrix(${NOVELANCE_ISO_C.toFixed(4)},${NOVELANCE_ISO_S.toFixed(4)},${(-NOVELANCE_ISO_C).toFixed(4)},${NOVELANCE_ISO_S.toFixed(4)},${NOVELANCE_ISO_TX},${NOVELANCE_ISO_TY})`;
-  const rotateFlat = `rotate(${rotation} ${cx} ${cy})`;
+function nvPoiHtml(p: NvPoi): string {
+  const cat = NV_CATS.find(c => c.id === p.cat)!;
+  return `
+    <div class="nv-poi${cat.red ? ' red' : ''}" data-id="${p.id}" style="left:${(p.at[0] / NV_W * 100).toFixed(3)}%; top:${(p.at[1] / NV_H * 100).toFixed(3)}%">
+      <button type="button" class="nv-poi-in" onclick="nvSelectPoi('${p.id}')">
+        <span class="nv-poi-ico"><svg viewBox="0 0 24 24">${cat.icon}</svg></span>
+        <span class="nv-poi-name">${esc(p.name)}</span>
+      </button>
+    </div>`;
+}
 
-  const spokes = Array.from({length:12}, (_, i) => {
-    const ang = i * 30;
-    const [x1,y1] = novelancePolar(cx,cy,r0,ang);
-    const [x2,y2] = novelancePolar(cx,cy,r4,ang);
-    return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${roadDim}" stroke-width="1.4"/>`;
-  }).join('');
+// Un point est visible si sa catégorie est cochée ET qu'il appartient à
+// l'étage affiché ; les souterrains n'apparaissent que sur leur étage (ou si
+// le calque « Réseau souterrain » est coché).
+function nvPoiVisible(p: NvPoi): boolean {
+  if(!nvFilters[p.cat]) return false;
+  if(nvFloor === 'sous') return p.district === 'sous';
+  if(p.district === 'sous') return nvFilters.souterrains;
+  const fl = NV_FLOORS.find(f => f.id === nvFloor)!;
+  return fl.districts.includes(p.district);
+}
 
-  const junctions = [r0,r1,r2,r3,r4].map(r => Array.from({length:12}, (_, i) => {
-    const [x,y] = novelancePolar(cx,cy,r,i*30);
-    return `<circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="2.4" fill="${road}"/>`;
-  }).join('')).join('');
+function nvFindSouterrains(): Entry | undefined {
+  return ENTRIES.find(e => e.cat === 'lieux' && /souterrain/i.test(e.name));
+}
 
-  // Routes lointaines qui filent vers l'horizon, au-delà des faubourgs —
-  // suggère que la cité continue bien plus loin que ce qu'on voit.
-  const farRoads = [15, 75, 135, 195, 255, 315].map(ang => {
-    const [x1,y1] = novelancePolar(cx,cy,r4-10,ang);
-    const [x2,y2] = novelancePolar(cx,cy,r4+230,ang);
-    return `<line x1="${x1.toFixed(1)}" y1="${y1.toFixed(1)}" x2="${x2.toFixed(1)}" y2="${y2.toFixed(1)}" stroke="${roadDim}" stroke-width="1"/>`;
-  }).join('');
-
-  // Étendues de terrain (champs/friches) autour de la cité, façon relief vu
-  // du ciel — purement décoratif, pour que la carte ne s'arrête pas net sur
-  // du vide et donne l'impression d'un monde bien plus vaste que la ville.
-  // Densifié pour combler les zones encore trop vides tout autour.
-  const terrainPatchesData: [number,number][][] = [
-    [[-260,-40],[-140,-120],[10,-90],[60,-10],[-30,70],[-180,60]],
-    [[900,-160],[1060,-210],[1180,-90],[1120,40],[960,10]],
-    [[-320,420],[-190,340],[-60,400],[-90,540],[-260,560]],
-    [[880,760],[1040,700],[1180,780],[1120,900],[940,880]],
-    [[300,900],[460,860],[540,950],[460,1040],[300,1020]],
-    [[1050,120],[1220,60],[1320,180],[1260,320],[1100,280]],
-    [[-420,-160],[-260,-220],[-140,-160],[-190,-40],[-360,-20]],
-    [[-440,260],[-320,200],[-220,260],[-260,380],[-400,400]],
-    [[1080,460],[1240,420],[1300,540],[1200,640],[1060,580]],
-    [[560,-200],[720,-260],[820,-160],[740,-60],[600,-80]],
-    [[-160,780],[20,720],[100,820],[20,940],[-140,900]],
-    [[820,1000],[980,940],[1080,1040],[980,1140],[820,1100]],
-    [[-460,540],[-380,620],[-460,720],[-560,660],[-560,560]],
-  ];
-  const terrainPatches = terrainPatchesData.map((pts,i) => {
-    const c = i%2===0 ? '#3c4a34' : '#2f3a2e';
-    return `<path d="${pts.map((p,j)=>`${j===0?'M':'L'}${p[0]},${p[1]}`).join(' ')} Z" fill="${c}" opacity="0.4"/>`;
-  }).join('');
-
-  const ships = [
-    [1005,300,20,'0'], [1040,345,-8,'1'], [990,400,0,'2'], [1035,455,10,'3'], [1000,505,-4,'4'],
-    [1105,375,15,'5'], [1120,430,-10,'6'],
-  ].map(([x,y,rot]) => `
-    <g transform="translate(${x},${y}) rotate(${rot})" fill="rgba(212,222,236,0.7)" opacity="0.8">
-      <path d="M-14,0 L10,0 L14,-3 L-14,-3 Z"/>
-    </g>`).join('');
-
-  const industriePoly: [number,number][] = [[685,300],[790,255],[865,285],[885,340],[860,400],[885,460],[865,520],[790,548],[685,500]];
-  const ruinesPoly: [number,number][] = [[150,560],[232,518],[322,540],[382,582],[420,650],[400,720],[318,742],[216,720],[146,680],[120,618]];
-
-  // Collines en périphérie — même principe d'extrusion que les bâtiments,
-  // mais large et bas, pour donner un peu de relief au paysage environnant.
-  // Plus nombreuses et mieux réparties que la première passe pour combler le
-  // vide restant tout autour de la cité.
-  const reliefHillsData: [number,number,number,number][] = [
-    [-160,-60,150,26], [980,-140,170,32], [-220,480,140,22],
-    [960,780,160,28], [360,960,130,20], [-40,-260,120,18],
-    [1160,220,140,24], [-380,140,120,20], [1120,600,150,26],
-    [-300,900,150,24], [700,1080,140,22], [-120,1060,110,18],
-    [1220,-40,110,16], [200,-220,100,16], [-260,720,100,14],
-  ];
-  const reliefHills: NovelancePiece[] = reliefHillsData.map(([x,y,radius,height], i) => {
-    const n = 8;
-    const pts: [number,number][] = Array.from({length:n}, (_, k) => {
-      const a = (k/n)*Math.PI*2;
-      const rr = radius * (0.8 + 0.2*Math.sin(k*2.3+i));
-      return novelanceRotatePoint(x+Math.cos(a)*rr, y+Math.sin(a)*rr, cx, cy, rotation);
-    });
-    const c = i%2===0 ? '#4a5a3e' : '#3d4a36';
-    const piece = novelanceIsoBuilding(pts, 0, height, novelanceShade(c,1.05), novelanceShade(c,0.55));
-    return { key: piece.key - 100000, svg: piece.svg }; // toujours derrière la ville
+function openNovelanceOverlay(): void {
+  let overlay = document.getElementById('novOverlay');
+  if(overlay && (overlay.classList.contains('open') || nvBooting)) return;
+  if(!overlay){
+    overlay = document.createElement('div');
+    overlay.id = 'novOverlay';
+    document.body.appendChild(overlay);
+  }
+  overlay.className = 'nv-overlay';
+  nvFloor = 'all';
+  nvSel = null;
+  nvFilters.souterrains = false;
+  overlay.innerHTML = novelanceOverlayHtml();
+  document.body.style.overflow = 'hidden';
+  nvBooting = true;
+  requestAnimationFrame(() => {
+    overlay!.classList.add('open');
+    setTimeout(() => { initNovelanceMap(); nvBooting = false; }, 60);
   });
-
-  const buildingPieces: NovelancePiece[] = [
-    ...reliefHills,
-    ...novelanceRingBuildings(cx,cy,0,r0,'#e8dcd8',15,2,11, 130, 'centre', rotation, false, 0.55),
-    ...novelanceRingBuildings(cx,cy,r0,r1,'#b4394a',18,2,23, 110, 'superieurs', rotation, false, 0.5),
-    ...novelanceRingBuildings(cx,cy,r1,r2,'#c97f42',14,2,37, 42, 'intermediaires', rotation, false, 0.3),
-    ...novelanceRingBuildings(cx,cy,r2,r3,'#6d7178',12,2,53, 28, 'populaires', rotation, false, 0.25),
-    ...novelanceRingBuildings(cx,cy,r3,r4,'#5a6b4a',10,1,61, 15, 'faubourgs', rotation, false, 0.1),
-    ...novelanceScatterBuildings(industriePoly,'#5c7789',40,71, 34, 'industrielle', cx, cy, rotation),
-    ...novelanceScatterBuildings(ruinesPoly,'#4a2c37',30,89, 14, 'ruines', cx, cy, rotation, true),
-  ];
-  buildingPieces.sort((a,b) => a.key - b.key);
-  const buildingsSvg = buildingPieces.map(p => p.svg).join('');
-
-  return `
-  <svg class="novelance-svg" id="novelanceSvg" viewBox="0 0 2600 1500" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Carte de Novelance">
-    <defs>
-      <filter id="novGlow" x="-60%" y="-60%" width="220%" height="220%">
-        <feGaussianBlur stdDeviation="2.6" result="blur"/>
-        <feMerge>
-          <feMergeNode in="blur"/>
-          <feMergeNode in="SourceGraphic"/>
-        </feMerge>
-      </filter>
-      <radialGradient id="novBg" cx="42%" cy="38%" r="80%">
-        <stop offset="0%" stop-color="#0e1a1a"/>
-        <stop offset="55%" stop-color="#081014"/>
-        <stop offset="100%" stop-color="#02040a"/>
-      </radialGradient>
-    </defs>
-    <rect x="0" y="0" width="2600" height="1500" fill="url(#novBg)"/>
-
-    <!-- terrain environnant + routes lointaines (purement décoratif) -->
-    <g transform="${isoMatrix}">
-      <g transform="${rotateFlat}">${terrainPatches}${farRoads}</g>
-    </g>
-
-    <!-- sol / zones cliquables (fond sombre, la couleur du district vient des bâtiments par-dessus) -->
-    <g transform="${isoMatrix}">
-      <g transform="${rotateFlat}">
-        <g class="novelance-district" data-id="industrielle" onclick="showNovelanceDistrict('industrielle')" style="cursor:pointer">
-          <path d="${industriePoly.map((p,i)=>`${i===0?'M':'L'}${p[0]},${p[1]}`).join(' ')} Z" fill="${novelanceShade('#5c7789',0.14)}"/>
-        </g>
-        <g class="novelance-district" data-id="ruines" onclick="showNovelanceDistrict('ruines')" style="cursor:pointer">
-          <path d="${ruinesPoly.map((p,i)=>`${i===0?'M':'L'}${p[0]},${p[1]}`).join(' ')} Z" fill="${novelanceShade('#4a2c37',0.14)}"/>
-        </g>
-        <g class="novelance-district" data-id="faubourgs" onclick="showNovelanceDistrict('faubourgs')" style="cursor:pointer">
-          <circle cx="${cx}" cy="${cy}" r="${r4}" fill="${novelanceShade('#5a6b4a',0.14)}"/>
-        </g>
-        <g class="novelance-district" data-id="populaires" onclick="showNovelanceDistrict('populaires')" style="cursor:pointer">
-          <circle cx="${cx}" cy="${cy}" r="${r3}" fill="${novelanceShade('#6d7178',0.14)}"/>
-        </g>
-        <g class="novelance-district" data-id="intermediaires" onclick="showNovelanceDistrict('intermediaires')" style="cursor:pointer">
-          <circle cx="${cx}" cy="${cy}" r="${r2}" fill="${novelanceShade('#c97f42',0.14)}"/>
-        </g>
-        <g class="novelance-district" data-id="superieurs" onclick="showNovelanceDistrict('superieurs')" style="cursor:pointer">
-          <circle cx="${cx}" cy="${cy}" r="${r1}" fill="${novelanceShade('#b4394a',0.14)}"/>
-        </g>
-        <g class="novelance-district" data-id="centre" onclick="showNovelanceDistrict('centre')" style="cursor:pointer">
-          <circle cx="${cx}" cy="${cy}" r="${r0}" fill="${novelanceShade('#e8dcd8',0.16)}"/>
-        </g>
-      </g>
-    </g>
-
-    <!-- bâtiments et collines : extrusion isométrique, triés par profondeur -->
-    ${buildingsSvg}
-
-    <!-- port : quais et navires -->
-    <g transform="${isoMatrix}" pointer-events="none">
-      <g transform="${rotateFlat}">
-        <line x1="885" y1="340" x2="1080" y2="320" stroke="${road}" stroke-width="7" opacity="0.55"/>
-        <line x1="885" y1="400" x2="1055" y2="400" stroke="${road}" stroke-width="7" opacity="0.55"/>
-        <line x1="885" y1="460" x2="1080" y2="480" stroke="${road}" stroke-width="7" opacity="0.55"/>
-        <circle cx="1120" cy="400" r="26" fill="${novelanceShade('#5c7789',0.6)}"/>
-        <line x1="1055" y1="400" x2="1094" y2="400" stroke="${road}" stroke-width="3" opacity="0.55"/>
-        <line x1="1120" y1="374" x2="1120" y2="330" stroke="${road}" stroke-width="5" opacity="0.55"/>
-        <line x1="1120" y1="426" x2="1120" y2="470" stroke="${road}" stroke-width="5" opacity="0.55"/>
-      </g>
-    </g>
-    <g transform="${isoMatrix}"><g transform="${rotateFlat}">${ships}</g></g>
-
-    <!-- voirie : avenues radiales, anneaux de rocade, carrefours (lueur néon) -->
-    <g transform="${isoMatrix}" filter="url(#novGlow)" pointer-events="none">
-      <g transform="${rotateFlat}">
-        ${spokes}
-        <circle cx="${cx}" cy="${cy}" r="${r0}" fill="none" stroke="${road}" stroke-width="1.8"/>
-        <circle cx="${cx}" cy="${cy}" r="${r1}" fill="none" stroke="${road}" stroke-width="1.8"/>
-        <circle cx="${cx}" cy="${cy}" r="${r2}" fill="none" stroke="${road}" stroke-width="1.8"/>
-        <circle cx="${cx}" cy="${cy}" r="${r3}" fill="none" stroke="${road}" stroke-width="1.8"/>
-        <circle cx="${cx}" cy="${cy}" r="${r4}" fill="none" stroke="${road}" stroke-width="1.8"/>
-        ${junctions}
-      </g>
-    </g>
-  </svg>`;
 }
 
-function novelanceHudHtml(): string {
+function novelanceOverlayHtml(): string {
   return `
-    <div class="novelance-hud">
-      <div class="novelance-hud-title">
-        <svg width="32" height="52" viewBox="0 0 32 52">
-          <path d="M8,0 L14,26 L8,52 L2,26 Z" fill="none" stroke="#c9cfda" stroke-width="1.6"/>
-          <path d="M0,26 L16,20 L32,26 L16,32 Z" fill="none" stroke="#c9cfda" stroke-width="1.2" opacity="0.7"/>
-        </svg>
-        <div>
-          <div class="novelance-hud-name">NOVELANCE</div>
-          <div class="novelance-hud-tagline">LE BASTION DE LA NOUVELLE ÈRE</div>
-        </div>
+    <div class="nv-stage" id="nvStage"><div class="nv-world" id="nvWorld">${nvSvgHtml()}<div class="nv-pois">${NV_POIS.map(nvPoiHtml).join('')}</div></div></div>
+    <div class="nv-grid"></div>
+    <div class="nv-vignette"></div>
+    <div class="nv-ui">
+      <div class="nv-topleft">
+        <button class="nv-back" onclick="navigate('carte')" aria-label="Retour à la carte du monde">←</button>
+        <div class="nv-title"><b>Novelance</b><span>Cité-bastion de Halcyon</span></div>
       </div>
-
-      <div class="novelance-hud-legend">
-        <div class="novelance-hud-legend-title">DISTRICTS</div>
-        ${NOVELANCE_DISTRICTS.map(d => `
-          <div class="novelance-hud-legend-row"><span class="novelance-hud-swatch" style="background:${d.color}"></span>${esc(d.label)}</div>
-        `).join('')}
-        <div class="novelance-hud-legend-divider"></div>
-        <div class="novelance-hud-legend-row"><span class="novelance-hud-line" style="border-top:1.4px solid #5be6ee"></span>Réseau de transport aérien</div>
-        <div class="novelance-hud-legend-row"><span class="novelance-hud-line" style="border-top:3px solid #5be6ee"></span>Réseau de transport au sol</div>
-        <div class="novelance-hud-legend-row"><span class="novelance-hud-line" style="border-top:4px solid #5c7789"></span>Port / zone maritime</div>
-        <div class="novelance-hud-legend-row"><span class="novelance-hud-line" style="border-top:1px dashed rgba(91,230,238,0.4)"></span>Limite de district</div>
+      <nav class="nv-tabs">
+        <span class="nv-key" onclick="nvStepFloor(-1)">Q</span>
+        ${NV_FLOORS.map(f => `<button type="button" class="nv-tab${f.id === 'all' ? ' active' : ''}" data-floor="${f.id}" onclick="nvSetFloor('${f.id}')"><svg viewBox="0 0 24 24">${f.icon}</svg></button>`).join('')}
+        <span class="nv-key" onclick="nvStepFloor(1)">E</span>
+      </nav>
+      <div class="nv-floor-title" id="nvFloorTitle">Toute la ville</div>
+      <button class="nv-menu-btn" onclick="nvTogglePanel()"><span>Menu de la carte</span><em>F</em></button>
+      <aside class="nv-panel open" id="nvPanel">
+        <div class="nv-panel-h">Points d'intérêt</div>
+        ${NV_CATS.map(c => `<div class="nv-row" data-key="${c.id}" onclick="nvToggle('${c.id}')"><span class="nv-check"></span><span class="nv-row-ico${c.red ? ' red' : ''}"><svg viewBox="0 0 24 24">${c.icon}</svg></span><span class="nv-row-lbl">${esc(c.label)}</span><em class="nv-row-count"></em></div>`).join('')}
+        <div class="nv-panel-h">Calques</div>
+        ${[['routes', 'Routes et rocades'], ['noms', 'Noms des quartiers'], ['souterrains', 'Réseau souterrain'], ['grille', 'Grille']].map(([k, l]) => `<div class="nv-row" data-key="${k}" onclick="nvToggle('${k}')"><span class="nv-check"></span><span class="nv-row-lbl">${l}</span></div>`).join('')}
+      </aside>
+      <div class="nv-counters" id="nvCounters"></div>
+      <div class="nv-card" id="nvCard"></div>
+      <div class="nv-hints">
+        <span onclick="nvRecenter()"><b>R</b>Recentrer</span>
+        <span><b>Molette</b>Zoom</span>
+        <span onclick="nvTogglePanel()"><b>F</b>Filtres</span>
+        <span onclick="navigate('carte')"><b>Échap</b>Retour</span>
       </div>
-
-      <div class="novelance-hud-compass">
-        <svg width="88" height="88" viewBox="-44 -44 88 88">
-          <circle cx="0" cy="0" r="34" fill="none" stroke="rgba(91,230,238,0.4)" stroke-width="1.2"/>
-          <path d="M0,-26 L7,0 L0,26 L-7,0 Z" fill="#c7cfdb" opacity="0.85"/>
-          <text x="0" y="-38" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="11" fill="#c7cfdb">N</text>
-          <text x="44" y="4" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="11" fill="#9aa7b8">E</text>
-          <text x="0" y="50" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="11" fill="#9aa7b8">S</text>
-          <text x="-44" y="4" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="11" fill="#9aa7b8">O</text>
-        </svg>
-      </div>
-
-      <div class="novelance-hud-scale">
-        <svg width="200" height="30" viewBox="0 0 200 30">
-          <line x1="10" y1="20" x2="190" y2="20" stroke="#5be6ee" stroke-width="1.4"/>
-          ${[10,70,130,190].map(x => `<line x1="${x}" y1="15" x2="${x}" y2="25" stroke="#5be6ee" stroke-width="1.4"/>`).join('')}
-          <text x="10" y="12" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="10" fill="#9aa7b8">0</text>
-          <text x="70" y="12" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="10" fill="#9aa7b8">1</text>
-          <text x="130" y="12" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="10" fill="#9aa7b8">2</text>
-          <text x="190" y="12" text-anchor="middle" font-family="'IBM Plex Mono', monospace" font-size="10" fill="#9aa7b8">5 km</text>
-        </svg>
-      </div>
-
-      <div class="novelance-hud-rotate">
-        <button type="button" class="novelance-hud-rotate-btn" onclick="rotateNovelanceMap(-30)" title="Tourner à gauche" aria-label="Tourner à gauche">⟲</button>
-        <button type="button" class="novelance-hud-rotate-btn" onclick="rotateNovelanceMap(30)" title="Tourner à droite" aria-label="Tourner à droite">⟳</button>
-      </div>
-
-      <div class="novelance-hud-hint">🖱️ Glisser pour déplacer · Clic droit + glisser pour tourner · Molette pour zoomer</div>
-    </div>
-  `;
+    </div>`;
 }
 
-function renderNovelance(): string {
-  novelanceRotationDeg = 0;
-  novelanceCam = null;
-  return `
-    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('carte')" style="cursor:pointer">Carte</span> / Novelance</div>
-    <div class="novelance-page">
-      <div class="novelance-map-wrap" id="novelanceMapWrap">
-        ${novelanceMapSvg(novelanceRotationDeg)}
-        ${novelanceHudHtml()}
-      </div>
-      <div class="novelance-info" id="novelanceInfo">
-        <div class="novelance-info-hint">Clique sur un quartier ou un bâtiment de la carte pour en savoir plus.</div>
-      </div>
-    </div>
-  `;
-}
+// Met à jour tout ce qui dépend de l'étage, des filtres et de la sélection,
+// sans reconstruire la carte.
+function nvRefreshUi(): void {
+  const overlay = document.getElementById('novOverlay');
+  if(!overlay) return;
+  const floor = NV_FLOORS.find(f => f.id === nvFloor)!;
+  overlay.querySelectorAll<HTMLElement>('.nv-tab').forEach(t => t.classList.toggle('active', t.dataset.floor === nvFloor));
+  const title = document.getElementById('nvFloorTitle');
+  if(title) title.textContent = floor.label;
+  overlay.querySelectorAll<SVGGElement>('.nv-dg').forEach(g => {
+    const id = g.dataset.id as string;
+    g.classList.toggle('dim', nvFloor === 'sous' || !floor.districts.includes(id));
+    g.classList.toggle('sel', !!nvSel && nvSel.kind === 'district' && nvSel.id === id);
+  });
+  overlay.classList.toggle('nv-no-roads', !nvFilters.routes);
+  overlay.classList.toggle('nv-no-labels', !nvFilters.noms);
+  overlay.classList.toggle('nv-no-grid', !nvFilters.grille);
+  overlay.classList.toggle('nv-show-tunnels', nvFloor === 'sous' || nvFilters.souterrains);
+  overlay.classList.toggle('nv-floor-sous', nvFloor === 'sous');
 
-const NOVELANCE_WORLD_W = 2600, NOVELANCE_WORLD_H = 1500;
-let novelanceRotationDeg = 0;
-let novelanceCam: { x: number; y: number; scale: number } | null = null;
+  const total: Record<string, number> = {}, shown: Record<string, number> = {};
+  NV_CATS.forEach(c => { total[c.id] = 0; shown[c.id] = 0; });
+  overlay.querySelectorAll<HTMLElement>('.nv-poi').forEach(el => {
+    const p = NV_POIS.find(x => x.id === el.dataset.id)!;
+    total[p.cat]++;
+    const vis = nvPoiVisible(p);
+    if(vis) shown[p.cat]++;
+    el.classList.toggle('hidden', !vis);
+    el.classList.toggle('sel', !!nvSel && nvSel.kind === 'poi' && nvSel.id === p.id);
+  });
+  overlay.querySelectorAll<HTMLElement>('.nv-row').forEach(row => {
+    const k = row.dataset.key as string;
+    row.classList.toggle('on', !!nvFilters[k]);
+    const cnt = row.querySelector('.nv-row-count');
+    if(cnt && total[k] !== undefined) cnt.textContent = `${shown[k]}/${total[k]}`;
+  });
+  const sum = (o: Record<string, number>): number => Object.values(o).reduce((a, b) => a + b, 0);
+  const pct = Math.round(sum(shown) / sum(total) * 100);
+  const counters = document.getElementById('nvCounters');
+  if(counters) counters.innerHTML = `<div class="nv-counters-h"><span>Repérage</span><b>${pct}%</b></div>` +
+    NV_CATS.map(c => `<div class="nv-counter${c.red ? ' red' : ''}"><svg viewBox="0 0 24 24">${c.icon}</svg><span>${shown[c.id]}/${total[c.id]}</span></div>`).join('');
 
-// Régénère le <svg> avec l'angle de rotation courant (mêmes bâtiments, vue
-// différente) et réapplique le pan/zoom en cours, pour ne pas perdre la
-// position de la caméra en tournant. Partagé entre les boutons ⟲/⟳ et la
-// rotation continue à la souris.
-function novelanceRegenerateMap(): void {
-  const wrap = document.getElementById('novelanceMapWrap');
-  if(!wrap) return;
-  wrap.innerHTML = novelanceMapSvg(novelanceRotationDeg) + novelanceHudHtml();
-  const svg = document.getElementById('novelanceSvg') as unknown as HTMLElement | null;
-  if(svg){
-    svg.style.transformOrigin = '0 0';
-    if(novelanceCam) svg.style.transform = `translate(${novelanceCam.x}px, ${novelanceCam.y}px) scale(${novelanceCam.scale})`;
+  const card = document.getElementById('nvCard');
+  if(card){
+    if(!nvSel){
+      card.classList.remove('open');
+    } else if(nvSel.kind === 'poi'){
+      const p = NV_POIS.find(x => x.id === nvSel!.id)!;
+      const cat = NV_CATS.find(c => c.id === p.cat)!;
+      const dist = p.district === 'sous' ? "Cité d'en dessous" : NOVELANCE_DISTRICTS.find(d => d.id === p.district)!.label;
+      const lieu = p.link === 'souterrains' ? nvFindSouterrains() : undefined;
+      card.innerHTML = `<button class="nv-card-x" onclick="nvClearSel()">✕</button>
+        <div class="nv-card-cat${cat.red ? ' red' : ''}"><svg viewBox="0 0 24 24">${cat.icon}</svg>${esc(cat.label)}</div>
+        <div class="nv-card-title">${esc(p.name)}</div>
+        <div class="nv-card-sub">${esc(dist)}</div>
+        <p>${esc(p.desc)}</p>
+        ${lieu ? `<a class="nv-card-link" onclick="navigate('entry-${lieu.id}')">Voir la fiche du lieu →</a>` : ''}`;
+      card.classList.add('open');
+    } else {
+      const d = NOVELANCE_DISTRICTS.find(x => x.id === nvSel!.id)!;
+      card.innerHTML = `<button class="nv-card-x" onclick="nvClearSel()">✕</button>
+        <div class="nv-card-cat"><i style="background:${d.color}"></i>Quartier</div>
+        <div class="nv-card-title">${esc(d.label)}</div>
+        <p>${esc(d.desc)}</p>`;
+      card.classList.add('open');
+    }
   }
 }
 
-// Tourne la carte de tant de degrés (boutons ⟲/⟳).
-function rotateNovelanceMap(delta: number): void {
-  novelanceRotationDeg = (novelanceRotationDeg + delta + 360) % 360;
-  novelanceRegenerateMap();
+function nvSetFloor(id: string): void { nvFloor = id; nvSel = null; nvRefreshUi(); }
+function nvStepFloor(dir: number): void {
+  const i = NV_FLOORS.findIndex(f => f.id === nvFloor);
+  nvSetFloor(NV_FLOORS[(i + dir + NV_FLOORS.length) % NV_FLOORS.length].id);
 }
+function nvToggle(key: string): void { nvFilters[key] = !nvFilters[key]; nvRefreshUi(); }
+function nvTogglePanel(): void { const p = document.getElementById('nvPanel'); if(p) p.classList.toggle('open'); }
+function nvSelectPoi(id: string): void { if(nvMoved) return; nvSel = { kind: 'poi', id }; nvRefreshUi(); }
+function nvSelectDistrict(id: string): void { if(nvMoved) return; nvSel = { kind: 'district', id }; nvRefreshUi(); }
+function nvClearSel(): void { nvSel = null; nvRefreshUi(); }
+function nvRecenter(): void { if(nvState) nvState.recenter(); }
 
-// Pan (glisser) + zoom (molette) sur la carte de Novelance. Le décor iso est
-// dans le <svg>, la légende/boussole/échelle/titre sont un calque HTML fixe
-// par-dessus (le HUD ne bouge pas quand on déplace la carte). La caméra est
-// gardée dans une variable de module (novelanceCam) pour survivre à une
-// rotation, qui remplace le <svg> par un nouveau (voir rotateNovelanceMap).
 function initNovelanceMap(): void {
-  const wrap = document.getElementById('novelanceMapWrap');
-  if(!wrap) return;
-  const minScale = 0.28, maxScale = 2.2;
+  const overlay = document.getElementById('novOverlay');
+  const stage = document.getElementById('nvStage') as HTMLElement | null;
+  const world = document.getElementById('nvWorld') as HTMLElement | null;
+  if(!overlay || !stage || !world || !overlay.classList.contains('open') || overlay.classList.contains('nv-ready')) return;
 
-  function getSvg(): HTMLElement | null { return document.getElementById('novelanceSvg') as unknown as HTMLElement | null; }
-  function apply(): void {
-    const svg = getSvg();
-    if(svg && novelanceCam) svg.style.transform = `translate(${novelanceCam.x}px, ${novelanceCam.y}px) scale(${novelanceCam.scale})`;
-  }
+  const cam = { s: 1, x: 0, y: 0 };
+  let minS = 1, maxS = 3, fitS = 1;
+  const clampCam = (): void => {
+    const vw = stage.clientWidth, vh = stage.clientHeight;
+    cam.s = Math.min(maxS, Math.max(minS, cam.s));
+    const ww = NV_W * cam.s, hh = NV_H * cam.s;
+    cam.x = Math.min(0, Math.max(vw - ww, cam.x));
+    cam.y = Math.min(0, Math.max(vh - hh, cam.y));
+  };
+  const apply = (): void => {
+    world.style.transform = `translate(${cam.x}px, ${cam.y}px) scale(${cam.s})`;
+    world.style.setProperty('--inv', String(1 / cam.s));
+    overlay.classList.toggle('nv-zoomed', cam.s > fitS * 1.7);
+  };
+  const centerOn = (wx: number, wy: number, s: number): { s: number; x: number; y: number } =>
+    ({ s, x: stage.clientWidth / 2 - wx * s, y: stage.clientHeight / 2 - wy * s });
+  const fit = (): void => {
+    const vw = stage.clientWidth, vh = stage.clientHeight;
+    minS = Math.max(vw / NV_W, vh / NV_H);
+    fitS = minS * 1.02;
+    maxS = minS * 4.2;
+    clampCam(); apply();
+  };
+  fit();
 
-  if(!novelanceCam){
-    const wrapRect = wrap.getBoundingClientRect();
-    const scale = 0.32;
-    novelanceCam = { scale, x: (wrapRect.width - NOVELANCE_WORLD_W*scale) / 2, y: (wrapRect.height - NOVELANCE_WORLD_H*scale) / 2 };
-  }
-  const initSvg = getSvg();
-  if(initSvg) initSvg.style.transformOrigin = '0 0';
-  apply();
+  let tween = 0;
+  const flyTo = (to: { s: number; x: number; y: number }, dur: number, easeOut: boolean): void => {
+    cancelAnimationFrame(tween);
+    const from = { ...cam };
+    const t0 = performance.now();
+    const step = (now: number): void => {
+      const t = Math.min(1, (now - t0) / dur);
+      const e = easeOut ? 1 - Math.pow(1 - t, 3) : t * t * t;
+      cam.s = from.s + (to.s - from.s) * e; cam.x = from.x + (to.x - from.x) * e; cam.y = from.y + (to.y - from.y) * e;
+      clampCam(); apply();
+      if(t < 1) tween = requestAnimationFrame(step);
+    };
+    tween = requestAnimationFrame(step);
+  };
 
-  let dragging = false, moved = false;
-  let down: { x: number; y: number; cx: number; cy: number } | null = null;
+  // arrivée : on commence très zoomé sur le centre, puis la caméra recule
+  const start = centerOn(NV_CX, NV_CY, minS * 3.4);
+  cam.s = start.s; cam.x = start.x; cam.y = start.y;
+  clampCam(); apply();
+  const home = centerOn(NV_CX, NV_CY, fitS);
+  const recenter = (): void => flyTo(home, 650, true);
+  setTimeout(() => { overlay.classList.add('nv-ready'); flyTo(centerOn(NV_CX, NV_CY, fitS), 1500, true); }, 120);
 
-  // Rotation continue au clic droit maintenu (glisser horizontalement).
-  // Le rendu du <svg> (des centaines de polygones) est coûteux, donc on ne
-  // le régénère qu'une fois par frame (requestAnimationFrame) même si des
-  // dizaines d'événements pointermove arrivent entre deux frames, pour que
-  // la rotation reste fluide.
-  let rotatingDrag = false;
-  let rotateDown: { x: number; rot: number } | null = null;
-  let rafPending = false;
-  function scheduleRegenerate(): void {
-    if(rafPending) return;
-    rafPending = true;
-    requestAnimationFrame(() => { rafPending = false; novelanceRegenerateMap(); });
-  }
-
-  wrap.addEventListener('contextmenu', (e: Event) => e.preventDefault());
-
-  function onDown(e: PointerEvent): void {
-    if(!novelanceCam) return;
-    if(e.button === 2){
-      rotatingDrag = true; moved = false;
-      rotateDown = { x: e.clientX, rot: novelanceRotationDeg };
-      wrap!.style.cursor = 'grabbing';
-      return;
-    }
-    if(e.button !== 0) return;
-    dragging = true; moved = false;
-    down = { x: e.clientX, y: e.clientY, cx: novelanceCam.x, cy: novelanceCam.y };
-    wrap!.style.cursor = 'grabbing';
-  }
-  function onMove(e: PointerEvent): void {
-    if(rotatingDrag && rotateDown){
-      const dx = e.clientX - rotateDown.x;
-      if(Math.abs(dx) > 2) moved = true;
-      const sensitivity = 0.35;
-      novelanceRotationDeg = ((rotateDown.rot + dx*sensitivity) % 360 + 360) % 360;
-      scheduleRegenerate();
-      return;
-    }
-    if(!dragging || !down || !novelanceCam) return;
+  let dragging = false, down: { x: number; y: number; cx: number; cy: number } | null = null;
+  const onDown = (e: PointerEvent): void => { dragging = true; nvMoved = false; down = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y }; cancelAnimationFrame(tween); };
+  const onMove = (e: PointerEvent): void => {
+    if(!dragging || !down) return;
     const dx = e.clientX - down.x, dy = e.clientY - down.y;
-    if(Math.hypot(dx,dy) > 4) moved = true;
-    novelanceCam.x = down.cx + dx;
-    novelanceCam.y = down.cy + dy;
-    apply();
-  }
-  function onUp(): void {
-    if(rotatingDrag){
-      rotatingDrag = false;
-      rotateDown = null;
-      wrap!.style.cursor = 'grab';
-      if(moved){
-        const block = (ev: Event) => { ev.stopPropagation(); wrap!.removeEventListener('click', block, true); };
-        wrap!.addEventListener('click', block, true);
-      }
-      return;
-    }
-    dragging = false;
-    wrap!.style.cursor = 'grab';
-    if(moved){
-      const block = (ev: Event) => { ev.stopPropagation(); wrap!.removeEventListener('click', block, true); };
-      wrap!.addEventListener('click', block, true);
-    }
-    down = null;
-  }
-  function onWheel(e: WheelEvent): void {
-    if(!novelanceCam) return;
+    if(Math.hypot(dx, dy) > 5){ nvMoved = true; stage.classList.add('dragging'); }
+    cam.x = down.cx + dx; cam.y = down.cy + dy;
+    clampCam(); apply();
+  };
+  const onUp = (): void => { dragging = false; down = null; stage.classList.remove('dragging'); setTimeout(() => { nvMoved = false; }, 0); };
+  const onWheel = (e: WheelEvent): void => {
     e.preventDefault();
-    const rect = wrap!.getBoundingClientRect();
-    const mx = e.clientX - rect.left, my = e.clientY - rect.top;
-    const prevScale = novelanceCam.scale;
-    novelanceCam.scale = Math.max(minScale, Math.min(maxScale, novelanceCam.scale * (e.deltaY > 0 ? 0.9 : 1.1)));
-    // On zoome vers le curseur plutôt que vers le coin, sinon le point survolé
-    // "fuit" pendant le zoom, ce qui rend la navigation désagréable.
-    novelanceCam.x = mx - (mx - novelanceCam.x) * (novelanceCam.scale/prevScale);
-    novelanceCam.y = my - (my - novelanceCam.y) * (novelanceCam.scale/prevScale);
-    apply();
-  }
-  wrap.style.cursor = 'grab';
-  wrap.addEventListener('pointerdown', onDown);
+    cancelAnimationFrame(tween);
+    const r = stage.getBoundingClientRect();
+    const mx = e.clientX - r.left, my = e.clientY - r.top;
+    const ns = Math.min(maxS, Math.max(minS, cam.s * (e.deltaY > 0 ? 0.9 : 1.1)));
+    const k = ns / cam.s;
+    cam.x = mx - (mx - cam.x) * k; cam.y = my - (my - cam.y) * k; cam.s = ns;
+    clampCam(); apply();
+  };
+  const onKey = (e: KeyboardEvent): void => {
+    if(e.ctrlKey || e.metaKey || e.altKey) return;
+    const k = e.key.toLowerCase();
+    if(k === 'escape') navigate('carte');
+    else if(k === 'r') recenter();
+    else if(k === 'f') nvTogglePanel();
+    else if(k === 'q') nvStepFloor(-1);
+    else if(k === 'e') nvStepFloor(1);
+  };
+  stage.addEventListener('pointerdown', onDown);
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
-  wrap.addEventListener('wheel', onWheel, { passive: false });
+  stage.addEventListener('wheel', onWheel, { passive: false });
+  window.addEventListener('keydown', onKey);
+  window.addEventListener('resize', fit);
+
+  nvState = {
+    recenter,
+    cleanup(){
+      cancelAnimationFrame(tween);
+      stage.removeEventListener('pointerdown', onDown);
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      stage.removeEventListener('wheel', onWheel);
+      window.removeEventListener('keydown', onKey);
+      window.removeEventListener('resize', fit);
+    },
+  };
+  nvRefreshUi();
 }
 
-function showNovelanceDistrict(id: string): void {
-  const d = NOVELANCE_DISTRICTS.find(x => x.id === id);
-  const el = document.getElementById('novelanceInfo');
-  if(!d || !el) return;
-  el.innerHTML = `
-    <div class="novelance-info-swatch" style="background:${d.color}"></div>
-    <div>
-      <div class="novelance-info-title">${esc(d.label)}</div>
-      <div class="novelance-info-desc">${esc(d.desc)}</div>
-    </div>
-  `;
+function closeNovelanceOverlay(): void {
+  const overlay = document.getElementById('novOverlay');
+  if(!overlay) return;
+  if(nvState){ nvState.cleanup(); nvState = null; }
+  nvBooting = false;
+  overlay.classList.remove('open');
+  document.body.style.overflow = '';
+  setTimeout(() => { const el = document.getElementById('novOverlay'); if(el && !el.classList.contains('open')) el.remove(); }, 420);
 }
 
 /* ---------------- LIVRE D'HISTOIRE (page verrouillée par un code) ---------------- */
@@ -7795,6 +7743,7 @@ function render(): void {
   const content = document.getElementById('content')!;
 
   if(route !== 'carte') closeMapOverlay();
+  if(route !== 'novelance') closeNovelanceOverlay();
   if(route !== 'mission') stopMissionHud();
   if(route === 'home') ensureNewsTvDock(); else removeNewsTvDock();
   const isHalcyonSection = route === 'halcyon' || route === 'armes' || route.startsWith('arme-') || route === 'archives-corrompues' || route.startsWith('escadron-');
@@ -7825,8 +7774,8 @@ function render(): void {
   } else if(route === 'carte'){
     openMapOverlay();
   } else if(route === 'novelance'){
-    content.innerHTML = renderNovelance();
-    initNovelanceMap();
+    content.innerHTML = '';
+    openNovelanceOverlay();
   } else if(route === 'organisations'){
     content.innerHTML = renderOrganisationsList();
   } else if(route.startsWith('organisation-')){
