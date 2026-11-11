@@ -5753,7 +5753,7 @@ let halTopoReady = false;
 const HAL_TABS: { key: string; label: string; code: string; icon: string }[] = [
   { key:'presentation', label:'Présentation', code:'PRE', icon:'<path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5"/><path d="M9 13h7M9 17h5"/>' },
   { key:'hierarchie',   label:'Hiérarchie',   code:'HIE', icon:'<circle cx="12" cy="5" r="2.2"/><circle cx="5" cy="19" r="2.2"/><circle cx="19" cy="19" r="2.2"/><path d="M12 7.2v4.3M12 11.5H5v5.3M12 11.5h7v5.3"/>' },
-  { key:'escadrons',    label:'Escadrons',    code:'ESC', icon:'<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.4"/><path d="M16 14.2c2.9 0 5 2.1 5 5.8"/>' },
+  { key:'groupes',      label:'Groupes',      code:'GRP', icon:'<circle cx="9" cy="8" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.4"/><path d="M16 14.2c2.9 0 5 2.1 5 5.8"/>' },
   { key:'archives',     label:'Archives',     code:'ARC', icon:'<rect x="4" y="4" width="16" height="16" rx="1"/><path d="M4 9h16M9 13h6"/>' },
 ];
 
@@ -5828,7 +5828,7 @@ function renderHalcyonPage(): string {
     ${kv('Nature', esc(category))}
     ${kv('Dirigeant', dirigeant ? `${esc(dirigeant)}${dirigeantDesc ? `<small>${esc(dirigeantDesc)}</small>` : ''}` : '—')}
     ${kv('Effectif', `${members} personnage${members > 1 ? 's' : ''} recensé${members > 1 ? 's' : ''}`)}
-    ${kv('Escadrons', String(squadCount))}
+    ${kv('Groupes', String(squadCount))}
     ${kv('Hiérarchie', `${tierCount} palier${tierCount > 1 ? 's' : ''}`)}
     ${halcyonEditMode ? `
     <div class="write-form hal-edit-form">
@@ -5877,9 +5877,16 @@ function renderHalcyonPage(): string {
             ${halPanelHtml(category, 'DOC-001', `
               <div class="hal-tag"><b>${esc(tag)}</b><i></i></div>
               <div class="hal-text"><p>${esc(desc)}</p></div>`, 'HALCYON')}
-            ${halPanelHtml('Domaines de recherche', 'DOC-002', `
+            ${halPanelHtml('Groupes de Halcyon', 'DOC-002', `
+              <div class="hal-groups">${getAllSquads().map(s => `
+                <div class="hal-group" onclick="navigate('escadron-${s.id}')">
+                  <div class="hal-group-thumb"${s.image ? ` style="background-image:url('${escAttr(s.image)}')"` : ''}>${s.image ? '' : esc(s.name.charAt(0))}</div>
+                  <div class="hal-group-info"><b>${esc(s.name)}</b>${s.category ? `<em>${esc(s.category)}</em>` : ''}<p>${esc(s.desc)}</p></div>
+                </div>`).join('')}</div>
+              <div class="hal-more" onclick="switchHalTab('groupes')">Voir tous les groupes →</div>`)}
+            ${halPanelHtml('Domaines de recherche', 'DOC-003', `
               <ol class="hal-list">${researchItems.map((t, i) => `<li><em>${String(i + 1).padStart(2, '0')}</em><span>${esc(t)}</span></li>`).join('')}</ol>`)}
-            ${halPanelHtml('Doctrine officielle', 'DOC-003', `
+            ${halPanelHtml('Doctrine officielle', 'DOC-004', `
               <div class="hal-quote">L'intégrité biologique du sujet constitue une variable acceptable au regard de la nécessité militaire.</div>
               <div class="hal-cite">— Extrait du protocole interne Halcyon, dossier Exusial.</div>`)}
           </div>
@@ -5890,12 +5897,12 @@ function renderHalcyonPage(): string {
 
       ${pane('hierarchie', `
         ${halTitleHtml('Hiérarchie', 'DOC-001 / HIE')}
-        ${halPanelHtml('Chaîne de commandement', 'DOC-004', `
+        ${halPanelHtml('Chaîne de commandement', 'DOC-005', `
           <div class="hal-text"><p>Au sein de Halcyon, il y a une hiérarchie bien définie où chaque membre possède son rôle en fonction de son rang et de son expérience. Il est possible pour n'importe quel membre de grimper dans les échelons selon ses actions.</p></div>`)}
         <div class="hal-tree">${renderOrgTree()}</div>`)}
 
-      ${pane('escadrons', `
-        ${halTitleHtml('Escadrons', 'DOC-001 / ESC')}
+      ${pane('groupes', `
+        ${halTitleHtml('Groupes', 'DOC-001 / GRP')}
         ${renderSquads()}`)}
 
       ${pane('archives', `
