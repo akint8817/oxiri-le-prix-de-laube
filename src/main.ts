@@ -6559,6 +6559,7 @@ let tmMarkers: TmMarker[] = [];
 let tmMoved = false;
 let tmTerrain: TmTerrain | null = null;
 let tmBooting = false;
+let tmHandoff = false;
 
 // Les lieux écrits sur le site arrivent de Firestore après l'ouverture de la
 // carte : on repose les marqueurs à chaque synchronisation.
@@ -6951,18 +6952,35 @@ function initTerrainMap(): void {
   };
 
   const zoomInto = (wx: number, wy: number, cb: () => void): void => {
+    if(overlay.classList.contains('tm-diving')) return;
     cancelAnimationFrame(tween);
     overlay.classList.add('tm-diving');
+    tmHandoff = true;
     const from = { ...cam };
-    const s = maxS * 0.92;
-    const to = { s, x: stage.clientWidth / 2 - wx * s, y: stage.clientHeight / 2 - wy * s };
+    const sEnd = maxS * 0.92;
+    const p0 = { x: cam.x + wx * cam.s, y: cam.y + wy * cam.s };
+    const p1 = { x: stage.clientWidth / 2, y: stage.clientHeight / 2 };
+    const DUR = 1900, SWITCH = 0.4;
     const t0 = performance.now();
+    let switched = false;
     const step = (now: number): void => {
-      const t = Math.min(1, (now - t0) / 950);
-      const e = t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
-      cam.s = from.s + (to.s - from.s) * e; cam.x = from.x + (to.x - from.x) * e; cam.y = from.y + (to.y - from.y) * e;
+      const t = Math.min(1, (now - t0) / DUR);
+      const e = t * t * t * (t * (6 * t - 15) + 10);
+      const s = from.s * Math.pow(sEnd / from.s, e);
+      cam.s = s;
+      cam.x = p0.x + (p1.x - p0.x) * e - wx * s;
+      cam.y = p0.y + (p1.y - p0.y) * e - wy * s;
       clampCam(); apply();
-      if(t < 1) tween = requestAnimationFrame(step); else cb();
+      if(!switched && t >= SWITCH){ switched = true; cb(); }
+      if(t < 1){ tween = requestAnimationFrame(step); return; }
+      // la ville recouvre maintenant entiÃ¨rement la carte : on retire la carte du monde
+      tmHandoff = false;
+      const el = document.getElementById('mapOverlay');
+      const r = location.hash.replace(/^#/, '');
+      if(r === 'carte'){ overlay.classList.remove('tm-diving'); return; }
+      cleanupMap();
+      if(el) el.remove();
+      if(r !== 'novelance') document.body.style.overflow = '';
     };
     tween = requestAnimationFrame(step);
   };
@@ -7046,6 +7064,7 @@ function cleanupMap(): void {
 function closeMapOverlay(): void {
   const overlay = document.getElementById('mapOverlay');
   if(!overlay) return;
+  if(tmHandoff) return;
   cleanupMap();
   overlay.classList.remove('open');
   document.body.style.overflow = '';
@@ -7581,7 +7600,7 @@ function openNovelanceOverlay(): void {
     overlay.id = 'novOverlay';
     document.body.appendChild(overlay);
   }
-  overlay.className = 'nv-overlay';
+  overlay.className = 'nv-overlay nv-dive';
   nvFloor = 'all';
   nvSel = null;
   nvFilters.souterrains = false;
@@ -7590,7 +7609,8 @@ function openNovelanceOverlay(): void {
   nvBooting = true;
   requestAnimationFrame(() => {
     overlay!.classList.add('open');
-    setTimeout(() => { initNovelanceMap(); nvBooting = false; }, 60);
+    setTimeout(() => { overlay!.classList.add('nv-arrived'); initNovelanceMap(); nvBooting = false; }, 60);
+    setTimeout(() => { overlay!.classList.remove('nv-dive', 'nv-arrived'); }, 2300);
   });
 }
 
@@ -7753,12 +7773,11 @@ function initNovelanceMap(): void {
   };
 
   // arrivée : on commence très zoomé sur le centre, puis la caméra recule
-  const start = centerOn(NV_FOCUS[0], NV_FOCUS[1], fitS * 2.8);
-  cam.s = start.s; cam.x = start.x; cam.y = start.y;
-  clampCam(); apply();
   const home = centerOn(NV_FOCUS[0], NV_FOCUS[1], fitS);
+  cam.s = home.s; cam.x = home.x; cam.y = home.y;
+  clampCam(); apply();
   const recenter = (): void => flyTo(home, 650, true);
-  setTimeout(() => { overlay.classList.add('nv-ready'); flyTo(home, 1500, true); }, 120);
+  setTimeout(() => { overlay.classList.add('nv-ready'); }, 750);
 
   let dragging = false, down: { x: number; y: number; cx: number; cy: number } | null = null;
   const onDown = (e: PointerEvent): void => { dragging = true; nvMoved = false; down = { x: e.clientX, y: e.clientY, cx: cam.x, cy: cam.y }; cancelAnimationFrame(tween); };
