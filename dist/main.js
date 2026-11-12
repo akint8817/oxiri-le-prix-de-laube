@@ -6409,6 +6409,10 @@ const NV_SK = {
   ],
 };
 const NV_DIDS = ['centre', 'superieurs', 'intermediaires', 'populaires', 'industrielle', 'ruines', 'faubourgs', 'plage'];
+const NV_BORDER = {
+    centre: '#fff1d0', superieurs: '#ff6a78', intermediaires: '#ffa35a', populaires: '#9fb4c7',
+    industrielle: '#6ac3e6', ruines: '#c986ad', faubourgs: '#9cc27a', plage: '#ffe27a',
+};
 const NV_STYLE = {
     centre: { ang: 12, sp: 13, empty: 0.08, f: [0.5, 0.85], n: 2, fill: '#f7d43c' },
     superieurs: { ang: 38, sp: 19, empty: 0.3, f: [0.3, 0.6], n: 1, fill: '#f3cd30' },
@@ -6765,6 +6769,7 @@ function nvBuildCity() {
     }
     const highways = NV_SK.roads.map(pts => nvOpenPath(SK(pts).flat())).join('');
     let districtSvg = '';
+    const flickers = [];
     const centroids = [];
     const labelPos = [];
     NV_DIDS.forEach((id, di) => {
@@ -6849,6 +6854,8 @@ function nvBuildCity() {
             }
         }
         let bld = '';
+        const rf = tmSeeded(4000 + di * 31);
+        const fl = ['', '', ''];
         const ci = Math.ceil(R / st.sp);
         for (let i = -ci; i <= ci; i++) {
             for (let j = -ci; j <= ci; j++) {
@@ -6863,16 +6870,24 @@ function nvBuildCity() {
                     const ou = (rs() - 0.5) * (st.sp - w - 3), ov = (rs() - 0.5) * (st.sp - h - 3);
                     const px = ccx + ca * ou - sa * ov, py = ccy + sa * ou + ca * ov;
                     const a = rad + (st.rubble ? (rs() - 0.5) * 0.9 : 0);
-                    bld += nvRectPath(px, py, Math.max(3, w), Math.max(3, h), a);
+                    const bp = nvRectPath(px, py, Math.max(3, w), Math.max(3, h), a);
+                    bld += bp;
+                    if (rf() < 0.1)
+                        fl[Math.floor(rf() * 3)] += bp;
                 }
             }
         }
+        flickers.push({ id, fl });
+        const bc = NV_BORDER[id];
         districtSvg += `
       <g class="nv-dg" data-id="${id}" onclick="nvSelectDistrict('${id}')">
+        <path class="nv-tint" d="${outline}" fill="${bc}" fill-opacity="0.07" pointer-events="none"/>
         <path class="nv-hit" d="${outline}" fill="rgba(0,0,0,0)" pointer-events="all"/>
-        <path class="nv-border" d="${outline}" fill="none" stroke="#49c4dc" stroke-opacity="0.55" stroke-width="1.2" stroke-dasharray="6 5" vector-effect="non-scaling-stroke" pointer-events="none"/>
-        <path class="nv-street" d="${streets}" fill="none" stroke="#2aa6bf" stroke-opacity="0.8" stroke-width="0.9" vector-effect="non-scaling-stroke" pointer-events="none"/>
-        <path class="nv-bldg" d="${bld}" fill="${st.fill}" fill-opacity="${st.rubble ? 0.7 : 0.92}" pointer-events="none"/>
+        <path class="nv-border" d="${outline}" fill="none" stroke="${bc}" stroke-opacity="0.8" stroke-width="1.3" stroke-dasharray="6 5" vector-effect="non-scaling-stroke" pointer-events="none"/>
+        <path class="nv-street" d="${streets}" fill="none" stroke="#2f9fd0" stroke-opacity="0.85" stroke-width="0.9" vector-effect="non-scaling-stroke" pointer-events="none"/>
+        <defs><path id="nvbd-${id}" d="${bld}"/></defs>
+        <use class="nv-bldg" href="#nvbd-${id}" x="1.5" y="2.4" fill="#7a540a" fill-opacity="${st.rubble ? 0.4 : 0.7}" pointer-events="none"/>
+        <use class="nv-bldg" href="#nvbd-${id}" fill="${st.fill}" fill-opacity="${st.rubble ? 0.7 : 0.9}" stroke="#fff3b8" stroke-opacity="0.5" stroke-width="0.7" vector-effect="non-scaling-stroke" pointer-events="none"/>
       </g>`;
     });
     const piers = '';
@@ -6926,16 +6941,42 @@ function nvBuildCity() {
       ${districtSvg}
       <path class="nv-border" d="${wall}" fill="none" stroke="#8fe7f5" stroke-opacity="0.6" stroke-width="1.8" vector-effect="non-scaling-stroke" pointer-events="none"/>
       <g class="nv-arterial" pointer-events="none" fill="none" stroke-linejoin="round">
+        <path d="${belts}${radials}${coast}" stroke="#1f78c4" stroke-opacity="0.3" stroke-width="10" vector-effect="non-scaling-stroke"/>
         <path d="${belts}${radials}${coast}" stroke="#35c7e0" stroke-opacity="0.22" stroke-width="5" vector-effect="non-scaling-stroke"/>
         <path d="${belts}${radials}${coast}" stroke="#5fd9ee" stroke-opacity="0.95" stroke-width="1.6" vector-effect="non-scaling-stroke"/>
+        <path d="${highways}" stroke="#1f78c4" stroke-opacity="0.35" stroke-width="13" vector-effect="non-scaling-stroke"/>
         <path d="${highways}" stroke="#35c7e0" stroke-opacity="0.25" stroke-width="7" vector-effect="non-scaling-stroke"/>
         <path d="${highways}" stroke="#8fe7f5" stroke-opacity="1" stroke-width="2.4" vector-effect="non-scaling-stroke"/>
+        <path d="${highways}${belts}" stroke="#ffe27a" stroke-opacity="0.9" stroke-width="1.6" stroke-linecap="round" stroke-dasharray="1.5 9" vector-effect="non-scaling-stroke"/>
       </g>
       <g class="nv-bldg" pointer-events="none"><path d="${piers}" fill="#e9a926" fill-opacity="0.95" stroke="#5fd9ee" stroke-width="0.8" vector-effect="non-scaling-stroke"/>${hqPath}</g>
       <g class="nv-tunnels" pointer-events="none"><path d="${tunnels}" fill="none" stroke="#9eeaf7" stroke-opacity="0.9" stroke-width="1.8" stroke-dasharray="7 6" vector-effect="non-scaling-stroke"/></g>
       <g class="nv-labels" pointer-events="none">${labels}</g>
     </svg>`;
-    return { svg, lookup };
+    const sweepR = 340;
+    let sweep = '';
+    for (let k = 0; k < 9; k++) {
+        const a0 = -k * 7 * Math.PI / 180, a1 = -(k + 1) * 7 * Math.PI / 180;
+        sweep += `<path d="M0 0L${(sweepR * Math.cos(a0)).toFixed(1)} ${(sweepR * Math.sin(a0)).toFixed(1)}A${sweepR} ${sweepR} 0 0 0 ${(sweepR * Math.cos(a1)).toFixed(1)} ${(sweepR * Math.sin(a1)).toFixed(1)}Z" fill="#8fe7f5" fill-opacity="${(0.2 * (1 - k / 9)).toFixed(3)}"/>`;
+    }
+    const flick = flickers.map(f => `<g class="nv-fxd" data-id="${f.id}">${f.fl.map((d, k) => `<path class="nv-fl nv-fl${k}" d="${d}"/>`).join('')}</g>`).join('');
+    const hx = hqx.toFixed(0), hy = hqy.toFixed(0);
+    const fx_ = `
+    <svg class="nv-svg nv-fx" viewBox="0 0 ${NV_W} ${NV_H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
+      <path class="nv-wave" d="${bath1}" vector-effect="non-scaling-stroke"/>
+      <g class="nv-bldg">${flick}</g>
+      <g class="nv-arterial" fill="none" stroke-linecap="round">
+        <path class="nv-flow nv-flow1" d="${belts}${radials}${coast}" vector-effect="non-scaling-stroke"/>
+        <path class="nv-flow nv-flow2" d="${highways}" vector-effect="non-scaling-stroke"/>
+      </g>
+      <g transform="translate(${hx} ${hy})">
+        <g class="nv-sweep">${sweep}</g>
+        <circle class="nv-pulse" r="30" vector-effect="non-scaling-stroke"/>
+        <circle class="nv-pulse nv-pulse2" r="30" vector-effect="non-scaling-stroke"/>
+        <circle class="nv-pulse nv-pulse3" r="30" vector-effect="non-scaling-stroke"/>
+      </g>
+    </svg>`;
+    return { svg: svg + fx_, lookup };
 }
 function nvGetCity() {
     if (!nvCity)
@@ -6992,6 +7033,7 @@ function novelanceOverlayHtml() {
     return `
     <div class="nv-stage" id="nvStage"><div class="nv-world" id="nvWorld">${city.svg}<div class="nv-pois">${NV_POIS.map(nvPoiHtml).join('')}</div></div></div>
     <div class="nv-grid"></div>
+    <div class="nv-scan"></div>
     <div class="nv-vignette"></div>
     <div class="nv-ui">
       <div class="nv-topleft">
@@ -7031,6 +7073,9 @@ function nvRefreshUi() {
         const id = g.dataset.id;
         g.classList.toggle('dim', nvFloor === 'sous' || !floor.districts.includes(id));
         g.classList.toggle('sel', !!nvSel && nvSel.kind === 'district' && nvSel.id === id);
+    });
+    overlay.querySelectorAll('.nv-fxd').forEach(g => {
+        g.classList.toggle('dim', nvFloor === 'sous' || !floor.districts.includes(g.dataset.id));
     });
     overlay.classList.toggle('nv-no-routes', !nvFilters.routes);
     overlay.classList.toggle('nv-no-rues', !nvFilters.rues);

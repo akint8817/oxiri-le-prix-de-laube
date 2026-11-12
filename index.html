@@ -698,6 +698,40 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 }
 .nv-hints span{ cursor:pointer; padding:7px 20px; border:1px solid rgba(79,209,232,0.55); border-radius:999px; background:rgba(3,18,27,0.72); transition: background .15s ease, border-color .15s ease, color .15s ease; }
 .nv-hints span:hover{ background:rgba(12,70,90,0.8); border-color:#4fd1e8; color:#fff; }
+/* ---- Novelance vivante : circulation, fenêtres qui clignotent, radar du QG, courants, balayage ---- */
+.nv-fx{ pointer-events:none; }
+.nv-fxd{ transition: opacity .35s ease; }
+.nv-fxd.dim{ opacity:0.15; }
+.nv-flow{ fill:none; stroke-linecap:round; }
+.nv-flow1{ stroke:#e6fbff; stroke-opacity:.9; stroke-width:2.2; stroke-dasharray:5 151; animation: nvFlowA 5.5s linear infinite; }
+.nv-flow2{ stroke:#fff3b8; stroke-opacity:.95; stroke-width:3; stroke-dasharray:9 211; animation: nvFlowB 7s linear infinite reverse; }
+@keyframes nvFlowA{ to{ stroke-dashoffset:-156; } }
+@keyframes nvFlowB{ to{ stroke-dashoffset:-220; } }
+.nv-wave{ fill:none; stroke:#3aa7c4; stroke-opacity:.4; stroke-width:1; stroke-dasharray:14 28; animation: nvWave 16s linear infinite; }
+@keyframes nvWave{ to{ stroke-dashoffset:-42; } }
+.nv-fl{ fill:#fff6c8; opacity:0; }
+.nv-fl0{ animation: nvTwinkle 3.7s ease-in-out infinite; }
+.nv-fl1{ animation: nvTwinkle 5.3s ease-in-out -1.8s infinite; }
+.nv-fl2{ animation: nvTwinkle 4.4s ease-in-out -3.1s infinite; }
+@keyframes nvTwinkle{ 0%,100%{ opacity:0; } 40%,55%{ opacity:.95; } 70%{ opacity:.15; } }
+.nv-sweep{ animation: nvSweep 9s linear infinite; }
+@keyframes nvSweep{ to{ transform: rotate(360deg); } }
+.nv-pulse{ fill:none; stroke:#ffe27a; stroke-width:1.6; transform-box: fill-box; transform-origin:center; animation: nvPulse 3.9s ease-out infinite; }
+.nv-pulse2{ animation-delay:-1.3s; }
+.nv-pulse3{ animation-delay:-2.6s; }
+@keyframes nvPulse{ from{ transform:scale(.3); opacity:.9; } to{ transform:scale(4.6); opacity:0; } }
+.nv-scan{
+  position:absolute; left:0; right:0; top:0; height:110px; pointer-events:none;
+  background: linear-gradient(180deg, transparent, rgba(79,209,232,.06) 60%, rgba(143,231,245,.15) 98%, transparent 100%);
+  animation: nvScan 9s linear infinite;
+}
+@keyframes nvScan{ from{ transform: translateY(-130px); } to{ transform: translateY(105vh); } }
+.nv-poi.red .nv-poi-ico{ position:relative; }
+.nv-poi.red .nv-poi-ico::after{ content:''; position:absolute; inset:-2px; border-radius:50%; border:1.5px solid rgba(255,74,82,.85); pointer-events:none; animation: nvPing 2.6s ease-out infinite; }
+@keyframes nvPing{ from{ transform:scale(1); opacity:.85; } to{ transform:scale(2.1); opacity:0; } }
+.nv-tint{ transition: opacity .3s ease; }
+.nv-no-borders .nv-tint{ opacity:0; }
+@media (prefers-reduced-motion: reduce){ .nv-fx *, .nv-scan, .nv-poi.red .nv-poi-ico::after{ animation:none !important; } .nv-fl{ opacity:.35; } }
 @media (prefers-reduced-motion: reduce){ .nv-ui, .nv-panel, .nv-card, .nv-overlay{ transition-duration:.01s; transition-delay:0s; } }
 @media (max-width:900px){
   .nv-counters{ display:none; }
@@ -3811,6 +3845,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=81"></script>
+<script src="dist/main.js?v=82"></script>
 </body>
 </html>
