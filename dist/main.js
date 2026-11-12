@@ -3576,6 +3576,15 @@ function switchFicheTab(key) {
     document.querySelectorAll('.fiche-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === key));
     document.querySelectorAll('.fiche-panel').forEach(p => p.classList.toggle('active', p.dataset.tab === key));
 }
+function ficheBgHtml(id) {
+    const r = tmSeeded(tmHash(id));
+    let h = '';
+    for (let i = 0; i < 20; i++) {
+        const sz = 2 + r() * 3;
+        h += `<i style="left:${(r() * 100).toFixed(1)}%;top:${(r() * 100).toFixed(1)}%;width:${sz.toFixed(1)}px;height:${sz.toFixed(1)}px;--dx:${Math.round((r() - 0.5) * 120)}px;--dy:${Math.round(-30 - r() * 90)}px;animation-duration:${(14 + r() * 18).toFixed(1)}s;animation-delay:-${(r() * 30).toFixed(1)}s"></i>`;
+    }
+    return `<div class="fiche-bg" aria-hidden="true">${h}</div>`;
+}
 function renderPersonnageEntry(e) {
     const c = CATS[e.cat];
     const f = e.faction ? FACTIONS.find(x => x.id === e.faction) : undefined;
@@ -3616,6 +3625,7 @@ function renderPersonnageEntry(e) {
       </div>
       <div class="op-main">
         <div class="fiche" data-entry="${e.id}" style="--fclr:${fclr}">
+          ${ficheBgHtml(e.id)}
           <aside class="fiche-left">
             <div class="fiche-portrait">
               <span class="fiche-portrait-bar"></span>
@@ -6115,7 +6125,6 @@ const TM_TABS = [
 function mapOverlayHtml() {
     return `
     <div class="tm-stage" id="tmStage"><div class="tm-world" id="tmWorld"></div></div>
-    <div class="tm-grid"></div>
     <div class="tm-vignette"></div>
     <button class="tm-close" onclick="navigate('home')" aria-label="Fermer la carte">✕</button>
     <div class="tm-title"><b>${esc(CONTINENT_NAME)}</b><span>Relevé topographique</span></div>
@@ -6483,7 +6492,7 @@ const NV_TUNNELS = [
     ['sous-marche', 'sous-reservoirs'], ['sous-reservoirs', 'sous-galerie'],
 ];
 let nvFloor = 'all';
-let nvFilters = { commerce: true, halcyon: true, transport: true, service: true, industrie: true, danger: true, routes: true, rues: true, batiments: true, limites: true, noms: true, souterrains: false, grille: false };
+let nvFilters = { commerce: true, halcyon: true, transport: true, service: true, industrie: true, danger: true, routes: true, rues: true, batiments: true, limites: true, noms: true, souterrains: false };
 let nvSel = null;
 let nvMoved = false;
 let nvState = null;
@@ -7032,7 +7041,6 @@ function novelanceOverlayHtml() {
     const city = nvGetCity();
     return `
     <div class="nv-stage" id="nvStage"><div class="nv-world" id="nvWorld">${city.svg}<div class="nv-pois">${NV_POIS.map(nvPoiHtml).join('')}</div></div></div>
-    <div class="nv-grid"></div>
     <div class="nv-scan"></div>
     <div class="nv-vignette"></div>
     <div class="nv-ui">
@@ -7049,7 +7057,7 @@ function novelanceOverlayHtml() {
         <div class="nv-panel-h">Points d'intérêt</div>
         ${NV_CATS.map(c => `<div class="nv-row" data-key="${c.id}" onclick="nvToggle('${c.id}')"><span class="nv-check"></span><span class="nv-row-ico${c.red ? ' red' : ''}"><svg viewBox="0 0 24 24">${c.icon}</svg></span><span class="nv-row-lbl">${esc(c.label)}</span><em class="nv-row-count"></em></div>`).join('')}
         <div class="nv-panel-h">Calques</div>
-        ${[['routes', 'Routes principales'], ['rues', 'Rues'], ['batiments', 'Bâtiments'], ['limites', 'Limites des quartiers'], ['noms', 'Noms des quartiers'], ['souterrains', 'Réseau souterrain'], ['grille', 'Grille']].map(([k, l]) => `<div class="nv-row" data-key="${k}" onclick="nvToggle('${k}')"><span class="nv-check"></span><span class="nv-row-lbl">${l}</span></div>`).join('')}
+        ${[['routes', 'Routes principales'], ['rues', 'Rues'], ['batiments', 'Bâtiments'], ['limites', 'Limites des quartiers'], ['noms', 'Noms des quartiers'], ['souterrains', 'Réseau souterrain']].map(([k, l]) => `<div class="nv-row" data-key="${k}" onclick="nvToggle('${k}')"><span class="nv-check"></span><span class="nv-row-lbl">${l}</span></div>`).join('')}
       </aside>
       <div class="nv-counters" id="nvCounters"></div>
       <div class="nv-card" id="nvCard"></div>
@@ -7082,7 +7090,6 @@ function nvRefreshUi() {
     overlay.classList.toggle('nv-no-bldg', !nvFilters.batiments);
     overlay.classList.toggle('nv-no-borders', !nvFilters.limites);
     overlay.classList.toggle('nv-no-labels', !nvFilters.noms);
-    overlay.classList.toggle('nv-no-grid', !nvFilters.grille);
     overlay.classList.toggle('nv-show-tunnels', nvFloor === 'sous' || nvFilters.souterrains);
     overlay.classList.toggle('nv-floor-sous', nvFloor === 'sous');
     const total = {}, shown = {};
