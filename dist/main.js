@@ -5981,8 +5981,8 @@ function tmPlaceMarkers(t) {
                 sn++;
             }
     const hx = sn ? sx / sn : TM_GW / 2, hy = sn ? sy / sn : TM_GH / 2;
-    // Novelance est une citÃ© portuaire : on la pose sur la cÃ´te, au bord de l'ocÃ©an
-    // (pas dans les terres), du cÃ´tÃ© le plus proche du cÅ“ur des hauteurs.
+    // Novelance est une cité portuaire : on la pose sur la côte, au bord de l'océan
+    // (pas dans les terres), du côté le plus proche du cœur des hauteurs.
     const sea = t.cuts[0], N = TM_GW * TM_GH;
     const ocean = new Uint8Array(N);
     const dist = new Int16Array(N).fill(-1);
@@ -6052,7 +6052,7 @@ function tmPlaceMarkers(t) {
         bcy = Math.round(hy);
     }
     const city = {
-        id: 'novelance', label: 'Novelance', caption: 'CitÃ©-bastion de Halcyon', kind: 'city', route: 'novelance',
+        id: 'novelance', label: 'Novelance', caption: 'Cité-bastion de Halcyon', kind: 'city', route: 'novelance',
         x: bcx * TM_W / (TM_GW - 1), y: bcy * TM_H / (TM_GH - 1), level: 0,
     };
     city.level = levelAt(city.x, city.y);
@@ -6252,7 +6252,7 @@ function initTerrainMap() {
                 tween = requestAnimationFrame(step);
                 return;
             }
-            // la ville recouvre maintenant entiÃ¨rement la carte : on retire la carte du monde
+            // la ville recouvre maintenant entièrement la carte : on retire la carte du monde
             tmHandoff = false;
             const el = document.getElementById('mapOverlay');
             const r = location.hash.replace(/^#/, '');
@@ -6368,25 +6368,47 @@ function closeMapOverlay() {
         el.remove(); }, 420);
 }
 const NOVELANCE_DISTRICTS = [
-    { id: 'centre', label: 'Centre politique / Halcyon', color: '#e8dcd8',
+    { id: 'centre', label: 'QG de Halcyon', color: '#e8dcd8',
         desc: "Le cœur du pouvoir de Novelance : sièges administratifs et laboratoires de Halcyon, protégés par plusieurs anneaux de sécurité concentriques. Personne n'y entre sans habilitation." },
-    { id: 'superieurs', label: 'Quartiers supérieurs', color: '#b4394a',
+    { id: 'superieurs', label: 'Quartier supérieur', color: '#b4394a',
         desc: "Résidences des dirigeants, des cadres de Halcyon et des hybrides de haut rang, à l'ombre immédiate du centre politique. L'architecture y est aussi imposante que surveillée." },
     { id: 'intermediaires', label: 'Quartiers intermédiaires', color: '#c97f42',
         desc: "Commerces, écoles et logements de la classe moyenne de la cité — le tissu le plus animé de Novelance, entre les fastes du centre et la densité des faubourgs." },
     { id: 'populaires', label: 'Quartiers populaires', color: '#6d7178',
         desc: "Le quotidien de la majorité des habitants : bâtiments plus anciens, plus denses, souvent hérités d'avant la reconstruction. C'est ici que bat le vrai pouls de la ville." },
-    { id: 'industrielle', label: 'Zone industrielle / portuaire', color: '#5c7789',
+    { id: 'industrielle', label: 'Zone portuaire', color: '#5c7789',
         desc: "Usines, entrepôts et quais qui alimentent Novelance en ressources et en Essence. Le trafic y est incessant, jour et nuit, entre les cargos et les convois vers le centre." },
     { id: 'ruines', label: 'Ancienne cité (ruines)', color: '#4a2c37',
         desc: "Les vestiges de la ville d'avant la chute, jamais totalement reconstruits ni abandonnés. Certains y vivent encore, en marge de la Novelance officielle." },
-    { id: 'faubourgs', label: 'Faubourgs', color: '#5a6b4a',
+    { id: 'faubourgs', label: 'Extérieur', color: '#5a6b4a',
         desc: "La ceinture extérieure de la cité : lotissements épars, entrepôts et petites exploitations qui s'étendent bien au-delà des remparts, là où Novelance se dissout peu à peu dans la campagne." },
+    { id: 'plage', label: 'Plage', color: '#e3c23c',
+        desc: "La bande de sable qui longe le sud-est de la cité, entre les remparts et l'océan. Promenade des habitants le jour, terrain de patrouille de Halcyon la nuit." },
 ];
 const NV_W = 2000, NV_H = 1125;
 const NV_GW = 400, NV_GH = 225, NV_CELL = NV_W / NV_GW;
-const NV_FOCUS = [1090, 560];
-const NV_DIDS = ['centre', 'superieurs', 'intermediaires', 'populaires', 'industrielle', 'ruines', 'faubourgs'];
+const NV_FOCUS = [1000, 545];
+/* Plan d'après le schéma dessiné à la main : coordonnées du schéma (image 1160x830)
+   converties en coordonnées du monde par NV_K / NV_OX / NV_OY. Rouge = contours de la
+   cité, quartier supérieur et QG ; zone portuaire à l'est ; plage au sud-est ; la mer
+   est à l'est et au sud ; les traits noirs sont les routes de l'extérieur. */
+const NV_K = 1.5, NV_OX = 59.5, NV_OY = -100;
+const NV_SK = {
+  city: [[400,235],[430,228],[470,238],[500,236],[520,236],[555,238],[575,232],[580,208],[610,186],[645,178],[680,175],[705,160],[740,168],[765,190],[780,222],[790,252],[795,290],[790,330],[780,365],[776,385],[780,410],[795,416],[790,430],[770,445],[755,468],[745,490],[725,510],[722,528],[690,525],[660,535],[620,560],[590,600],[560,640],[520,680],[512,690],[470,650],[430,640],[415,610],[415,562],[400,545],[365,545],[335,505],[315,477],[313,455],[336,445],[346,425],[360,400],[355,380],[350,358],[356,330],[385,322],[393,290],[392,250]],
+  portTop: [[792,262],[808,240],[814,216],[840,210],[862,212],[880,235],[886,255],[866,262],[850,270],[866,282],[886,285],[880,300],[868,310],[832,310],[826,320],[836,332],[890,322],[886,345],[850,350],[820,356],[814,390],[830,415],[846,425],[846,431],[820,436],[800,422],[792,410],[780,385],[790,330],[795,290]],
+  portBottom: [[792,432],[810,450],[832,466],[862,466],[882,455],[905,455],[930,480],[945,512],[942,552],[918,590],[912,622],[850,606],[790,590],[760,570],[736,542],[722,530],[725,510],[745,490],[755,468],[770,445]],
+  beach: [[512,690],[520,680],[560,640],[590,600],[620,560],[660,535],[690,525],[722,525],[722,541],[690,556],[657,570],[655,592],[635,618],[650,640],[640,652],[615,650],[590,658],[580,682],[560,695],[545,705],[535,722]],
+  sea: [[815,213],[850,130],[880,40],[900,-60],[930,-400],[1600,-400],[1600,1400],[430,1400],[450,1000],[470,860],[505,775],[535,722],[545,705],[560,695],[580,682],[590,658],[615,650],[640,652],[650,640],[635,618],[655,592],[657,570],[690,556],[722,541],[800,430],[800,300]],
+  upper: { c: [638,390], rx: 108, ry: 80 },
+  hq: { c: [571,403], rx: 41, ry: 32 },
+  roads: [
+    [[555,-90],[560,0],[570,12],[610,22],[660,50],[685,90],[700,110],[740,130],[775,175],[792,212]],
+    [[-70,60],[62,96],[110,140],[170,185],[230,208],[300,218],[360,232],[395,248]],
+    [[-60,345],[0,360],[15,375],[40,395],[55,420],[75,455],[120,470],[150,485],[165,520],[175,555],[190,580],[205,610],[210,650],[225,705],[245,730],[275,765],[300,795],[330,802],[350,812],[375,802],[415,800],[440,775],[460,740],[500,724],[527,722]],
+    [[300,795],[288,830],[280,900]],
+  ],
+};
+const NV_DIDS = ['centre', 'superieurs', 'intermediaires', 'populaires', 'industrielle', 'ruines', 'faubourgs', 'plage'];
 const NV_STYLE = {
     centre: { ang: 12, sp: 13, empty: 0.08, f: [0.5, 0.85], n: 2, fill: '#f7d43c' },
     superieurs: { ang: 38, sp: 19, empty: 0.3, f: [0.3, 0.6], n: 1, fill: '#f3cd30' },
@@ -6395,6 +6417,7 @@ const NV_STYLE = {
     industrielle: { ang: 0, sp: 24, empty: 0.2, f: [0.55, 0.9], n: 1, fill: '#e9a926' },
     ruines: { ang: 57, sp: 18, empty: 0.5, f: [0.3, 0.6], n: 1, fill: '#9c7b24', rubble: true },
     faubourgs: { ang: 18, sp: 30, empty: 0.6, f: [0.12, 0.3], n: 1, fill: '#e3c23c' },
+  plage: { ang: 0, sp: 34, empty: 0.88, f: [0.2, 0.4], n: 1, fill: '#e3c23c' },
 };const NV_CATS = [
     { id: 'commerce', label: 'Commerces', red: false, icon: '<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>' },
     { id: 'halcyon', label: 'Halcyon', red: true, icon: '<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/>' },
@@ -6410,7 +6433,7 @@ const NV_FLOORS = [
         icon: '<path d="M12 3v18M8 21h8M9 8h6M7 13h10"/>' },
     { id: 'mediane', label: 'Ville médiane', districts: ['intermediaires', 'industrielle'],
         icon: '<path d="M5 21V8l7-4 7 4v13M9 21v-6h6v6M9 11h.01M15 11h.01"/>' },
-    { id: 'basse', label: 'Basse ville', districts: ['populaires', 'faubourgs', 'ruines'],
+    { id: 'basse', label: 'Basse ville', districts: ['populaires','faubourgs','ruines','plage'],
         icon: '<path d="M3 21V12l5-4 5 4v9M13 21v-7l4-3 4 3v7M2 21h20"/>' },
     { id: 'sous', label: 'Souterrains', districts: [],
         icon: '<path d="M5 21V11a7 7 0 0 1 14 0v10"/><path d="M9 21v-6h6v6"/>' },
@@ -6418,7 +6441,7 @@ const NV_FLOORS = [
 const NV_POIS = [
     { id: 'hq', name: 'Quartier général de Halcyon', cat: 'halcyon', district: 'centre', zone: 'centre', at: null, desc: "Le siège de l'organisation : bureaux de commandement et laboratoires, derrière plusieurs anneaux de sécurité." },
     { id: 'palais', name: 'Palais administratif', cat: 'halcyon', district: 'centre', zone: 'centre', at: null, desc: "Les services qui gèrent la cité au quotidien, sous la tutelle directe de Halcyon." },
-    { id: 'controle', name: 'Poste de contrôle central', cat: 'danger', district: 'centre', zone: 'centre', at: null, desc: "Dernier filtre avant le cœur de la cité : habilitation exigée, aucune exception." },
+    { id: 'controle', name: 'Poste de contrôle central', cat: 'danger', district: 'centre', zone:'superieurs', at: null, desc: "Dernier filtre avant le cœur de la cité : habilitation exigée, aucune exception." },
     { id: 'residences', name: 'Résidences des dirigeants', cat: 'halcyon', district: 'superieurs', zone: 'superieurs', at: null, desc: "Les demeures des cadres et des hybrides de haut rang, surveillées jour et nuit." },
     { id: 'galerie-haute', name: 'Galerie des Hauts-Quartiers', cat: 'commerce', district: 'superieurs', zone: 'superieurs', at: null, desc: "Boutiques de luxe et salons privés réservés à la haute société de Novelance." },
     { id: 'clinique', name: 'Clinique privée', cat: 'service', district: 'superieurs', zone: 'superieurs', at: null, desc: "Soins de pointe pour l'élite, avec un accès direct aux technologies de Halcyon." },
@@ -6446,8 +6469,10 @@ const NV_POIS = [
     { id: 'sous-refuge', name: 'Refuge', cat: 'service', district: 'sous', zone: 'populaires', at: null, desc: "Un abri de fortune où trouvent asile ceux que la ville d'en haut ne veut plus voir." },
     { id: 'sous-marche', name: 'Marché clandestin', cat: 'commerce', district: 'sous', zone: 'intermediaires', at: null, desc: "Tout ce qui est interdit en surface s'y échange, à la lueur de lampes bricolées." },
     { id: 'sous-reservoirs', name: 'Réservoirs', cat: 'industrie', district: 'sous', zone: 'industrielle', at: null, desc: "D'anciennes cuves d'Essence, encore partiellement alimentées." },
-    { id: 'sous-secure', name: 'Accès sécurisé de Halcyon', cat: 'halcyon', district: 'sous', zone: 'centre', at: null, desc: "Une entrée discrète sous le centre politique, que les habitants des galeries évitent." },
+    { id: 'sous-secure', name: 'Accès sécurisé de Halcyon', cat: 'halcyon', district: 'sous', zone: 'superieurs', at: null, desc: "Une entrée discrète sous le centre politique, que les habitants des galeries évitent." },
     { id: 'sous-galerie', name: 'Galerie corrompue', cat: 'danger', district: 'sous', zone: 'populaires', at: null, desc: "Une section des tunnels envahie par la Corruption : personne n'y retourne." },
+    { id:'plage-promenade', name:'Promenade de la plage', cat:'commerce', district:'plage', zone:'plage', at:null, desc:"Kiosques, buvettes et terrasses face à l'océan : le seul endroit où la cité respire un peu." },
+      { id:'plage-garde', name:'Poste de garde du littoral', cat:'danger', district:'plage', zone:'plage', at:null, desc:"Halcyon surveille la côte : rien n'entre ni ne sort par la mer sans son accord." },
 ];
 const NV_TUNNELS = [
     ['sous-acces', 'sous-refuge'], ['sous-refuge', 'sous-marche'], ['sous-marche', 'sous-secure'],
@@ -6594,60 +6619,109 @@ function nvRectPath(cx, cy, w, h, ang) {
     const p = [[-w / 2, -h / 2], [w / 2, -h / 2], [w / 2, h / 2], [-w / 2, h / 2]].map(([x, y]) => [cx + x * ca - y * sa, cy + x * sa + y * ca]);
     return `M${nvR(p[0][0])} ${nvR(p[0][1])}L${nvR(p[1][0])} ${nvR(p[1][1])}L${nvR(p[2][0])} ${nvR(p[2][1])}L${nvR(p[3][0])} ${nvR(p[3][1])}Z`;
 }
+function nvInPoly(x, y, poly) {
+  let inside = false;
+  for(let i = 0, j = poly.length - 1; i < poly.length; j = i++){
+    const xi = poly[i][0], yi = poly[i][1], xj = poly[j][0], yj = poly[j][1];
+    if(((yi > y) !== (yj > y)) && x < (xj - xi) * (y - yi) / (yj - yi) + xi) inside = !inside;
+  }
+  return inside;
+}
+
+// Polygone (coordonnées du monde) -> masque sur la grille.
+function nvPolyMask(poly, gw, gh) {
+  const m = new Uint8Array(gw * gh);
+  let x0 = 1e9, x1 = -1e9, y0 = 1e9, y1 = -1e9;
+  for(const p of poly){ if(p[0] < x0) x0 = p[0]; if(p[0] > x1) x1 = p[0]; if(p[1] < y0) y0 = p[1]; if(p[1] > y1) y1 = p[1]; }
+  const gx0 = Math.max(0, Math.floor(x0 / NV_CELL)), gx1 = Math.min(gw - 1, Math.ceil(x1 / NV_CELL));
+  const gy0 = Math.max(0, Math.floor(y0 / NV_CELL)), gy1 = Math.min(gh - 1, Math.ceil(y1 / NV_CELL));
+  for(let gy = gy0; gy <= gy1; gy++) for(let gx = gx0; gx <= gx1; gx++) if(nvInPoly(gx * NV_CELL, gy * NV_CELL, poly)) m[gy * gw + gx] = 1;
+  return m;
+}
+
+// Distance (en cellules) jusqu'à la cellule la plus proche où le masque vaut 1.
+function nvDistTo(mask, gw, gh) {
+  const d = new Float32Array(mask.length);
+  for(let i = 0; i < d.length; i++) d[i] = mask[i] ? 0 : 1e6;
+  for(let y = 0; y < gh; y++){
+    for(let x = 0; x < gw; x++){
+      const i = y * gw + x; let v = d[i];
+      if(x > 0) v = Math.min(v, d[i - 1] + 1);
+      if(y > 0){ v = Math.min(v, d[i - gw] + 1); if(x > 0) v = Math.min(v, d[i - gw - 1] + 1.414); if(x < gw - 1) v = Math.min(v, d[i - gw + 1] + 1.414); }
+      d[i] = v;
+    }
+  }
+  for(let y = gh - 1; y >= 0; y--){
+    for(let x = gw - 1; x >= 0; x--){
+      const i = y * gw + x; let v = d[i];
+      if(x < gw - 1) v = Math.min(v, d[i + 1] + 1);
+      if(y < gh - 1){ v = Math.min(v, d[i + gw] + 1); if(x < gw - 1) v = Math.min(v, d[i + gw + 1] + 1.414); if(x > 0) v = Math.min(v, d[i + gw - 1] + 1.414); }
+      d[i] = v;
+    }
+  }
+  return d;
+}
+
 function nvBuildCity() {
     const noise = nvNoise(7311);
     const gw = NV_GW, gh = NV_GH, n = gw * gh;
     const [fx, fy] = NV_FOCUS;
-    const land = new Float32Array(n), D = new Float32Array(n), ANG = new Float32Array(n);
-    const hills = new Float32Array(n);
+    const SK = (pts) => pts.map(p => [NV_OX + p[0] * NV_K, NV_OY + p[1] * NV_K]);
+    const [ucx, ucy] = SK([NV_SK.upper.c])[0];
+    const urx = NV_SK.upper.rx * NV_K, ury = NV_SK.upper.ry * NV_K;
+    const [hqx, hqy] = SK([NV_SK.hq.c])[0];
+    const hrx = NV_SK.hq.rx * NV_K, hry = NV_SK.hq.ry * NV_K;
+    const mCity = nvPolyMask(SK(NV_SK.city), gw, gh), mPortT = nvPolyMask(SK(NV_SK.portTop), gw, gh), mPortB = nvPolyMask(SK(NV_SK.portBottom), gw, gh);
+    const mBeach = nvPolyMask(SK(NV_SK.beach), gw, gh), mSea = nvPolyMask(SK(NV_SK.sea), gw, gh);
+    const solid = new Uint8Array(n), water = new Uint8Array(n), blob = new Uint8Array(n);
+    for (let i = 0; i < n; i++) {
+        const b = mCity[i] | mPortT[i] | mPortB[i] | mBeach[i];
+        blob[i] = b;
+        const ground = (!mSea[i] || b) ? 1 : 0;
+        solid[i] = ground;
+        water[i] = ground ? 0 : 1;
+    }
+    const dSea = nvDistTo(water, gw, gh), dLand = nvDistTo(solid, gw, gh), dBlob = nvDistTo(blob, gw, gh);
+    const landRaw = new Float32Array(n), D = new Float32Array(n), hills = new Float32Array(n);
+    const rUp = new Float32Array(n), rHq = new Float32Array(n);
     for (let y = 0; y < gh; y++) {
         for (let x = 0; x < gw; x++) {
-            const i = y * gw + x;
-            const wx = x * NV_CELL, wy = y * NV_CELL;
+            const i = y * gw + x, wx = x * NV_CELL, wy = y * NV_CELL;
             const u = wx / NV_W * 5, v = wy / NV_W * 5;
-            const w1 = (noise(u * 1.1 + 3, v * 1.1 + 8, 3) - 0.5) * 260, w2 = (noise(u * 1.1 + 9, v * 1.1 + 2, 3) - 0.5) * 260;
-            const dx = wx + w1 - fx, dy = wy + w2 - fy;
-            const ang0 = Math.atan2(dy, dx);
-            const lobe = 1 + 0.16 * Math.sin(2 * ang0 + 1.3) + 0.1 * Math.sin(3 * ang0 + 0.4) + 0.06 * Math.sin(5 * ang0 + 2.2);
-            D[i] = Math.hypot(dx * 0.95, dy * 0.78) / lobe;
-            ANG[i] = Math.atan2(dy, dx);
-            const nl = noise(u * 0.9 + 20, v * 0.9 + 5, 4);
-            const bay = tmSmoothstep(540, 110, Math.hypot(wx - 250, (wy - 540) * 0.8));
-            const isle = 1 - tmSmoothstep(0.7, 1.15, Math.hypot((wx - 1150) / 950, (wy - 560) / 640));
-            land[i] = isle * 0.9 + nl * 0.55 - bay * 0.95 - 0.6;
+            rUp[i] = Math.hypot((wx - ucx) / urx, (wy - ucy) / ury);
+            rHq[i] = Math.hypot((wx - hqx) / hrx, (wy - hqy) / hry);
+            D[i] = (rUp[i] + (noise(u * 1.1 + 3, v * 1.1 + 8, 3) - 0.5) * 0.16) * 140;
+            landRaw[i] = Math.max(-1.3, Math.min(1, (solid[i] ? dSea[i] : -dLand[i]) * NV_CELL / 150));
             hills[i] = noise(u * 1.6 + 40, v * 1.6 + 11, 4) - 0.55 * (1 - tmSmoothstep(380, 600, D[i]));
         }
     }
+    const land = nvBlur(landRaw, gw, gh);
     let label = new Uint8Array(n);
     for (let i = 0; i < n; i++) {
-        if (land[i] <= 0.02)
+        if (!solid[i])
             continue;
-        const d = D[i];
-        const x = (i % gw) * NV_CELL;
-        const deg = ANG[i] * 180 / Math.PI;
+        const x = i % gw, y = Math.floor(i / gw), r = rUp[i];
         let l = 0;
-        if (d < 82)
+        if (rHq[i] < 1)
             l = 1;
-        else if (d < 165)
+        else if (r < 1)
             l = 2;
-        else if (d < 255)
-            l = 3;
-        else if (d < 345)
-            l = 4;
-        else if (d < 520)
-            l = 7;
-        if (l === 7) {
-            const px = (i % gw) / gw * 5, py = Math.floor(i / gw) / gw * 5;
-            if (noise(px * 3 + 50, py * 3 + 7, 3) < 0.46)
-                l = 0;
-        }
-        if (l >= 2 && land[i] < 0.3 && x < fx - 90 && d > 110 && d < 470)
+        else if (mPortT[i] || mPortB[i])
             l = 5;
-        if (l >= 3 && d > 190 && d < 450 && deg > 35 && deg < 105)
-            l = 6;
+        else if (mBeach[i])
+            l = 8;
+        else if (mCity[i]) {
+            l = r < 1.9 ? 3 : 4;
+            if (x * NV_CELL < NV_OX + 435 * NV_K && r > 2.0)
+                l = 6;
+        }
+        else if (dBlob[i] * NV_CELL < 190) {
+            if (noise(x / gw * 15 + 50, y / gw * 15 + 7, 3) > 0.46)
+                l = 7;
+        }
         label[i] = l;
     }
-    label = nvModeFilter(label, gw, gh, 3);
+    label = nvModeFilter(label, gw, gh, 2);
     const lookup = (x, y) => {
         const ix = Math.floor(x / NV_CELL), iy = Math.floor(y / NV_CELL);
         if (ix < 0 || iy < 0 || ix >= gw || iy >= gh)
@@ -6659,15 +6733,19 @@ function nvBuildCity() {
     const bath1 = nvLoopsToPath(tmContours(land, gw, gh, -0.16), 8, 2);
     const bath2 = nvLoopsToPath(tmContours(land, gw, gh, -0.34), 8, 2);
     const hillPath = nvLoopsToPath(tmContours(hills, gw, gh, 0.5), 8, 1);
+    const blobF = new Float32Array(n);
+    for (let i = 0; i < n; i++)
+        blobF[i] = blob[i];
+    const wall = nvLoopsToPath(tmContours(nvBlur(blobF, gw, gh), gw, gh, 0.5), 8, 1);
     const negD = new Float32Array(n);
     for (let i = 0; i < n; i++)
         negD[i] = -D[i];
-    const cityOk = (gx, gy) => lookup(gx * NV_CELL, gy * NV_CELL) !== 0;
+    const cityOk = (gx, gy) => { const l = lookup(gx * NV_CELL, gy * NV_CELL); return (l >= 1 && l <= 4) || l === 6; };
     let belts = '';
     [[170, 9], [262, 12], [352, 14]].forEach(([lv, gap]) => {
         tmContours(negD, gw, gh, -lv).forEach(loop => { belts += nvRunsPath(loop, cityOk, gap * 3); });
     });
-    const coast = tmContours(land, gw, gh, 0.07).map(loop => nvRunsPath(loop, (gx, gy) => lookup(gx * NV_CELL, gy * NV_CELL) !== 0 && lookup(gx * NV_CELL, gy * NV_CELL) !== 7, 0)).join('');
+    const coast = tmContours(land, gw, gh, 0.07).map(loop => nvRunsPath(loop, (gx, gy) => { const l = lookup(gx * NV_CELL, gy * NV_CELL); return l !== 0 && l !== 7; }, 0)).join('');
     const rnd = tmSeeded(515);
     let radials = '';
     for (let k = 0; k < 11; k++) {
@@ -6676,22 +6754,16 @@ function nvBuildCity() {
         const off = rnd() * 6.28;
         for (let r = 24; r <= 600; r += 24) {
             const wob = (noise(r * 0.012 + k * 3.1, off, 2) - 0.5) * 70;
-            const px = fx + Math.cos(a) * r * 1.05 - Math.sin(a) * wob, py = fy + Math.sin(a) * r * 0.9 + Math.cos(a) * wob;
-            if (r > 90 && lookup(px, py) === 0)
+            const px = ucx + Math.cos(a) * r * 1.05 - Math.sin(a) * wob, py = ucy + Math.sin(a) * r * 0.9 + Math.cos(a) * wob;
+            const lk = lookup(px, py);
+            if (r > 90 && (lk === 0 || lk === 7 || lk === 8))
                 break;
             flat.push(px, py);
         }
         if (flat.length >= 8)
             radials += nvOpenPath(flat);
     }
-    const highwayCtl = [
-        [[1180, 300], [1290, 205], [1480, 150], [1700, 105], [2000, 55]],
-        [[1330, 560], [1500, 600], [1700, 640], [2000, 650]],
-        [[1060, 720], [1040, 880], [1065, 1000], [1020, 1125]],
-        [[1250, 700], [1400, 850], [1600, 980], [1800, 1125]],
-        [[1020, 400], [980, 300], [1040, 170], [1010, 0]],
-    ];
-    const highways = highwayCtl.map(pts => nvOpenPath(pts.flat())).join('');
+    const highways = NV_SK.roads.map(pts => nvOpenPath(SK(pts).flat())).join('');
     let districtSvg = '';
     const centroids = [];
     const labelPos = [];
@@ -6803,27 +6875,14 @@ function nvBuildCity() {
         <path class="nv-bldg" d="${bld}" fill="${st.fill}" fill-opacity="${st.rubble ? 0.7 : 0.92}" pointer-events="none"/>
       </g>`;
     });
-    let piers = '';
-    const indC = centroids[4];
-    for (let py = Math.round(indC[1] - 130); py <= indC[1] + 130; py += 46) {
-        let xc = -1;
-        for (let x = 0; x < NV_W; x += 4)
-            if (land[Math.floor(py / NV_CELL) * gw + Math.floor(x / NV_CELL)] > 0.02) {
-                xc = x;
-                break;
-            }
-        if (xc < 0)
-            continue;
-        piers += nvRectPath(xc - 34, py, 78, 7, 0);
-        piers += nvRectPath(xc - 70, py + 15, 22, 6, 0.08);
-    }
-    const hqPath = `<circle cx="${fx}" cy="${fy}" r="22" fill="#ffe27a" fill-opacity="0.95"/><circle cx="${fx}" cy="${fy}" r="38" fill="none" stroke="#f7d43c" stroke-width="1.6" vector-effect="non-scaling-stroke"/><circle cx="${fx}" cy="${fy}" r="54" fill="none" stroke="#f7d43c" stroke-opacity="0.55" stroke-width="1" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>`;
+    const piers = '';
+    const hqPath = `<circle cx="${hqx.toFixed(0)}" cy="${hqy.toFixed(0)}" r="14" fill="#ffe27a" fill-opacity="0.95"/><circle cx="${hqx.toFixed(0)}" cy="${hqy.toFixed(0)}" r="30" fill="none" stroke="#f7d43c" stroke-width="1.6" vector-effect="non-scaling-stroke"/><circle cx="${hqx.toFixed(0)}" cy="${hqy.toFixed(0)}" r="44" fill="none" stroke="#f7d43c" stroke-opacity="0.55" stroke-width="1" stroke-dasharray="4 4" vector-effect="non-scaling-stroke"/>`;
     // placement des points d'intérêt dans leur quartier
     const placed = [];
     NV_POIS.forEach(p => {
         const lab = NV_DIDS.indexOf(p.zone) + 1;
         if (p.id === 'hq') {
-            p.at = [fx, fy];
+            p.at = [hqx, hqy];
             placed.push(p.at);
             return;
         }
@@ -6833,9 +6892,9 @@ function nvBuildCity() {
             const x = r2() * NV_W, y = r2() * NV_H;
             if (lookup(x, y) !== lab)
                 continue;
-            if (lookup(x + 14, y) !== lab || lookup(x - 14, y) !== lab || lookup(x, y + 14) !== lab || lookup(x, y - 14) !== lab)
+            if (lookup(x + (tries < 520 ? 14 : 6), y) !== lab || lookup(x - (tries < 520 ? 14 : 6), y) !== lab || lookup(x, y + (tries < 520 ? 14 : 6)) !== lab || lookup(x, y - (tries < 520 ? 14 : 6)) !== lab)
                 continue;
-            const minD = tries < 300 ? 70 : 38;
+            const minD = tries < 300 ? 70 : tries < 520 ? 38 : 22;
             if (placed.some(q => Math.hypot(q[0] - x, q[1] - y) < minD))
                 continue;
             best = [x, y];
@@ -6856,7 +6915,7 @@ function nvBuildCity() {
     const svg = `
     <svg class="nv-svg" viewBox="0 0 ${NV_W} ${NV_H}" preserveAspectRatio="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <radialGradient id="nvSea" cx="30%" cy="50%" r="80%"><stop offset="0" stop-color="#021722"/><stop offset="1" stop-color="#010a10"/></radialGradient>
+        <radialGradient id="nvSea" cx="78%" cy="55%" r="85%"><stop offset="0" stop-color="#021722"/><stop offset="1" stop-color="#010a10"/></radialGradient>
         <clipPath id="nvLandClip"><path d="${landPath}"/></clipPath>
       </defs>
       ${sea}
@@ -6865,6 +6924,7 @@ function nvBuildCity() {
       <path d="${landPath}" fill="#082b3b" stroke="#2b87a0" stroke-opacity="0.9" stroke-width="1.4" vector-effect="non-scaling-stroke"/>
       <g clip-path="url(#nvLandClip)"><path d="${hillPath}" fill="#05202d" fill-opacity="0.95" stroke="#0e3d52" stroke-width="1" vector-effect="non-scaling-stroke"/></g>
       ${districtSvg}
+      <path class="nv-border" d="${wall}" fill="none" stroke="#8fe7f5" stroke-opacity="0.6" stroke-width="1.8" vector-effect="non-scaling-stroke" pointer-events="none"/>
       <g class="nv-arterial" pointer-events="none" fill="none" stroke-linejoin="round">
         <path d="${belts}${radials}${coast}" stroke="#35c7e0" stroke-opacity="0.22" stroke-width="5" vector-effect="non-scaling-stroke"/>
         <path d="${belts}${radials}${coast}" stroke="#5fd9ee" stroke-opacity="0.95" stroke-width="1.6" vector-effect="non-scaling-stroke"/>
