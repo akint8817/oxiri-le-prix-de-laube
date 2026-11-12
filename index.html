@@ -2744,20 +2744,36 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
   background: radial-gradient(circle, rgba(var(--fclr),0.07), transparent 65%);
   animation: ficheGlowB 36s ease-in-out infinite alternate;
 }
-.fiche-bg i{
-  position:absolute; border-radius:50%; opacity:0;
-  background: rgba(235,238,245,0.85); box-shadow: 0 0 7px rgba(var(--fclr),0.9);
-  animation: ficheMote linear infinite;
-}
 @keyframes ficheGlowA{ to{ transform: translate(24vw, 16vh) scale(1.15); } }
 @keyframes ficheGlowB{ to{ transform: translate(-20vw, -14vh) scale(1.2); } }
-@keyframes ficheMote{
-  0%{ transform: translate(0,0); opacity:0; }
-  25%{ opacity:.4; }
-  75%{ opacity:.28; }
-  100%{ transform: translate(var(--dx), var(--dy)); opacity:0; }
+/* ambiance « terminal de données » : colonnes d'octets qui défilent, balayage, étiquettes */
+.fiche-cols{
+  position:absolute; inset:0; overflow:hidden;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 10%, #000 90%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 10%, #000 90%, transparent);
 }
-@media (prefers-reduced-motion: reduce){ .fiche-bg::before, .fiche-bg::after, .fiche-bg i{ animation:none; } .fiche-bg i{ opacity:.2; } }
+.fiche-col{
+  position:absolute; top:0; margin-left:-3em; white-space:pre; text-align:center;
+  font-family:'IBM Plex Mono', monospace; font-size:11px; line-height:1.7; letter-spacing:0.06em;
+  color: rgba(165,178,198,0.15); animation: ficheCol linear infinite;
+}
+.fiche-col:nth-child(even){ animation-direction: reverse; }
+.fiche-col b{ font-weight:500; color: rgba(var(--fclr),0.7); }
+@keyframes ficheCol{ to{ transform: translateY(-50%); } }
+.fiche-scan{
+  position:absolute; left:0; right:0; top:-90px; height:90px;
+  background: linear-gradient(180deg, transparent, rgba(var(--fclr),0.07) 70%, rgba(var(--fclr),0.2));
+  border-bottom: 1px solid rgba(var(--fclr),0.45);
+  animation: ficheScan 13s linear infinite;
+}
+@keyframes ficheScan{ to{ top:100%; } }
+.fiche-tag{ position:absolute; font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.16em; color: rgba(170,182,200,0.42); }
+.fiche-tag-a{ right:18px; top:10px; }
+.fiche-tag-b{ left:18px; bottom:10px; }
+.fiche-tag i{ font-style:normal; }
+.fiche-tag-b i:last-child{ animation: ficheBlink 1.4s steps(2) infinite; }
+@keyframes ficheBlink{ 50%{ opacity:0; } }
+@media (prefers-reduced-motion: reduce){ .fiche-bg::before, .fiche-bg::after, .fiche-col, .fiche-scan, .fiche-tag i{ animation:none; } }
 .fiche-left{ display:flex; flex-direction:column; gap:12px; min-width:0; }
 .fiche-portrait{
   position:relative; aspect-ratio: 0.78; border-radius:16px; overflow:hidden; background:#0c0d10;
@@ -3863,6 +3879,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=83"></script>
+<script src="dist/main.js?v=85"></script>
 </body>
 </html>

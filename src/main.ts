@@ -4273,12 +4273,22 @@ function switchFicheTab(key: string): void {
 // dérivent lentement + quelques particules en suspension (positions stables par fiche).
 function ficheBgHtml(id: string): string {
   const r = tmSeeded(tmHash(id));
-  let h = '';
-  for(let i = 0; i < 20; i++){
-    const sz = 2 + r() * 3;
-    h += `<i style="left:${(r() * 100).toFixed(1)}%;top:${(r() * 100).toFixed(1)}%;width:${sz.toFixed(1)}px;height:${sz.toFixed(1)}px;--dx:${Math.round((r() - 0.5) * 120)}px;--dy:${Math.round(-30 - r() * 90)}px;animation-duration:${(14 + r() * 18).toFixed(1)}s;animation-delay:-${(r() * 30).toFixed(1)}s"></i>`;
+  const hex = (): string => Math.floor(r() * 256).toString(16).toUpperCase().padStart(2, '0');
+  const line = (): string => {
+    const k = r();
+    const s = k < 0.6 ? `${hex()} ${hex()} ${hex()}` : k < 0.85 ? Math.floor(r() * 256).toString(2).padStart(8, '0') : `0x${hex()}${hex()}`;
+    return r() < 0.09 ? `<b>${s}</b>` : s;
+  };
+  const COLS = 9;
+  let cols = '';
+  for(let c = 0; c < COLS; c++){
+    const lines: string[] = [];
+    for(let i = 0; i < 90; i++) lines.push(line());
+    const block = lines.join('\n');
+    cols += `<div class="fiche-col" style="left:${((c + 0.5) / COLS * 100 + (r() - 0.5) * 4).toFixed(1)}%;animation-duration:${(70 + r() * 80).toFixed(0)}s;animation-delay:-${(r() * 60).toFixed(0)}s">${block}\n${block}</div>`;
   }
-  return `<div class="fiche-bg" aria-hidden="true">${h}</div>`;
+  const code = ('0000' + (tmHash(id) % 65536).toString(16).toUpperCase()).slice(-4);
+  return `<div class="fiche-bg" aria-hidden="true"><div class="fiche-cols">${cols}</div><div class="fiche-scan"></div><span class="fiche-tag fiche-tag-a">DOSSIER // 0x${code}</span><span class="fiche-tag fiche-tag-b">SYNC <i>▮▮▮▮</i><i>▯</i></span></div>`;
 }
 
 function renderPersonnageEntry(e: Entry): string {
