@@ -7155,7 +7155,14 @@ function nvRefreshUi() {
             const cat = NV_CATS.find(c => c.id === p.cat) || NV_CATS[3];
             const dist = p.district === 'sous' ? "Cité d'en dessous" : (NOVELANCE_DISTRICTS.find(d => d.id === p.district) || { label: '—' }).label;
             const lieu = p.entryId ? ENTRIES.find(e => e.id === p.entryId) : (p.link === 'souterrains' ? nvFindSouterrains() : undefined);
+            const imgs = p.images || [];
+            const cur = Math.min(nvImgIdx, Math.max(0, imgs.length - 1));
+            const gallery = imgs.length
+                ? `<div class="nv-card-img" onclick="nvOpenLightbox('${p.id}', ${cur})"><img src="${imgs[cur]}" alt="${escAttr(p.name)}"></div>` +
+                    (imgs.length > 1 ? `<div class="nv-card-thumbs">${imgs.map((s, i) => `<img src="${s}" alt=""${i === cur ? ' class="on"' : ''} onclick="nvSetCardImage(${i})">`).join('')}</div>` : '')
+                : '';
             card.innerHTML = `<button class="nv-card-x" onclick="nvClearSel()">✕</button>
+        ${gallery}
         <div class="nv-card-cat${cat.red ? ' red' : ''}"><svg viewBox="0 0 24 24">${nvIconOf(p, cat)}</svg>${esc(cat.label)}</div>
         <div class="nv-card-title">${esc(p.name)}</div>
         <div class="nv-card-sub">${esc(dist)}</div>
@@ -7178,7 +7185,7 @@ function nvToggle(key) { nvFilters[key] = !nvFilters[key]; nvRefreshUi(); }
 function nvTogglePanel() { const p = document.getElementById('nvPanel'); if (p)
     p.classList.toggle('open'); }
 function nvSelectPoi(id) { if (nvMoved)
-    return; if (nvEdit) { nvOpenPoiForm(id); return; } nvSel = { kind: 'poi', id }; nvRefreshUi(); }
+    return; if (nvEdit) { nvOpenPoiForm(id); return; } nvSel = { kind: 'poi', id }; nvImgIdx = 0; nvRefreshUi(); }
 function nvSelectDistrict(id) { if (nvMoved)
     return; if (nvEdit) return; nvSel = { kind: 'district', id }; nvRefreshUi(); }
 function nvClearSel() { nvSel = null; nvRefreshUi(); }
@@ -7279,7 +7286,11 @@ function initNovelanceMap() {
         clampCam();
         apply();
     };
-    const onKey = (e) => { if (e.key === 'Escape') navigate('carte'); };
+    const onKey = (e) => { if (e.key === 'Escape') {
+        if (nvCloseLightbox())
+            return;
+        navigate('carte');
+    } };
     stage.addEventListener('pointerdown', onDown);
     window.addEventListener('pointermove', onMove);
     window.addEventListener('pointerup', onUp);
@@ -7319,6 +7330,9 @@ let nvPoiDocs = {};
 let nvBasePois = null;
 let nvEdit = false;
 let nvForm = null;
+const NV_MAX_IMAGES = 4;
+const NV_IMAGE_BUDGET = 720 * 1024;
+let nvImgIdx = 0;
 const NV_ICONS = {
     pin: '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.2"/>',
     shop: '<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>',
@@ -7344,8 +7358,107 @@ const NV_ICONS = {
 function nvIconOf(p, cat) { return (p.icon && NV_ICONS[p.icon]) || cat.icon; }
 function nvMergePoi(b, d) {
     const cat = (d.cat && NV_CATS.some(c => c.id === d.cat)) ? d.cat : b.cat;
-    return { ...b, name: d.name || b.name, cat, icon: d.icon || undefined, district: d.district || b.district, desc: d.desc !== undefined ? d.desc : b.desc, at: d.at || b.at, entryId: d.entryId || undefined, link: d.entryId ? undefined : b.link };
+    return { ...b, name: d.name || b.name, cat, icon: d.icon || undefined, district: d.district || b.district, desc: d.desc !== undefined ? d.desc : b.desc, at: d.at || b.at, entryId: d.entryId || undefined, link: d.entryId ? undefined : b.link, images: d.images && d.images.length ? d.images : undefined };
 }
+function nvCompressImage(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('lecture impossible'));
+        reader.onload = () => {
+            const img = new Image();
+            img.onerror = () => reject(new Error('image illisible'));
+            img.onload = () => {
+                let scale = Math.min(1, 1200 / Math.max(img.width, img.height));
+                let out = '';
+                for (let attempt = 0; attempt < 5; attempt++) {
+                    const w = Math.max(1, Math.round(img.width * scale)), h = Math.max(1, Math.round(img.height * scale));
+                    const cv = document.createElement('canvas');
+                    cv.width = w;
+                    cv.height = h;
+                    const ctx = cv.getContext('2d');
+                    if (!ctx) {
+                        reject(new Error('canvas indisponible'));
+                        return;
+                    }
+                    ctx.fillStyle = '#0b1620';
+                    ctx.fillRect(0, 0, w, h);
+                    ctx.drawImage(img, 0, 0, w, h);
+                    let q = 0.82;
+                    out = cv.toDataURL('image/jpeg', q);
+                    while (out.length * 0.75 > 200 * 1024 && q > 0.4) {
+                        q -= 0.08;
+                        out = cv.toDataURL('image/jpeg', q);
+                    }
+                    if (out.length * 0.75 <= 200 * 1024)
+                        break;
+                    scale *= 0.8;
+                }
+                resolve(out);
+            };
+            img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+async function nvAddImages(input) {
+    const files = Array.from(input.files || []);
+    input.value = '';
+    for (const f of files) {
+        if (!nvForm)
+            return;
+        if (nvForm.images.length >= NV_MAX_IMAGES) {
+            alert(`Maximum ${NV_MAX_IMAGES} images par lieu.`);
+            break;
+        }
+        try {
+            const url = await nvCompressImage(f);
+            if (!nvForm)
+                return;
+            const total = nvForm.images.reduce((a, s) => a + s.length * 0.75, 0) + url.length * 0.75;
+            if (total > NV_IMAGE_BUDGET) {
+                alert('Pas assez de place pour cette image : retire-en une avant d\'en ajouter.');
+                break;
+            }
+            nvForm.images.push(url);
+            nvRefreshFormImages();
+        }
+        catch (_e) {
+            alert('Impossible de charger cette image : ' + f.name);
+        }
+    }
+}
+function nvRemoveImage(i) {
+    if (!nvForm)
+        return;
+    nvForm.images.splice(i, 1);
+    nvRefreshFormImages();
+}
+function nvRefreshFormImages() {
+    const wrap = document.getElementById('nvfImgs');
+    if (!wrap || !nvForm)
+        return;
+    wrap.innerHTML = nvForm.images.map((src, i) => `<div class="nv-img-thumb"><img src="${src}" alt=""><button type="button" onclick="nvRemoveImage(${i})" aria-label="Retirer l'image">✕</button></div>`).join('');
+}
+function nvOpenLightbox(poiId, i) {
+    const p = NV_POIS.find(x => x.id === poiId);
+    const overlay = document.getElementById('novOverlay');
+    if (!p || !p.images || !p.images[i] || !overlay)
+        return;
+    nvCloseLightbox();
+    const box = document.createElement('div');
+    box.className = 'nv-lightbox';
+    box.onclick = () => nvCloseLightbox();
+    box.innerHTML = `<img src="${p.images[i]}" alt="${escAttr(p.name)}"><span>✕</span>`;
+    overlay.appendChild(box);
+}
+function nvCloseLightbox() {
+    const box = document.querySelector('#novOverlay .nv-lightbox');
+    if (!box)
+        return false;
+    box.remove();
+    return true;
+}
+function nvSetCardImage(i) { nvImgIdx = i; nvRefreshUi(); }
 function nvApplyPois() {
     if (!nvCity)
         return;
@@ -7442,7 +7555,7 @@ function nvOpenPoiForm(id, wx, wy) {
             district = NV_DIDS[l - 1];
     }
     const cat = existing ? existing.cat : 'service';
-    nvForm = { id, base: isBase, at, icon: existing && existing.icon ? existing.icon : '', picking: false };
+    nvForm = { id, base: isBase, at, icon: existing && existing.icon ? existing.icon : '', picking: false, images: existing && existing.images ? existing.images.slice() : [] };
     const lieux = ENTRIES.filter(e => e.cat === 'lieux');
     const distOpts = NOVELANCE_DISTRICTS.map(d => `<option value="${d.id}"${d.id === district ? ' selected' : ''}>${esc(d.label)}</option>`).join('') +
         `<option value="sous"${district === 'sous' ? ' selected' : ''}>Cité d'en dessous (souterrains)</option>`;
@@ -7463,6 +7576,10 @@ function nvOpenPoiForm(id, wx, wy) {
     <select id="nvfDist">${distOpts}</select>
     <label>Description</label>
     <textarea id="nvfDesc" rows="4" placeholder="Ce qu'on y trouve, son rôle, son ambiance…">${esc(existing ? existing.desc : '')}</textarea>
+    <label>Images <em>(visuel du lieu, optionnel — max ${NV_MAX_IMAGES})</em></label>
+    <div class="nv-imgs" id="nvfImgs"></div>
+    <div class="nv-upload-btn" onclick="document.getElementById('nvfFile').click()">+ Ajouter des images</div>
+    <input id="nvfFile" type="file" accept="image/*" multiple style="display:none" onchange="nvAddImages(this)">
     <label>Fiche liée <em>(optionnel)</em></label>
     <select id="nvfLink">${linkOpts}</select>
     <div class="nv-ed-pos"><span id="nvfPos"></span><button type="button" id="nvfMove" onclick="nvMovePoi()">Déplacer</button></div>
@@ -7475,6 +7592,7 @@ function nvOpenPoiForm(id, wx, wy) {
     box.classList.add('open');
     nvUpdateFormPos();
     nvUpdateGhost();
+    nvRefreshFormImages();
     const nameEl = document.getElementById('nvfName');
     if (nameEl && !existing)
         nameEl.focus();
@@ -7517,7 +7635,7 @@ function nvSavePoi() {
     const id = nvForm.id || 'custom-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const data = {
         name, cat: val('nvfCat'), icon: nvForm.icon || null, district: val('nvfDist'), desc: val('nvfDesc'),
-        entryId: val('nvfLink') || null, at: nvForm.at, author: getCurrentUser() || 'aki', updated: Date.now(),
+        entryId: val('nvfLink') || null, images: nvForm.images.length ? nvForm.images : null, at: nvForm.at, author: getCurrentUser() || 'aki', updated: Date.now(),
     };
     db.collection('novelancePois').doc(id).set(data)
         .then(() => nvCloseForm())

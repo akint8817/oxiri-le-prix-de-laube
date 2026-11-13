@@ -7221,7 +7221,7 @@ const NV_BORDER: Record<string, string> = {
 type NvCatId ='commerce' | 'halcyon' | 'transport' | 'service' | 'industrie' | 'danger';
 interface NvCat { id: NvCatId; label: string; red: boolean; icon: string; }
 interface NvFloor { id: string; label: string; districts: string[]; icon: string; }
-interface NvPoi { id: string; name: string; cat: NvCatId; district: string; zone: string; at: [number, number] | null; desc: string; link?: string; icon?: string; entryId?: string; custom?: boolean; }
+interface NvPoi { id: string; name: string; cat: NvCatId; district: string; zone: string; at: [number, number] | null; desc: string; link?: string; icon?: string; entryId?: string; custom?: boolean; images?: string[]; }
 
 const NV_CATS: NvCat[] = [
   { id:'commerce',  label:'Commerces',      red:false, icon:'<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>' },
@@ -7895,7 +7895,14 @@ function nvRefreshUi(): void {
       const cat = NV_CATS.find(c => c.id === p.cat) || NV_CATS[3];
       const dist = p.district === 'sous' ? "Cité d'en dessous" : (NOVELANCE_DISTRICTS.find(d => d.id === p.district) || { label: '—' }).label;
       const lieu = p.entryId ? ENTRIES.find(e => e.id === p.entryId) : (p.link === 'souterrains' ? nvFindSouterrains() : undefined);
+      const imgs = p.images || [];
+      const cur = Math.min(nvImgIdx, Math.max(0, imgs.length - 1));
+      const gallery = imgs.length
+        ? `<div class="nv-card-img" onclick="nvOpenLightbox('${p.id}', ${cur})"><img src="${imgs[cur]}" alt="${escAttr(p.name)}"></div>` +
+          (imgs.length > 1 ? `<div class="nv-card-thumbs">${imgs.map((s, i) => `<img src="${s}" alt=""${i === cur ? ' class="on"' : ''} onclick="nvSetCardImage(${i})">`).join('')}</div>` : '')
+        : '';
       card.innerHTML = `<button class="nv-card-x" onclick="nvClearSel()">✕</button>
+        ${gallery}
         <div class="nv-card-cat${cat.red ? ' red' : ''}"><svg viewBox="0 0 24 24">${nvIconOf(p, cat)}</svg>${esc(cat.label)}</div>
         <div class="nv-card-title">${esc(p.name)}</div>
         <div class="nv-card-sub">${esc(dist)}</div>
@@ -7916,7 +7923,7 @@ function nvRefreshUi(): void {
 function nvSetFloor(id: string): void { nvFloor = id; nvSel = null; nvRefreshUi(); }
 function nvToggle(key: string): void { nvFilters[key] = !nvFilters[key]; nvRefreshUi(); }
 function nvTogglePanel(): void { const p = document.getElementById('nvPanel'); if(p) p.classList.toggle('open'); }
-function nvSelectPoi(id: string): void { if(nvMoved) return; if(nvEdit){ nvOpenPoiForm(id); return; } nvSel = { kind: 'poi', id }; nvRefreshUi(); }
+function nvSelectPoi(id: string): void { if(nvMoved) return; if(nvEdit){ nvOpenPoiForm(id); return; } nvSel = { kind: 'poi', id }; nvImgIdx = 0; nvRefreshUi(); }
 function nvSelectDistrict(id: string): void { if(nvMoved || nvEdit) return; nvSel = { kind: 'district', id }; nvRefreshUi(); }
 function nvClearSel(): void { nvSel = null; nvRefreshUi(); }
 function nvRecenter(): void { if(nvState) nvState.recenter(); }
@@ -8002,7 +8009,7 @@ function initNovelanceMap(): void {
     cam.x = mx - (mx - cam.x) * k; cam.y = my - (my - cam.y) * k; cam.s = ns;
     clampCam(); apply();
   };
-  const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape') navigate('carte'); };
+  const onKey = (e: KeyboardEvent): void => { if (e.key === 'Escape'){ if(nvCloseLightbox()) return; navigate('carte'); } };
   stage.addEventListener('pointerdown', onDown);
   window.addEventListener('pointermove', onMove);
   window.addEventListener('pointerup', onUp);
@@ -8041,8 +8048,11 @@ function closeNovelanceOverlay(): void {
    un clic sur un lieu existant le modifie. Tout est enregistré dans Firestore (collection
    « novelancePois ») : un document dont l'id correspond à un lieu d'origine (NV_POIS) le
    remplace ou, marqué « deleted », le retire ; sinon c'est un nouveau lieu (« custom-… »). */
-interface NvPoiDoc { name?: string; cat?: string; icon?: string | null; district?: string; desc?: string; at?: [number, number]; entryId?: string | null; deleted?: boolean; }
-interface NvFormState { id: string | null; base: boolean; at: [number, number]; icon: string; picking: boolean; }
+interface NvPoiDoc { name?: string; cat?: string; icon?: string | null; district?: string; desc?: string; at?: [number, number]; entryId?: string | null; images?: string[] | null; deleted?: boolean; }
+interface NvFormState { id: string | null; base: boolean; at: [number, number]; icon: string; picking: boolean; images: string[]; }
+const NV_MAX_IMAGES = 4;
+const NV_IMAGE_BUDGET = 720 * 1024;   // octets, toutes images d'un lieu (le document Firestore est limité à 1 Mo)
+let nvImgIdx = 0;
 let nvPoiDocs: Record<string, NvPoiDoc> = {};
 let nvBasePois: NvPoi[] | null = null;
 let nvEdit = false;
@@ -8074,8 +8084,92 @@ function nvIconOf(p: NvPoi, cat: NvCat): string { return (p.icon && NV_ICONS[p.i
 
 function nvMergePoi(b: NvPoi, d: NvPoiDoc): NvPoi {
   const cat = (d.cat && NV_CATS.some(c => c.id === d.cat)) ? d.cat as NvCatId : b.cat;
-  return { ...b, name: d.name || b.name, cat, icon: d.icon || undefined, district: d.district || b.district, desc: d.desc !== undefined ? d.desc : b.desc, at: d.at || b.at, entryId: d.entryId || undefined, link: d.entryId ? undefined : b.link };
+  return { ...b, name: d.name || b.name, cat, icon: d.icon || undefined, district: d.district || b.district, desc: d.desc !== undefined ? d.desc : b.desc, at: d.at || b.at, entryId: d.entryId || undefined, link: d.entryId ? undefined : b.link, images: d.images && d.images.length ? d.images : undefined };
 }
+
+// Réduit une image choisie (max 1200 px, JPEG) pour qu'elle tienne dans Firestore.
+function nvCompressImage(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onerror = () => reject(new Error('lecture impossible'));
+    reader.onload = () => {
+      const img = new Image();
+      img.onerror = () => reject(new Error('image illisible'));
+      img.onload = () => {
+        let scale = Math.min(1, 1200 / Math.max(img.width, img.height));
+        let out = '';
+        for(let attempt = 0; attempt < 5; attempt++){
+          const w = Math.max(1, Math.round(img.width * scale)), h = Math.max(1, Math.round(img.height * scale));
+          const cv = document.createElement('canvas');
+          cv.width = w; cv.height = h;
+          const ctx = cv.getContext('2d');
+          if(!ctx){ reject(new Error('canvas indisponible')); return; }
+          ctx.fillStyle = '#0b1620'; ctx.fillRect(0, 0, w, h);
+          ctx.drawImage(img, 0, 0, w, h);
+          let q = 0.82;
+          out = cv.toDataURL('image/jpeg', q);
+          while(out.length * 0.75 > 200 * 1024 && q > 0.4){ q -= 0.08; out = cv.toDataURL('image/jpeg', q); }
+          if(out.length * 0.75 <= 200 * 1024) break;
+          scale *= 0.8;
+        }
+        resolve(out);
+      };
+      img.src = reader.result as string;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function nvAddImages(input: HTMLInputElement): Promise<void> {
+  const files = Array.from(input.files || []);
+  input.value = '';
+  for(const f of files){
+    if(!nvForm) return;
+    if(nvForm.images.length >= NV_MAX_IMAGES){ alert(`Maximum ${NV_MAX_IMAGES} images par lieu.`); break; }
+    try {
+      const url = await nvCompressImage(f);
+      if(!nvForm) return;
+      const total = nvForm.images.reduce((a, s) => a + s.length * 0.75, 0) + url.length * 0.75;
+      if(total > NV_IMAGE_BUDGET){ alert('Pas assez de place pour cette image : retire-en une avant d\'en ajouter.'); break; }
+      nvForm.images.push(url);
+      nvRefreshFormImages();
+    } catch(_e){ alert('Impossible de charger cette image : ' + f.name); }
+  }
+}
+
+function nvRemoveImage(i: number): void {
+  if(!nvForm) return;
+  nvForm.images.splice(i, 1);
+  nvRefreshFormImages();
+}
+
+function nvRefreshFormImages(): void {
+  const wrap = document.getElementById('nvfImgs');
+  if(!wrap || !nvForm) return;
+  wrap.innerHTML = nvForm.images.map((src, i) => `<div class="nv-img-thumb"><img src="${src}" alt=""><button type="button" onclick="nvRemoveImage(${i})" aria-label="Retirer l'image">✕</button></div>`).join('');
+}
+
+// Visionneuse plein écran d'une image du lieu (clic sur l'image de la fiche).
+function nvOpenLightbox(poiId: string, i: number): void {
+  const p = NV_POIS.find(x => x.id === poiId);
+  const overlay = document.getElementById('novOverlay');
+  if(!p || !p.images || !p.images[i] || !overlay) return;
+  nvCloseLightbox();
+  const box = document.createElement('div');
+  box.className = 'nv-lightbox';
+  box.onclick = () => nvCloseLightbox();
+  box.innerHTML = `<img src="${p.images[i]}" alt="${escAttr(p.name)}"><span>✕</span>`;
+  overlay.appendChild(box);
+}
+
+function nvCloseLightbox(): boolean {
+  const box = document.querySelector('#novOverlay .nv-lightbox');
+  if(!box) return false;
+  box.remove();
+  return true;
+}
+
+function nvSetCardImage(i: number): void { nvImgIdx = i; nvRefreshUi(); }
 
 // Reconstruit NV_POIS (lieux d'origine + modifications + lieux ajoutés) à partir de Firestore.
 function nvApplyPois(): void {
@@ -8158,7 +8252,7 @@ function nvOpenPoiForm(id: string | null, wx?: number, wy?: number): void {
     if(l >= 1 && l <= NV_DIDS.length) district = NV_DIDS[l - 1];
   }
   const cat = existing ? existing.cat : 'service';
-  nvForm = { id, base: isBase, at, icon: existing && existing.icon ? existing.icon : '', picking: false };
+  nvForm = { id, base: isBase, at, icon: existing && existing.icon ? existing.icon : '', picking: false, images: existing && existing.images ? existing.images.slice() : [] };
   const lieux = ENTRIES.filter(e => e.cat === 'lieux');
   const distOpts = NOVELANCE_DISTRICTS.map(d => `<option value="${d.id}"${d.id === district ? ' selected' : ''}>${esc(d.label)}</option>`).join('') +
     `<option value="sous"${district === 'sous' ? ' selected' : ''}>Cité d'en dessous (souterrains)</option>`;
@@ -8179,6 +8273,10 @@ function nvOpenPoiForm(id: string | null, wx?: number, wy?: number): void {
     <select id="nvfDist">${distOpts}</select>
     <label>Description</label>
     <textarea id="nvfDesc" rows="4" placeholder="Ce qu'on y trouve, son rôle, son ambiance…">${esc(existing ? existing.desc : '')}</textarea>
+    <label>Images <em>(visuel du lieu, optionnel — max ${NV_MAX_IMAGES})</em></label>
+    <div class="nv-imgs" id="nvfImgs"></div>
+    <div class="nv-upload-btn" onclick="document.getElementById('nvfFile').click()">+ Ajouter des images</div>
+    <input id="nvfFile" type="file" accept="image/*" multiple style="display:none" onchange="nvAddImages(this)">
     <label>Fiche liée <em>(optionnel)</em></label>
     <select id="nvfLink">${linkOpts}</select>
     <div class="nv-ed-pos"><span id="nvfPos"></span><button type="button" id="nvfMove" onclick="nvMovePoi()">Déplacer</button></div>
@@ -8191,6 +8289,7 @@ function nvOpenPoiForm(id: string | null, wx?: number, wy?: number): void {
   box.classList.add('open');
   nvUpdateFormPos();
   nvUpdateGhost();
+  nvRefreshFormImages();
   const nameEl = document.getElementById('nvfName') as HTMLInputElement | null;
   if(nameEl && !existing) nameEl.focus();
 }
@@ -8224,7 +8323,7 @@ function nvSavePoi(): void {
   const id = nvForm.id || 'custom-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
   const data = {
     name, cat: val('nvfCat'), icon: nvForm.icon || null, district: val('nvfDist'), desc: val('nvfDesc'),
-    entryId: val('nvfLink') || null, at: nvForm.at, author: getCurrentUser() || 'aki', updated: Date.now(),
+    entryId: val('nvfLink') || null, images: nvForm.images.length ? nvForm.images : null, at: nvForm.at, author: getCurrentUser() || 'aki', updated: Date.now(),
   };
   db.collection('novelancePois').doc(id).set(data)
     .then(() => nvCloseForm())

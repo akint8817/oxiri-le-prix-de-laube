@@ -768,6 +768,33 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .nv-ed-pos button.on{ border-color:#ffe27a; color:#ffe27a; background: rgba(255,226,122,0.15); }
 .nv-ed-actions .primary{ background: rgba(20,110,135,0.7); border-color:#4fd1e8; color:#fff; }
 .nv-ed-actions .danger{ border-color: rgba(255,74,82,0.8); color:#ffb9bd; }
+.nv-imgs{ display:grid; grid-template-columns: repeat(4, 1fr); gap:6px; }
+.nv-imgs:empty{ display:none; }
+.nv-img-thumb{ position:relative; aspect-ratio:1; border:1px solid rgba(79,209,232,0.35); border-radius:3px; overflow:hidden; }
+.nv-img-thumb img{ width:100%; height:100%; object-fit:cover; display:block; }
+.nv-img-thumb button{
+  position:absolute; top:2px; right:2px; width:20px; height:20px; padding:0; cursor:pointer; border-radius:50%; font-size:11px; line-height:1;
+  background: rgba(2,10,16,0.85); border:1px solid rgba(255,74,82,0.8); color:#ffb9bd;
+}
+.nv-upload-btn{
+  margin-top:8px; padding:8px 12px; text-align:center; cursor:pointer; border:1px dashed rgba(79,209,232,0.55); border-radius:3px; color:#bfeaf3;
+  font-family:'Barlow Condensed',sans-serif; font-weight:600; font-size:15px; transition: background .15s ease, border-color .15s ease;
+}
+.nv-upload-btn:hover{ background: rgba(12,70,90,0.55); border-color:#4fd1e8; }
+.nv-card-img{ margin:-16px -18px 14px -15px; height:170px; overflow:hidden; cursor:zoom-in; border-bottom:1px solid rgba(79,209,232,0.3); }
+.nv-card-img img{ width:100%; height:100%; object-fit:cover; display:block; transition: transform .4s ease; }
+.nv-card-img:hover img{ transform: scale(1.04); }
+.nv-card-thumbs{ display:flex; gap:6px; margin:-6px 0 12px; }
+.nv-card-thumbs img{ width:46px; height:34px; object-fit:cover; cursor:pointer; opacity:.55; border:1px solid rgba(79,209,232,0.3); transition: opacity .15s ease; }
+.nv-card-thumbs img:hover, .nv-card-thumbs img.on{ opacity:1; border-color:#4fd1e8; }
+.nv-card-x{ z-index:2; }
+.nv-lightbox{
+  position:absolute; inset:0; z-index:50; display:flex; align-items:center; justify-content:center; padding:4vh 4vw; cursor:zoom-out;
+  background: rgba(1,6,10,0.92); animation: nvLb .25s ease;
+}
+.nv-lightbox img{ max-width:100%; max-height:100%; object-fit:contain; box-shadow:0 0 40px rgba(0,0,0,0.8); border:1px solid rgba(79,209,232,0.35); }
+.nv-lightbox span{ position:absolute; top:18px; right:24px; font-size:22px; color:#cfe3ef; }
+@keyframes nvLb{ from{ opacity:0; } }
 .nv-ghost{ position:absolute; width:0; height:0; pointer-events:none; z-index:6; }
 .nv-ghost span{
   position:absolute; left:0; top:0; width:30px; height:30px; transform: translate(-50%,-50%) scale(var(--inv)); border:2px dashed #ffe27a; border-radius:50%;
@@ -3934,6 +3961,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=86"></script>
+<script src="dist/main.js?v=87"></script>
 </body>
 </html>
