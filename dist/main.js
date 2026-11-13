@@ -918,6 +918,12 @@ function initFirestoreSync() {
         render();
         restoreDraftFormState(draft);
     }, (err) => console.error('Firestore (secretFiles) :', err));
+    db.collection('novelancePois').onSnapshot((snap) => {
+        const docs = {};
+        snap.forEach((doc) => { docs[doc.id] = doc.data(); });
+        nvPoiDocs = docs;
+        nvApplyPois();
+    }, (err) => console.error('Firestore (novelancePois) :', err));
 }
 function getCustomEntriesRaw() {
     return customEntriesCache;
@@ -7000,15 +7006,18 @@ function nvBuildCity() {
 }
 function nvGetCity() {
     if (!nvCity)
+    {
         nvCity = nvBuildCity();
+        nvApplyPois();
+    }
     return nvCity;
 }
 function nvPoiHtml(p) {
-    const cat = NV_CATS.find(c => c.id === p.cat);
+    const cat = NV_CATS.find(c => c.id === p.cat) || NV_CATS[3];
     return `
     <div class="nv-poi${cat.red ? ' red' : ''}" data-id="${p.id}" style="left:${(p.at[0] / NV_W * 100).toFixed(3)}%; top:${(p.at[1] / NV_H * 100).toFixed(3)}%">
       <button type="button" class="nv-poi-in" onclick="nvSelectPoi('${p.id}')">
-        <span class="nv-poi-ico"><svg viewBox="0 0 24 24">${cat.icon}</svg></span>
+        <span class="nv-poi-ico"><svg viewBox="0 0 24 24">${nvIconOf(p, cat)}</svg></span>
         <span class="nv-poi-name">${esc(p.name)}</span>
       </button>
     </div>`;
@@ -7039,6 +7048,8 @@ function openNovelanceOverlay() {
     nvFloor = 'all';
     nvSel = null;
     nvFilters.souterrains = false;
+    nvEdit = false;
+    nvForm = null;
     overlay.innerHTML = novelanceOverlayHtml();
     document.body.style.overflow = 'hidden';
     nvBooting = true;
@@ -7072,9 +7083,12 @@ function novelanceOverlayHtml() {
       </aside>
       <div class="nv-counters" id="nvCounters"></div>
       <div class="nv-card" id="nvCard"></div>
+      <div class="nv-edit-banner">Mode édition — clique sur la carte pour ajouter un lieu, ou sur un lieu pour le modifier</div>
+      <div class="nv-edit-panel" id="nvEdit"></div>
       <div class="nv-hints">
         <span onclick="nvRecenter()">Recentrer</span>
         <span onclick="nvTogglePanel()">Filtres</span>
+        ${isLoggedIn() ? `<span id="nvEditBtn" class="nv-hint-edit" onclick="nvToggleEdit()">✎ Édition</span>` : ''}
         <span onclick="navigate('carte')">Retour</span>
       </div>
     </div>`;
@@ -7103,6 +7117,10 @@ function nvRefreshUi() {
     overlay.classList.toggle('nv-no-labels', !nvFilters.noms);
     overlay.classList.toggle('nv-show-tunnels', nvFloor === 'sous' || nvFilters.souterrains);
     overlay.classList.toggle('nv-floor-sous', nvFloor === 'sous');
+    overlay.classList.toggle('nv-edit', nvEdit);
+    const editBtn = document.getElementById('nvEditBtn');
+    if (editBtn)
+        editBtn.textContent = nvEdit ? '✓ Terminer l\'édition' : '✎ Édition';
     const total = {}, shown = {};
     NV_CATS.forEach(c => { total[c.id] = 0; shown[c.id] = 0; });
     overlay.querySelectorAll('.nv-poi').forEach(el => {
@@ -7134,11 +7152,11 @@ function nvRefreshUi() {
         }
         else if (nvSel.kind === 'poi') {
             const p = NV_POIS.find(x => x.id === nvSel.id);
-            const cat = NV_CATS.find(c => c.id === p.cat);
-            const dist = p.district === 'sous' ? "Cité d'en dessous" : NOVELANCE_DISTRICTS.find(d => d.id === p.district).label;
-            const lieu = p.link === 'souterrains' ? nvFindSouterrains() : undefined;
+            const cat = NV_CATS.find(c => c.id === p.cat) || NV_CATS[3];
+            const dist = p.district === 'sous' ? "Cité d'en dessous" : (NOVELANCE_DISTRICTS.find(d => d.id === p.district) || { label: '—' }).label;
+            const lieu = p.entryId ? ENTRIES.find(e => e.id === p.entryId) : (p.link === 'souterrains' ? nvFindSouterrains() : undefined);
             card.innerHTML = `<button class="nv-card-x" onclick="nvClearSel()">✕</button>
-        <div class="nv-card-cat${cat.red ? ' red' : ''}"><svg viewBox="0 0 24 24">${cat.icon}</svg>${esc(cat.label)}</div>
+        <div class="nv-card-cat${cat.red ? ' red' : ''}"><svg viewBox="0 0 24 24">${nvIconOf(p, cat)}</svg>${esc(cat.label)}</div>
         <div class="nv-card-title">${esc(p.name)}</div>
         <div class="nv-card-sub">${esc(dist)}</div>
         <p>${esc(p.desc)}</p>
@@ -7160,9 +7178,9 @@ function nvToggle(key) { nvFilters[key] = !nvFilters[key]; nvRefreshUi(); }
 function nvTogglePanel() { const p = document.getElementById('nvPanel'); if (p)
     p.classList.toggle('open'); }
 function nvSelectPoi(id) { if (nvMoved)
-    return; nvSel = { kind: 'poi', id }; nvRefreshUi(); }
+    return; if (nvEdit) { nvOpenPoiForm(id); return; } nvSel = { kind: 'poi', id }; nvRefreshUi(); }
 function nvSelectDistrict(id) { if (nvMoved)
-    return; nvSel = { kind: 'district', id }; nvRefreshUi(); }
+    return; if (nvEdit) return; nvSel = { kind: 'district', id }; nvRefreshUi(); }
 function nvClearSel() { nvSel = null; nvRefreshUi(); }
 function nvRecenter() { if (nvState)
     nvState.recenter(); }
@@ -7237,7 +7255,17 @@ function initNovelanceMap() {
         clampCam();
         apply();
     };
-    const onUp = () => { dragging = false; down = null; stage.classList.remove('dragging'); setTimeout(() => { nvMoved = false; }, 0); };
+    const onUp = (e) => {
+        const wasClick = dragging && !nvMoved;
+        dragging = false;
+        down = null;
+        stage.classList.remove('dragging');
+        setTimeout(() => { nvMoved = false; }, 0);
+        if (nvEdit && wasClick && e.target instanceof Element && stage.contains(e.target) && !e.target.closest('.nv-poi')) {
+            const r = stage.getBoundingClientRect();
+            nvMapClick((e.clientX - r.left - cam.x) / cam.s, (e.clientY - r.top - cam.y) / cam.s);
+        }
+    };
     const onWheel = (e) => {
         e.preventDefault();
         cancelAnimationFrame(tween);
@@ -7285,6 +7313,240 @@ function closeNovelanceOverlay() {
     document.body.style.overflow = '';
     setTimeout(() => { const el = document.getElementById('novOverlay'); if (el && !el.classList.contains('open'))
         el.remove(); }, 420);
+}
+/* ---------------- NOVELANCE — ÉDITION DES LIEUX ---------------- */
+let nvPoiDocs = {};
+let nvBasePois = null;
+let nvEdit = false;
+let nvForm = null;
+const NV_ICONS = {
+    pin: '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.2"/>',
+    shop: '<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>',
+    shield: '<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/>',
+    train: '<rect x="6" y="4" width="12" height="13" rx="3"/><path d="M6 11h12M9 20l-2 2M15 20l2 2"/><circle cx="9.5" cy="14.5" r="0.8"/><circle cx="14.5" cy="14.5" r="0.8"/>',
+    cross: '<path d="M10 4h4v6h6v4h-6v6h-4v-6H4v-4h6z"/>',
+    gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+    alert: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/>',
+    home: '<path d="M4 11l8-7 8 7v9H4z"/><path d="M10 20v-6h4v6"/>',
+    cup: '<path d="M5 8h11v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4z"/><path d="M16 9h2a2 2 0 0 1 0 4h-2"/><path d="M8 3v2M12 3v2"/>',
+    book: '<path d="M4 5h6a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H4z"/><path d="M20 5h-6a2 2 0 0 0-2 2v12a2 2 0 0 1 2-2h6z"/>',
+    anchor: '<circle cx="12" cy="5" r="2"/><path d="M12 7v14M5 13H3a9 9 0 0 0 18 0h-2M8 11h8"/>',
+    tower: '<path d="M9 21l1.5-14h3L15 21M8 21h8M10.5 7L12 3l1.5 4M9.6 12h4.8"/>',
+    star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+    flask: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/><path d="M7.5 15h9"/>',
+    key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M14 9l2 2"/>',
+    eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+    flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
+    bed: '<path d="M3 18V7M3 13h18v5M21 13a3 3 0 0 0-3-3h-7v3"/><circle cx="7" cy="10" r="1.5"/>',
+    factory: '<path d="M3 21V10l6 4v-4l6 4V6h6v15z"/>',
+    ship: '<path d="M3 17l2 3h14l2-3zM12 3v9M12 5l6 6h-6"/>',
+};
+function nvIconOf(p, cat) { return (p.icon && NV_ICONS[p.icon]) || cat.icon; }
+function nvMergePoi(b, d) {
+    const cat = (d.cat && NV_CATS.some(c => c.id === d.cat)) ? d.cat : b.cat;
+    return { ...b, name: d.name || b.name, cat, icon: d.icon || undefined, district: d.district || b.district, desc: d.desc !== undefined ? d.desc : b.desc, at: d.at || b.at, entryId: d.entryId || undefined, link: d.entryId ? undefined : b.link };
+}
+function nvApplyPois() {
+    if (!nvCity)
+        return;
+    if (!nvBasePois)
+        nvBasePois = NV_POIS.map(p => ({ ...p }));
+    const base = nvBasePois;
+    const out = [];
+    base.forEach(b => {
+        const d = nvPoiDocs[b.id];
+        if (d && d.deleted)
+            return;
+        out.push(d ? nvMergePoi(b, d) : { ...b });
+    });
+    Object.keys(nvPoiDocs).forEach(id => {
+        const d = nvPoiDocs[id];
+        if (d.deleted || !d.at || base.some(b => b.id === id))
+            return;
+        out.push(nvMergePoi({ id, name: 'Lieu', cat: 'service', district: 'populaires', zone: 'populaires', at: d.at, desc: '', custom: true }, d));
+    });
+    NV_POIS.length = 0;
+    out.forEach(p => NV_POIS.push(p));
+    nvRefreshPoiLayer();
+}
+function nvRefreshPoiLayer() {
+    const overlay = document.getElementById('novOverlay');
+    const layer = overlay ? overlay.querySelector('.nv-pois') : null;
+    if (!overlay || !layer)
+        return;
+    layer.innerHTML = NV_POIS.map(nvPoiHtml).join('');
+    if (nvSel && nvSel.kind === 'poi' && !NV_POIS.some(p => p.id === nvSel.id))
+        nvSel = null;
+    nvUpdateGhost();
+    nvRefreshUi();
+}
+function nvUpdateGhost() {
+    const layer = document.querySelector('#novOverlay .nv-pois');
+    if (!layer)
+        return;
+    let g = layer.querySelector('.nv-ghost');
+    if (!nvForm) {
+        if (g)
+            g.remove();
+        return;
+    }
+    if (!g) {
+        g = document.createElement('div');
+        g.className = 'nv-ghost';
+        g.innerHTML = '<span></span>';
+        layer.appendChild(g);
+    }
+    g.style.left = (nvForm.at[0] / NV_W * 100).toFixed(3) + '%';
+    g.style.top = (nvForm.at[1] / NV_H * 100).toFixed(3) + '%';
+}
+function nvToggleEdit() {
+    if (!isLoggedIn()) {
+        alert('Connecte-toi pour modifier la carte.');
+        return;
+    }
+    nvEdit = !nvEdit;
+    nvCloseForm();
+    nvSel = null;
+    nvRefreshUi();
+}
+function nvMapClick(wx, wy) {
+    const x = Math.max(0, Math.min(NV_W, wx)), y = Math.max(0, Math.min(NV_H, wy));
+    if (nvForm && nvForm.picking) {
+        nvForm.at = [Math.round(x), Math.round(y)];
+        nvForm.picking = false;
+        nvUpdateGhost();
+        nvUpdateFormPos();
+        return;
+    }
+    nvOpenPoiForm(null, x, y);
+}
+function nvUpdateFormPos() {
+    const el = document.getElementById('nvfPos');
+    if (el && nvForm)
+        el.textContent = `x ${nvForm.at[0]} · y ${nvForm.at[1]}` + (nvForm.picking ? ' — clique sur la carte…' : '');
+    const btn = document.getElementById('nvfMove');
+    if (btn && nvForm)
+        btn.classList.toggle('on', nvForm.picking);
+}
+function nvOpenPoiForm(id, wx, wy) {
+    const box = document.getElementById('nvEdit');
+    if (!box || !nvEdit)
+        return;
+    const existing = id ? NV_POIS.find(p => p.id === id) || null : null;
+    const isBase = !!id && !!nvBasePois && nvBasePois.some(b => b.id === id);
+    const at = existing && existing.at ? [Math.round(existing.at[0]), Math.round(existing.at[1])] : [Math.round(wx || 0), Math.round(wy || 0)];
+    let district = existing ? existing.district : 'populaires';
+    if (!existing && nvCity) {
+        const l = nvCity.lookup(at[0], at[1]);
+        if (l >= 1 && l <= NV_DIDS.length)
+            district = NV_DIDS[l - 1];
+    }
+    const cat = existing ? existing.cat : 'service';
+    nvForm = { id, base: isBase, at, icon: existing && existing.icon ? existing.icon : '', picking: false };
+    const lieux = ENTRIES.filter(e => e.cat === 'lieux');
+    const distOpts = NOVELANCE_DISTRICTS.map(d => `<option value="${d.id}"${d.id === district ? ' selected' : ''}>${esc(d.label)}</option>`).join('') +
+        `<option value="sous"${district === 'sous' ? ' selected' : ''}>Cité d'en dessous (souterrains)</option>`;
+    const catOpts = NV_CATS.map(c => `<option value="${c.id}"${c.id === cat ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
+    const linkOpts = `<option value="">Aucune</option>` + lieux.map(e => `<option value="${escAttr(e.id)}"${existing && existing.entryId === e.id ? ' selected' : ''}>${esc(e.name)}</option>`).join('');
+    const iconBtns = `<button type="button" class="nv-ico-opt auto${nvForm.icon ? '' : ' on'}" data-icon="" onclick="nvPickIcon('')">Auto</button>` +
+        Object.keys(NV_ICONS).map(k => `<button type="button" class="nv-ico-opt${k === nvForm.icon ? ' on' : ''}" data-icon="${k}" onclick="nvPickIcon('${k}')" title="${k}"><svg viewBox="0 0 24 24">${NV_ICONS[k]}</svg></button>`).join('');
+    box.innerHTML = `
+    <button type="button" class="nv-card-x" onclick="nvCloseForm()">✕</button>
+    <div class="nv-ed-title">${existing ? 'Modifier le lieu' : 'Nouveau lieu'}</div>
+    <label>Nom</label>
+    <input id="nvfName" type="text" value="${escAttr(existing ? existing.name : '')}" placeholder="Nom du lieu">
+    <label>Icône</label>
+    <div class="nv-ico-grid">${iconBtns}</div>
+    <label>Catégorie <em>(filtre « Points d'intérêt »)</em></label>
+    <select id="nvfCat">${catOpts}</select>
+    <label>Zone affiliée</label>
+    <select id="nvfDist">${distOpts}</select>
+    <label>Description</label>
+    <textarea id="nvfDesc" rows="4" placeholder="Ce qu'on y trouve, son rôle, son ambiance…">${esc(existing ? existing.desc : '')}</textarea>
+    <label>Fiche liée <em>(optionnel)</em></label>
+    <select id="nvfLink">${linkOpts}</select>
+    <div class="nv-ed-pos"><span id="nvfPos"></span><button type="button" id="nvfMove" onclick="nvMovePoi()">Déplacer</button></div>
+    <div class="nv-ed-actions">
+      <button type="button" class="primary" onclick="nvSavePoi()">Enregistrer</button>
+      <button type="button" onclick="nvCloseForm()">Annuler</button>
+      ${existing ? `<button type="button" class="danger" onclick="nvDeletePoi()">Supprimer</button>` : ''}
+      ${isBase && nvPoiDocs[id] && !nvPoiDocs[id].deleted ? `<button type="button" onclick="nvResetPoi()">Rétablir l'original</button>` : ''}
+    </div>`;
+    box.classList.add('open');
+    nvUpdateFormPos();
+    nvUpdateGhost();
+    const nameEl = document.getElementById('nvfName');
+    if (nameEl && !existing)
+        nameEl.focus();
+}
+function nvPickIcon(key) {
+    if (!nvForm)
+        return;
+    nvForm.icon = key;
+    document.querySelectorAll('#nvEdit .nv-ico-opt').forEach(b => b.classList.toggle('on', (b.dataset.icon || '') === key));
+}
+function nvMovePoi() {
+    if (!nvForm)
+        return;
+    nvForm.picking = !nvForm.picking;
+    nvUpdateFormPos();
+}
+function nvCloseForm() {
+    nvForm = null;
+    const box = document.getElementById('nvEdit');
+    if (box) {
+        box.classList.remove('open');
+        box.innerHTML = '';
+    }
+    nvUpdateGhost();
+}
+function nvSavePoi() {
+    if (!nvForm || !isLoggedIn())
+        return;
+    const db = getFirestoreDb();
+    if (!db) {
+        alert('Base de données indisponible : impossible d\'enregistrer.');
+        return;
+    }
+    const val = (elId) => ((document.getElementById(elId)?.value) || '').trim();
+    const name = val('nvfName');
+    if (!name) {
+        alert('Donne un nom au lieu.');
+        return;
+    }
+    const id = nvForm.id || 'custom-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+    const data = {
+        name, cat: val('nvfCat'), icon: nvForm.icon || null, district: val('nvfDist'), desc: val('nvfDesc'),
+        entryId: val('nvfLink') || null, at: nvForm.at, author: getCurrentUser() || 'aki', updated: Date.now(),
+    };
+    db.collection('novelancePois').doc(id).set(data)
+        .then(() => nvCloseForm())
+        .catch((err) => alert('Enregistrement impossible : ' + (err && err.message ? err.message : err)));
+}
+function nvDeletePoi() {
+    if (!nvForm || !nvForm.id || !isLoggedIn())
+        return;
+    if (!confirm('Supprimer ce lieu de la carte ?'))
+        return;
+    const db = getFirestoreDb();
+    if (!db)
+        return;
+    const ref = db.collection('novelancePois').doc(nvForm.id);
+    (nvForm.base ? ref.set({ deleted: true }) : ref.delete())
+        .then(() => nvCloseForm())
+        .catch((err) => alert('Suppression impossible : ' + (err && err.message ? err.message : err)));
+}
+function nvResetPoi() {
+    if (!nvForm || !nvForm.id || !isLoggedIn())
+        return;
+    if (!confirm('Rétablir ce lieu tel qu\'il était à l\'origine ?'))
+        return;
+    const db = getFirestoreDb();
+    if (!db)
+        return;
+    db.collection('novelancePois').doc(nvForm.id).delete()
+        .then(() => nvCloseForm())
+        .catch((err) => alert('Impossible de rétablir : ' + (err && err.message ? err.message : err)));
 }
 /* ---------------- LIVRE D'HISTOIRE (page verrouillée par un code) ---------------- */
 const STORY_UNLOCK_CODE = '1234';

@@ -1216,6 +1216,13 @@ function initFirestoreSync(): void {
     render();
     restoreDraftFormState(draft);
   }, (err: any) => console.error('Firestore (secretFiles) :', err));
+
+  db.collection('novelancePois').onSnapshot((snap: any) => {
+    const docs: Record<string, NvPoiDoc> = {};
+    snap.forEach((doc: any) => { docs[doc.id] = doc.data() as NvPoiDoc; });
+    nvPoiDocs = docs;
+    nvApplyPois();
+  }, (err: any) => console.error('Firestore (novelancePois) :', err));
 }
 
 function getCustomEntriesRaw(): CustomEntry[] {
@@ -7214,7 +7221,7 @@ const NV_BORDER: Record<string, string> = {
 type NvCatId ='commerce' | 'halcyon' | 'transport' | 'service' | 'industrie' | 'danger';
 interface NvCat { id: NvCatId; label: string; red: boolean; icon: string; }
 interface NvFloor { id: string; label: string; districts: string[]; icon: string; }
-interface NvPoi { id: string; name: string; cat: NvCatId; district: string; zone: string; at: [number, number] | null; desc: string; link?: string; }
+interface NvPoi { id: string; name: string; cat: NvCatId; district: string; zone: string; at: [number, number] | null; desc: string; link?: string; icon?: string; entryId?: string; custom?: boolean; }
 
 const NV_CATS: NvCat[] = [
   { id:'commerce',  label:'Commerces',      red:false, icon:'<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>' },
@@ -7286,7 +7293,7 @@ let nvSel: { kind: 'poi' | 'district'; id: string } | null = null;
 let nvMoved = false;
 let nvState: { recenter(): void; cleanup(): void } | null = null;
 let nvBooting = false;
-let nvCity: { svg: string } | null = null;
+let nvCity: { svg: string; lookup(x: number, y: number): number } | null = null;
 
 // Bruit fractal déterministe (même principe que celui du terrain de la carte du monde).
 function nvNoise(seed: number): (x: number, y: number, oct: number) => number {
@@ -7457,7 +7464,7 @@ function nvDistTo(mask: Uint8Array, gw: number, gh: number): Float32Array {
   return d;
 }
 
-function nvBuildCity(): { svg: string } {
+function nvBuildCity(): { svg: string; lookup(x: number, y: number): number } {
   const noise = nvNoise(7311);
   const gw = NV_GW, gh = NV_GH, n = gw * gh;
   const [fx, fy] = NV_FOCUS;
@@ -7736,21 +7743,21 @@ function nvBuildCity(): { svg: string } {
         <circle class="nv-pulse nv-pulse3" r="30" vector-effect="non-scaling-stroke"/>
       </g>
     </svg>`;
-  return { svg: svg + fx_ };
+  return { svg: svg + fx_, lookup };
 }
 
-function nvGetCity(): { svg: string } {
-  if(!nvCity) nvCity = nvBuildCity();
+function nvGetCity(): { svg: string; lookup(x: number, y: number): number } {
+  if(!nvCity){ nvCity = nvBuildCity(); nvApplyPois(); }
   return nvCity;
 }
 
 function nvPoiHtml(p: NvPoi): string {
-  const cat = NV_CATS.find(c => c.id === p.cat)!;
+  const cat = NV_CATS.find(c => c.id === p.cat) || NV_CATS[3];
   const at = p.at as [number, number];
   return `
     <div class="nv-poi${cat.red ? ' red' : ''}" data-id="${p.id}" style="left:${(at[0] / NV_W * 100).toFixed(3)}%; top:${(at[1] / NV_H * 100).toFixed(3)}%">
       <button type="button" class="nv-poi-in" onclick="nvSelectPoi('${p.id}')">
-        <span class="nv-poi-ico"><svg viewBox="0 0 24 24">${cat.icon}</svg></span>
+        <span class="nv-poi-ico"><svg viewBox="0 0 24 24">${nvIconOf(p, cat)}</svg></span>
         <span class="nv-poi-name">${esc(p.name)}</span>
       </button>
     </div>`;
@@ -7783,6 +7790,7 @@ function openNovelanceOverlay(): void {
   nvFloor = 'all';
   nvSel = null;
   nvFilters.souterrains = false;
+  nvEdit = false; nvForm = null;
   overlay.innerHTML = novelanceOverlayHtml();
   document.body.style.overflow = 'hidden';
   nvBooting = true;
@@ -7817,9 +7825,12 @@ function novelanceOverlayHtml(): string {
       </aside>
       <div class="nv-counters" id="nvCounters"></div>
       <div class="nv-card" id="nvCard"></div>
+      <div class="nv-edit-banner">Mode édition — clique sur la carte pour ajouter un lieu, ou sur un lieu pour le modifier</div>
+      <div class="nv-edit-panel" id="nvEdit"></div>
       <div class="nv-hints">
         <span onclick="nvRecenter()">Recentrer</span>
         <span onclick="nvTogglePanel()">Filtres</span>
+        ${isLoggedIn() ? `<span id="nvEditBtn" class="nv-hint-edit" onclick="nvToggleEdit()">✎ Édition</span>` : ''}
         <span onclick="navigate('carte')">Retour</span>
       </div>
     </div>`;
@@ -7849,6 +7860,9 @@ function nvRefreshUi(): void {
   overlay.classList.toggle('nv-no-labels', !nvFilters.noms);
   overlay.classList.toggle('nv-show-tunnels', nvFloor === 'sous' || nvFilters.souterrains);
   overlay.classList.toggle('nv-floor-sous', nvFloor === 'sous');
+  overlay.classList.toggle('nv-edit', nvEdit);
+  const editBtn = document.getElementById('nvEditBtn');
+  if(editBtn) editBtn.textContent = nvEdit ? '✓ Terminer l\'édition' : '✎ Édition';
 
   const total: Record<string, number> = {}, shown: Record<string, number> = {};
   NV_CATS.forEach(c => { total[c.id] = 0; shown[c.id] = 0; });
@@ -7878,11 +7892,11 @@ function nvRefreshUi(): void {
       card.classList.remove('open');
     } else if(nvSel.kind === 'poi'){
       const p = NV_POIS.find(x => x.id === nvSel!.id)!;
-      const cat = NV_CATS.find(c => c.id === p.cat)!;
-      const dist = p.district === 'sous' ? "Cité d'en dessous" : NOVELANCE_DISTRICTS.find(d => d.id === p.district)!.label;
-      const lieu = p.link === 'souterrains' ? nvFindSouterrains() : undefined;
+      const cat = NV_CATS.find(c => c.id === p.cat) || NV_CATS[3];
+      const dist = p.district === 'sous' ? "Cité d'en dessous" : (NOVELANCE_DISTRICTS.find(d => d.id === p.district) || { label: '—' }).label;
+      const lieu = p.entryId ? ENTRIES.find(e => e.id === p.entryId) : (p.link === 'souterrains' ? nvFindSouterrains() : undefined);
       card.innerHTML = `<button class="nv-card-x" onclick="nvClearSel()">✕</button>
-        <div class="nv-card-cat${cat.red ? ' red' : ''}"><svg viewBox="0 0 24 24">${cat.icon}</svg>${esc(cat.label)}</div>
+        <div class="nv-card-cat${cat.red ? ' red' : ''}"><svg viewBox="0 0 24 24">${nvIconOf(p, cat)}</svg>${esc(cat.label)}</div>
         <div class="nv-card-title">${esc(p.name)}</div>
         <div class="nv-card-sub">${esc(dist)}</div>
         <p>${esc(p.desc)}</p>
@@ -7902,8 +7916,8 @@ function nvRefreshUi(): void {
 function nvSetFloor(id: string): void { nvFloor = id; nvSel = null; nvRefreshUi(); }
 function nvToggle(key: string): void { nvFilters[key] = !nvFilters[key]; nvRefreshUi(); }
 function nvTogglePanel(): void { const p = document.getElementById('nvPanel'); if(p) p.classList.toggle('open'); }
-function nvSelectPoi(id: string): void { if(nvMoved) return; nvSel = { kind: 'poi', id }; nvRefreshUi(); }
-function nvSelectDistrict(id: string): void { if(nvMoved) return; nvSel = { kind: 'district', id }; nvRefreshUi(); }
+function nvSelectPoi(id: string): void { if(nvMoved) return; if(nvEdit){ nvOpenPoiForm(id); return; } nvSel = { kind: 'poi', id }; nvRefreshUi(); }
+function nvSelectDistrict(id: string): void { if(nvMoved || nvEdit) return; nvSel = { kind: 'district', id }; nvRefreshUi(); }
 function nvClearSel(): void { nvSel = null; nvRefreshUi(); }
 function nvRecenter(): void { if(nvState) nvState.recenter(); }
 
@@ -7969,7 +7983,15 @@ function initNovelanceMap(): void {
     cam.x = down.cx + dx; cam.y = down.cy + dy;
     clampCam(); apply();
   };
-  const onUp = (): void => { dragging = false; down = null; stage.classList.remove('dragging'); setTimeout(() => { nvMoved = false; }, 0); };
+  const onUp = (e: PointerEvent): void => {
+    const wasClick = dragging && !nvMoved;
+    dragging = false; down = null; stage.classList.remove('dragging'); setTimeout(() => { nvMoved = false; }, 0);
+    // mode édition : un simple clic sur le fond de la carte (pas sur un lieu) place / ajoute un lieu
+    if(nvEdit && wasClick && e.target instanceof Element && stage.contains(e.target) && !e.target.closest('.nv-poi')){
+      const r = stage.getBoundingClientRect();
+      nvMapClick((e.clientX - r.left - cam.x) / cam.s, (e.clientY - r.top - cam.y) / cam.s);
+    }
+  };
   const onWheel = (e: WheelEvent): void => {
     e.preventDefault();
     cancelAnimationFrame(tween);
@@ -8011,6 +8033,224 @@ function closeNovelanceOverlay(): void {
   overlay.classList.remove('open');
   document.body.style.overflow = '';
   setTimeout(() => { const el = document.getElementById('novOverlay'); if(el && !el.classList.contains('open')) el.remove(); }, 420);
+}
+
+/* ---------------- NOVELANCE — ÉDITION DES LIEUX ----------------
+   Connecté, un bouton « Édition » apparaît en bas de la carte. Une fois activé, un clic sur
+   la carte ouvre un formulaire (nom, icône, catégorie, quartier, description, fiche liée) et
+   un clic sur un lieu existant le modifie. Tout est enregistré dans Firestore (collection
+   « novelancePois ») : un document dont l'id correspond à un lieu d'origine (NV_POIS) le
+   remplace ou, marqué « deleted », le retire ; sinon c'est un nouveau lieu (« custom-… »). */
+interface NvPoiDoc { name?: string; cat?: string; icon?: string | null; district?: string; desc?: string; at?: [number, number]; entryId?: string | null; deleted?: boolean; }
+interface NvFormState { id: string | null; base: boolean; at: [number, number]; icon: string; picking: boolean; }
+let nvPoiDocs: Record<string, NvPoiDoc> = {};
+let nvBasePois: NvPoi[] | null = null;
+let nvEdit = false;
+let nvForm: NvFormState | null = null;
+
+const NV_ICONS: Record<string, string> = {
+  pin: '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.2"/>',
+  shop: '<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>',
+  shield: '<path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z"/>',
+  train: '<rect x="6" y="4" width="12" height="13" rx="3"/><path d="M6 11h12M9 20l-2 2M15 20l2 2"/><circle cx="9.5" cy="14.5" r="0.8"/><circle cx="14.5" cy="14.5" r="0.8"/>',
+  cross: '<path d="M10 4h4v6h6v4h-6v6h-4v-6H4v-4h6z"/>',
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2"/>',
+  alert: '<path d="M12 3l10 18H2z"/><path d="M12 10v5M12 18v.5"/>',
+  home: '<path d="M4 11l8-7 8 7v9H4z"/><path d="M10 20v-6h4v6"/>',
+  cup: '<path d="M5 8h11v6a4 4 0 0 1-4 4H9a4 4 0 0 1-4-4z"/><path d="M16 9h2a2 2 0 0 1 0 4h-2"/><path d="M8 3v2M12 3v2"/>',
+  book: '<path d="M4 5h6a2 2 0 0 1 2 2v12a2 2 0 0 0-2-2H4z"/><path d="M20 5h-6a2 2 0 0 0-2 2v12a2 2 0 0 1 2-2h6z"/>',
+  anchor: '<circle cx="12" cy="5" r="2"/><path d="M12 7v14M5 13H3a9 9 0 0 0 18 0h-2M8 11h8"/>',
+  tower: '<path d="M9 21l1.5-14h3L15 21M8 21h8M10.5 7L12 3l1.5 4M9.6 12h4.8"/>',
+  star: '<path d="M12 3l2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/>',
+  flask: '<path d="M9 3h6M10 3v6l-5 9a2 2 0 0 0 1.8 3h10.4a2 2 0 0 0 1.8-3l-5-9V3"/><path d="M7.5 15h9"/>',
+  key: '<circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M16 7l3 3M14 9l2 2"/>',
+  eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
+  flag: '<path d="M5 21V4M5 4h11l-2 4 2 4H5"/>',
+  bed: '<path d="M3 18V7M3 13h18v5M21 13a3 3 0 0 0-3-3h-7v3"/><circle cx="7" cy="10" r="1.5"/>',
+  factory: '<path d="M3 21V10l6 4v-4l6 4V6h6v15z"/>',
+  ship: '<path d="M3 17l2 3h14l2-3zM12 3v9M12 5l6 6h-6"/>',
+};
+function nvIconOf(p: NvPoi, cat: NvCat): string { return (p.icon && NV_ICONS[p.icon]) || cat.icon; }
+
+function nvMergePoi(b: NvPoi, d: NvPoiDoc): NvPoi {
+  const cat = (d.cat && NV_CATS.some(c => c.id === d.cat)) ? d.cat as NvCatId : b.cat;
+  return { ...b, name: d.name || b.name, cat, icon: d.icon || undefined, district: d.district || b.district, desc: d.desc !== undefined ? d.desc : b.desc, at: d.at || b.at, entryId: d.entryId || undefined, link: d.entryId ? undefined : b.link };
+}
+
+// Reconstruit NV_POIS (lieux d'origine + modifications + lieux ajoutés) à partir de Firestore.
+function nvApplyPois(): void {
+  if(!nvCity) return;   // les positions des lieux d'origine sont calculées avec la ville
+  if(!nvBasePois) nvBasePois = NV_POIS.map(p => ({ ...p }));
+  const base = nvBasePois;
+  const out: NvPoi[] = [];
+  base.forEach(b => {
+    const d = nvPoiDocs[b.id];
+    if(d && d.deleted) return;
+    out.push(d ? nvMergePoi(b, d) : { ...b });
+  });
+  Object.keys(nvPoiDocs).forEach(id => {
+    const d = nvPoiDocs[id];
+    if(d.deleted || !d.at || base.some(b => b.id === id)) return;
+    out.push(nvMergePoi({ id, name: 'Lieu', cat: 'service', district: 'populaires', zone: 'populaires', at: d.at, desc: '', custom: true }, d));
+  });
+  NV_POIS.length = 0;
+  out.forEach(p => NV_POIS.push(p));
+  nvRefreshPoiLayer();
+}
+
+function nvRefreshPoiLayer(): void {
+  const overlay = document.getElementById('novOverlay');
+  const layer = overlay ? overlay.querySelector('.nv-pois') : null;
+  if(!overlay || !layer) return;
+  layer.innerHTML = NV_POIS.map(nvPoiHtml).join('');
+  if(nvSel && nvSel.kind === 'poi' && !NV_POIS.some(p => p.id === nvSel!.id)) nvSel = null;
+  nvUpdateGhost();
+  nvRefreshUi();
+}
+
+// Repère temporaire (croix) à l'endroit du lieu en cours d'édition.
+function nvUpdateGhost(): void {
+  const layer = document.querySelector('#novOverlay .nv-pois');
+  if(!layer) return;
+  let g = layer.querySelector<HTMLElement>('.nv-ghost');
+  if(!nvForm){ if(g) g.remove(); return; }
+  if(!g){ g = document.createElement('div'); g.className = 'nv-ghost'; g.innerHTML = '<span></span>'; layer.appendChild(g); }
+  g.style.left = (nvForm.at[0] / NV_W * 100).toFixed(3) + '%';
+  g.style.top = (nvForm.at[1] / NV_H * 100).toFixed(3) + '%';
+}
+
+function nvToggleEdit(): void {
+  if(!isLoggedIn()){ alert('Connecte-toi pour modifier la carte.'); return; }
+  nvEdit = !nvEdit;
+  nvCloseForm();
+  nvSel = null;
+  nvRefreshUi();
+}
+
+function nvMapClick(wx: number, wy: number): void {
+  const x = Math.max(0, Math.min(NV_W, wx)), y = Math.max(0, Math.min(NV_H, wy));
+  if(nvForm && nvForm.picking){
+    nvForm.at = [Math.round(x), Math.round(y)];
+    nvForm.picking = false;
+    nvUpdateGhost();
+    nvUpdateFormPos();
+    return;
+  }
+  nvOpenPoiForm(null, x, y);
+}
+
+function nvUpdateFormPos(): void {
+  const el = document.getElementById('nvfPos');
+  if(el && nvForm) el.textContent = `x ${nvForm.at[0]} · y ${nvForm.at[1]}` + (nvForm.picking ? ' — clique sur la carte…' : '');
+  const btn = document.getElementById('nvfMove');
+  if(btn && nvForm) btn.classList.toggle('on', nvForm.picking);
+}
+
+function nvOpenPoiForm(id: string | null, wx?: number, wy?: number): void {
+  const box = document.getElementById('nvEdit');
+  if(!box || !nvEdit) return;
+  const existing = id ? NV_POIS.find(p => p.id === id) || null : null;
+  const isBase = !!id && !!nvBasePois && nvBasePois.some(b => b.id === id);
+  const at: [number, number] = existing && existing.at ? [Math.round(existing.at[0]), Math.round(existing.at[1])] : [Math.round(wx || 0), Math.round(wy || 0)];
+  let district = existing ? existing.district : 'populaires';
+  if(!existing && nvCity){
+    const l = nvCity.lookup(at[0], at[1]);
+    if(l >= 1 && l <= NV_DIDS.length) district = NV_DIDS[l - 1];
+  }
+  const cat = existing ? existing.cat : 'service';
+  nvForm = { id, base: isBase, at, icon: existing && existing.icon ? existing.icon : '', picking: false };
+  const lieux = ENTRIES.filter(e => e.cat === 'lieux');
+  const distOpts = NOVELANCE_DISTRICTS.map(d => `<option value="${d.id}"${d.id === district ? ' selected' : ''}>${esc(d.label)}</option>`).join('') +
+    `<option value="sous"${district === 'sous' ? ' selected' : ''}>Cité d'en dessous (souterrains)</option>`;
+  const catOpts = NV_CATS.map(c => `<option value="${c.id}"${c.id === cat ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
+  const linkOpts = `<option value="">Aucune</option>` + lieux.map(e => `<option value="${escAttr(e.id)}"${existing && existing.entryId === e.id ? ' selected' : ''}>${esc(e.name)}</option>`).join('');
+  const iconBtns = `<button type="button" class="nv-ico-opt auto${nvForm.icon ? '' : ' on'}" data-icon="" onclick="nvPickIcon('')">Auto</button>` +
+    Object.keys(NV_ICONS).map(k => `<button type="button" class="nv-ico-opt${k === nvForm!.icon ? ' on' : ''}" data-icon="${k}" onclick="nvPickIcon('${k}')" title="${k}"><svg viewBox="0 0 24 24">${NV_ICONS[k]}</svg></button>`).join('');
+  box.innerHTML = `
+    <button type="button" class="nv-card-x" onclick="nvCloseForm()">✕</button>
+    <div class="nv-ed-title">${existing ? 'Modifier le lieu' : 'Nouveau lieu'}</div>
+    <label>Nom</label>
+    <input id="nvfName" type="text" value="${escAttr(existing ? existing.name : '')}" placeholder="Nom du lieu">
+    <label>Icône</label>
+    <div class="nv-ico-grid">${iconBtns}</div>
+    <label>Catégorie <em>(filtre « Points d'intérêt »)</em></label>
+    <select id="nvfCat">${catOpts}</select>
+    <label>Zone affiliée</label>
+    <select id="nvfDist">${distOpts}</select>
+    <label>Description</label>
+    <textarea id="nvfDesc" rows="4" placeholder="Ce qu'on y trouve, son rôle, son ambiance…">${esc(existing ? existing.desc : '')}</textarea>
+    <label>Fiche liée <em>(optionnel)</em></label>
+    <select id="nvfLink">${linkOpts}</select>
+    <div class="nv-ed-pos"><span id="nvfPos"></span><button type="button" id="nvfMove" onclick="nvMovePoi()">Déplacer</button></div>
+    <div class="nv-ed-actions">
+      <button type="button" class="primary" onclick="nvSavePoi()">Enregistrer</button>
+      <button type="button" onclick="nvCloseForm()">Annuler</button>
+      ${existing ? `<button type="button" class="danger" onclick="nvDeletePoi()">Supprimer</button>` : ''}
+      ${isBase && nvPoiDocs[id as string] && !nvPoiDocs[id as string].deleted ? `<button type="button" onclick="nvResetPoi()">Rétablir l'original</button>` : ''}
+    </div>`;
+  box.classList.add('open');
+  nvUpdateFormPos();
+  nvUpdateGhost();
+  const nameEl = document.getElementById('nvfName') as HTMLInputElement | null;
+  if(nameEl && !existing) nameEl.focus();
+}
+
+function nvPickIcon(key: string): void {
+  if(!nvForm) return;
+  nvForm.icon = key;
+  document.querySelectorAll<HTMLElement>('#nvEdit .nv-ico-opt').forEach(b => b.classList.toggle('on', (b.dataset.icon || '') === key));
+}
+
+function nvMovePoi(): void {
+  if(!nvForm) return;
+  nvForm.picking = !nvForm.picking;
+  nvUpdateFormPos();
+}
+
+function nvCloseForm(): void {
+  nvForm = null;
+  const box = document.getElementById('nvEdit');
+  if(box){ box.classList.remove('open'); box.innerHTML = ''; }
+  nvUpdateGhost();
+}
+
+function nvSavePoi(): void {
+  if(!nvForm || !isLoggedIn()) return;
+  const db = getFirestoreDb();
+  if(!db){ alert('Base de données indisponible : impossible d\'enregistrer.'); return; }
+  const val = (elId: string): string => ((document.getElementById(elId) as HTMLInputElement | null)?.value || '').trim();
+  const name = val('nvfName');
+  if(!name){ alert('Donne un nom au lieu.'); return; }
+  const id = nvForm.id || 'custom-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const data = {
+    name, cat: val('nvfCat'), icon: nvForm.icon || null, district: val('nvfDist'), desc: val('nvfDesc'),
+    entryId: val('nvfLink') || null, at: nvForm.at, author: getCurrentUser() || 'aki', updated: Date.now(),
+  };
+  db.collection('novelancePois').doc(id).set(data)
+    .then(() => nvCloseForm())
+    .catch((err: any) => alert('Enregistrement impossible : ' + (err && err.message ? err.message : err)));
+}
+
+function nvDeletePoi(): void {
+  if(!nvForm || !nvForm.id || !isLoggedIn()) return;
+  if(!confirm('Supprimer ce lieu de la carte ?')) return;
+  const db = getFirestoreDb();
+  if(!db) return;
+  const ref = db.collection('novelancePois').doc(nvForm.id);
+  // un lieu d'origine ne peut pas être effacé du code : on le marque supprimé
+  (nvForm.base ? ref.set({ deleted: true }) : ref.delete())
+    .then(() => nvCloseForm())
+    .catch((err: any) => alert('Suppression impossible : ' + (err && err.message ? err.message : err)));
+}
+
+function nvResetPoi(): void {
+  if(!nvForm || !nvForm.id || !isLoggedIn()) return;
+  if(!confirm('Rétablir ce lieu tel qu\'il était à l\'origine ?')) return;
+  const db = getFirestoreDb();
+  if(!db) return;
+  db.collection('novelancePois').doc(nvForm.id).delete()
+    .then(() => nvCloseForm())
+    .catch((err: any) => alert('Impossible de rétablir : ' + (err && err.message ? err.message : err)));
 }
 
 /* ---------------- LIVRE D'HISTOIRE (page verrouillée par un code) ---------------- */
