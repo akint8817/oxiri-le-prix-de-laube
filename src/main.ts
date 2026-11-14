@@ -9063,7 +9063,8 @@ function nvOpenPoiForm(id: string | null, wx?: number, wy?: number, host: 'map' 
   else { nvCloseForm(); box = pageEditHost(); }
   if(!box) return;
   const existing = id ? nvListPois().find(p => p.id === id) || null : null;
-  const isBase = !!id && !!nvBasePois && nvBasePois.some(b => b.id === id);
+  // avant la construction du plan (page de ville ouverte sans passer par la carte), NV_POIS contient encore uniquement les lieux d'origine
+  const isBase = !!id && (nvBasePois || NV_POIS).some(b => b.id === id);
   const at: [number, number] | null = existing
     ? (existing.at ? [Math.round(existing.at[0]), Math.round(existing.at[1])] : null)
     : (host === 'map' ? [Math.round(wx || 0), Math.round(wy || 0)] : null);
