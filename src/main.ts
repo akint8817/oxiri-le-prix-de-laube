@@ -3970,26 +3970,33 @@ function pnl(title: string, label: string, inner: string, cls: string = ''): str
 }
 
 function secHead(n: string, label: string, titleHtml: string, desc: string = ''): string {
-  return `<div class="sec-h cv-rv"><div class="sec-h-top"><span class="sec-n">${n}</span><span class="sec-l">${esc(label)}</span><span class="sec-line"></span></div><h2 class="sec-t">${titleHtml}</h2>${desc ? `<p class="sec-d">${esc(desc)}</p>` : ''}</div>`;
+  return `<div class="sec-h cv-rv"><div class="sec-n">${n}</div><div class="sec-hb"><span class="sec-l">${esc(label)}</span><h2 class="sec-t">${titleHtml}</h2>${desc ? `<p class="sec-d">${esc(desc)}</p>` : ''}</div></div>`;
 }
 
 interface CityHero { kicker: string; title: string; tagline: string; facts: [string, string][]; img: string; tape: string; actions: string; music: string; }
 
 function cityHeroHtml(o: CityHero): string {
-  const tapeText = (o.tape + '  ◆  ').repeat(6);
+  // titre : chaque lettre apparaît à son tour (flou -> net)
+  let li = 0;
+  const letters = o.title.split(' ').map(w => `<span class="w">${Array.from(w).map(ch => `<span style="--i:${li++}">${esc(ch)}</span>`).join('')}</span>`).join(' ');
   return `<header class="city-hero" id="city-top">
-    <div class="city-hero-bgtext">${esc(o.title)}</div>
-    <div class="city-hero-img-edge"></div>
-    <div class="city-hero-img">${o.img ? `<img src="${o.img}" alt="">` : ''}<div class="city-hero-fade"></div></div>
-    ${o.music ? `<div class="city-music"><small>Ambiance</small>${o.music}</div>` : ''}
-    <div class="city-hero-in">
-      <span class="city-kicker">${esc(o.kicker)}</span>
-      <h1 class="city-title${o.title.length > 16 ? ' long' : ''}" data-t="${escAttr(o.title)}">${esc(o.title)}</h1>
-      ${o.tagline ? `<p class="city-tag">${esc(o.tagline)}</p>` : ''}
-      ${o.facts.length ? `<div class="city-facts">${o.facts.map(([k, v]) => `<div><small>${esc(k)}</small><b>${esc(v)}</b></div>`).join('')}</div>` : ''}
-      <div class="city-actions">${o.actions}</div>
+    <div class="ch-bg">${o.img ? `<img src="${o.img}" alt="">` : ''}</div>
+    <div class="ch-grade"></div>
+    <div class="ch-shade"></div>
+    <div class="ch-orbit"><i></i><i></i><i></i></div>
+    <div class="ch-in">
+      <span class="ch-kicker">${esc(o.kicker)}</span>
+      <h1 class="ch-title${o.title.length > 16 ? ' long' : ''}" aria-label="${escAttr(o.title)}">${letters}</h1>
+      <div class="ch-rule"><i></i></div>
+      ${o.tagline ? `<p class="ch-tag">${esc(o.tagline)}</p>` : ''}
+      <div class="ch-actions">${o.actions}</div>
     </div>
-    <div class="city-tape"><div class="city-tape-in"><span>${esc(tapeText)}</span><span>${esc(tapeText)}</span></div></div>
+    <aside class="ch-plaque">
+      <div class="ch-plaque-h"><span>Dossier</span><i></i></div>
+      ${o.facts.map(([k, v]) => `<div class="ch-fact"><small>${esc(k)}</small><b>${esc(v)}</b></div>`).join('')}
+      ${o.music ? `<div class="ch-music"><small>Ambiance</small>${o.music}</div>` : ''}
+    </aside>
+    <a class="ch-down" onclick="document.querySelector('.city-sec').scrollIntoView({ behavior: 'smooth' })">Descendre <span>↓</span></a>
   </header>`;
 }
 
@@ -3997,11 +4004,13 @@ function placeCardHtml(p: NvPoi, i: number): string {
   const img = p.images && p.images[0];
   return `<div class="pc cv-rv" style="--acc:${poiAccent(p)}" onclick="scrollToPlace('${p.id}')">
     <div class="pc-img">${img ? `<img src="${img}" alt="">` : `<span class="pc-noimg">${esc(p.name.charAt(0))}</span>`}</div>
+    <span class="pc-code">LI-${String(i + 1).padStart(2, '0')}</span>
+    ${p.logo ? `<span class="pc-logo"><img src="${p.logo}" alt=""></span>` : ''}
     <div class="pc-body">
-      <small class="pc-code">LI-${String(i + 1).padStart(2, '0')}</small>
       <h3>${esc(p.name)}</h3>
       <span class="pc-sub">${esc(p.tagline || lieuDistrictLabel(p.district))}</span>
-      ${p.logo ? `<img class="pc-logo" src="${p.logo}" alt="">` : ''}
+      ${p.desc ? `<p class="pc-desc">${esc(p.desc)}</p>` : ''}
+      <span class="pc-go">Découvrir ↓</span>
     </div>
     ${isLoggedIn() ? `<button type="button" class="ed-only pc-edit" onclick="event.stopPropagation(); editPoiFromPage('${p.id}')">✎ Modifier</button>` : ''}
   </div>`;
@@ -4017,7 +4026,7 @@ function poiActionsHtml(p: NvPoi): string {
     ${linked ? `<button type="button" class="city-btn" onclick="navigate('entry-${linked.id}')">Fiche : ${esc(linked.name)}</button>` : ''}`;
 }
 
-function placeDetailHtml(p: NvPoi): string {
+function placeDetailHtml(p: NvPoi, idx: number): string {
   const imgs = poiImgList(p);
   const cat = NV_CATS.find(c => c.id === p.cat) || NV_CATS[3];
   const pres = renderRichBody(parseWriteBody(p.desc || '')) || '<p class="fiche-empty">Pas encore de présentation.</p>';
@@ -4026,13 +4035,15 @@ function placeDetailHtml(p: NvPoi): string {
   const second = imgs[1] ? pnl(imgs[1].caption || 'Aperçu', 'Vue 02', poiFigure(p, 1), 'pnl-media') : '';
   const rest = imgs.slice(2).map((im, k) => pnl(im.caption || 'Aperçu', 'Vue ' + String(k + 3).padStart(2, '0'), poiFigure(p, k + 2), 'pnl-media')).join('');
   return `<article class="place" id="place-${p.id}" style="--acc:${poiAccent(p)}">
-    <div class="pl-bar">
-      <div class="pl-bar-l">${p.logo ? `<img class="pl-logo" src="${p.logo}" alt="">` : '<i class="pl-glyph"></i>'}<b>${esc(p.name)}</b>${p.tagline ? `<small>${esc(p.tagline)}</small>` : ''}</div>
-      <div class="pl-bar-r">
+    <div class="pl-head">
+      <span class="pl-emblem">${p.logo ? `<img src="${p.logo}" alt="">` : `<b>${esc(p.name.charAt(0).toUpperCase())}</b>`}</span>
+      <div class="pl-titles"><small>LI-${String((idx || 0) + 1).padStart(2, '0')} · ${esc(lieuDistrictLabel(p.district))}</small><h3>${esc(p.name)}</h3>${p.tagline ? `<p>${esc(p.tagline)}</p>` : ''}</div>
+      <div class="pl-head-r">
         ${isLoggedIn() ? `<button type="button" class="ed-only pl-edit" onclick="editPoiFromPage('${p.id}')">✎ Modifier</button>` : ''}
         <button type="button" class="pl-more" onclick="navigate('poi-${p.id}')">Informations supplémentaires <span>▶</span></button>
       </div>
     </div>
+    <div class="pl-line"></div>
     <div class="pl-grid${imgs.length ? '' : ' solo'}">
       ${imgs.length ? `<div class="pl-col">${first}</div><div class="pl-col">${presPanel}${second}</div>` : `<div class="pl-col">${presPanel}</div>`}
     </div>
@@ -4054,7 +4065,7 @@ function renderNovelancePage(e: Entry): string {
     `<figure class="pnl-img" onclick="openEntryLightbox('${escAttr(e.id)}', ${i + 1})"><img src="${encodeURI(im.url)}" alt=""></figure>`, 'pnl-media')));
   const facts: [string, string][] = Object.entries(e.info || {}).slice(0, 3);
   facts.push(['Lieux importants', String(places.length)]);
-  const actions = `<div class="city-toggle"><button type="button" class="${cityNight ? '' : 'on'}" onclick="toggleCityNight(false)">Jour</button><button type="button" class="${cityNight ? 'on' : ''}" onclick="toggleCityNight(true)">Nuit</button></div>
+  const actions = `<div class="city-toggle"><button type="button" class="${cityNight ? '' : 'on'}" onclick="toggleCityNight(false)">Aube</button><button type="button" class="${cityNight ? 'on' : ''}" onclick="toggleCityNight(true)">Nuit</button></div>
     <button type="button" class="city-btn" onclick="navigate('novelance')">⌖ Voir la carte</button>
     ${entryOwnerActionsHtml(e)}
     ${logged ? `<button type="button" class="city-btn city-edit-btn${cityEdit ? ' on' : ''}" id="cityEditBtn" onclick="toggleCityEdit()">${cityEdit ? '✓ Terminer l\'édition' : '✎ Édition'}</button>` : ''}`;
@@ -4072,11 +4083,11 @@ function renderNovelancePage(e: Entry): string {
       <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
       ${hero}
       <section class="city-sec" id="city-ville">
-        ${secHead('01', 'La ville', `L'ESSENTIEL SUR <em>${esc(e.name.toUpperCase())}</em>`, "Ce que l'on sait de la cité.")}
+        ${secHead('I', 'La ville', `L'ESSENTIEL SUR <em>${esc(e.name.toUpperCase())}</em>`, "Ce que l'on sait de la cité.")}
         <div class="city-panels">${panels.join('') || '<p class="city-empty">Aucune information pour le moment.</p>'}</div>
       </section>
       <section class="city-sec" id="city-lieux">
-        ${secHead('02', 'Lieux importants', 'LES LIEUX <em>IMPORTANTS</em>', 'Clique sur un lieu pour descendre jusqu\'à sa fiche.')}
+        ${secHead('II', 'Lieux importants', 'LES LIEUX <em>IMPORTANTS</em>', 'Clique sur un lieu pour descendre jusqu\'à sa fiche.')}
         <div class="pc-grid">${cards || '<p class="city-empty">Aucun lieu important pour le moment : marque-en depuis la carte ou active l\'édition ici.</p>'}</div>
         <div class="place-list">${places.map(placeDetailHtml).join('')}</div>
       </section>
@@ -4112,7 +4123,7 @@ function renderPoiPage(id: string): string {
     <div class="city night poi-page is-edit-ready" style="--acc:${poiAccent(p)}">
       ${hero}
       <section class="city-sec">
-        ${secHead('01', 'Informations', `TOUT SUR <em>${esc(p.name.toUpperCase())}</em>`)}
+        ${secHead('I', 'Informations', `TOUT SUR <em>${esc(p.name.toUpperCase())}</em>`)}
         ${p.logo ? `<img class="poi-logo-big" src="${p.logo}" alt="">` : ''}
         <div class="city-panels">${panels.join('') || '<p class="city-empty">Aucune information détaillée pour le moment.' + (logged ? ' Utilise « Modifier ce lieu » pour en ajouter.' : '') + '</p>'}</div>
       </section>
@@ -4167,7 +4178,15 @@ function initCityPage(animate: boolean): void {
   } else {
     rv.forEach(el => el.classList.add('in'));
   }
-  const heroImg = root.querySelector<HTMLElement>('.city-hero-img img');
+  const heroImg = root.querySelector<HTMLElement>('.ch-bg img');
+  const hero = root.querySelector<HTMLElement>('.city-hero');
+  const onMove = (ev: PointerEvent): void => {
+    if(!hero) return;
+    const r = hero.getBoundingClientRect();
+    hero.style.setProperty('--mx', (((ev.clientX - r.left) / r.width) - 0.5).toFixed(3));
+    hero.style.setProperty('--my', (((ev.clientY - r.top) / r.height) - 0.5).toFixed(3));
+  };
+  if(hero) hero.addEventListener('pointermove', onMove);
   const links = Array.from(root.querySelectorAll<HTMLElement>('.city-rail a'));
   const onScroll = (): void => {
     const y = window.scrollY;
@@ -4181,7 +4200,7 @@ function initCityPage(animate: boolean): void {
   };
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
-  cityCleanup = () => { if(io) io.disconnect(); window.removeEventListener('scroll', onScroll); };
+  cityCleanup = () => { if(io) io.disconnect(); window.removeEventListener('scroll', onScroll); if(hero) hero.removeEventListener('pointermove', onMove); };
 }
 
 function openImgLightbox(list: EntryImage[], i: number): void {
