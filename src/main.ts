@@ -3974,6 +3974,17 @@ function secHead(n: string, label: string, titleHtml: string, desc: string = '')
 
 interface CityHero { kicker: string; title: string; tagline: string; facts: [string, string][]; img: string; tape: string; actions: string; music: string; }
 
+// Fond animé de la page : relief topographique qui dérive, lueurs, particules et grain de film.
+function cityBgHtml(seed: string): string {
+  const r = tmSeeded(tmHash(seed));
+  let dots = '';
+  for(let i = 0; i < 30; i++){
+    const s = 2 + r() * 3.5;
+    dots += `<i style="left:${(r() * 100).toFixed(1)}%;top:${(r() * 100).toFixed(1)}%;width:${s.toFixed(1)}px;height:${s.toFixed(1)}px;--dx:${Math.round((r() - 0.5) * 140)}px;animation-duration:${(16 + r() * 20).toFixed(1)}s;animation-delay:-${(r() * 30).toFixed(1)}s"></i>`;
+  }
+  return `<div class="city-bg" aria-hidden="true"><div class="cb-topo"></div><div class="cb-glow a"></div><div class="cb-glow b"></div><div class="cb-dots">${dots}</div><div class="cb-grain"></div></div>`;
+}
+
 function cityHeroHtml(o: CityHero): string {
   // titre : chaque lettre apparaît à son tour (flou -> net)
   let li = 0;
@@ -3982,6 +3993,7 @@ function cityHeroHtml(o: CityHero): string {
     <div class="ch-bg">${o.img ? `<img src="${o.img}" alt="">` : ''}</div>
     <div class="ch-grade"></div>
     <div class="ch-shade"></div>
+    <div class="ch-grain"></div>
     <div class="ch-orbit"><i></i><i></i><i></i></div>
     <div class="ch-in">
       <span class="ch-kicker">${esc(o.kicker)}</span>
@@ -4078,6 +4090,7 @@ function renderNovelancePage(e: Entry): string {
   return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('cat-${e.cat}')" style="cursor:pointer">${c.label}</span> / ${esc(e.name)}</div>
     <div class="city${cityEdit ? ' is-edit' : ''}" data-entry="${escAttr(e.id)}" style="--acc:${NV_ACCENT_DEFAULT}">
+      ${cityBgHtml(e.id)}
       <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
       ${hero}
       <section class="city-sec" id="city-ville">
@@ -4119,6 +4132,7 @@ function renderPoiPage(id: string): string {
   return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('cat-lieux')" style="cursor:pointer">Lieux</span>${parent ? ` / <span onclick="navigate('entry-${parent.id}')" style="cursor:pointer">${esc(parent.name)}</span>` : ''} / ${esc(p.name)}</div>
     <div class="city poi-page is-edit-ready" style="--acc:${poiAccent(p)}">
+      ${cityBgHtml(p.id)}
       ${hero}
       <section class="city-sec">
         ${secHead('I', 'Informations', `TOUT SUR <em>${esc(p.name.toUpperCase())}</em>`)}
