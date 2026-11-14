@@ -3916,11 +3916,9 @@ function renderLieuxIndex(list: Entry[], c: CategoryDef): string {
   const logged = isLoggedIn();
   const cards = list.map((e, i) => {
     const img = entryImgs(e)[0];
-    const places = importantPois(e).length;
     return `<div class="pc cv-rv" onclick="navigate('entry-${e.id}')">
       <div class="pc-img">${img ? `<img src="${encodeURI(img.url)}" alt="">` : `<span class="pc-noimg">${esc(e.name.charAt(0).toUpperCase())}</span>`}</div>
       <span class="pc-code">LI-${String(i + 1).padStart(2, '0')}</span>
-      ${places ? `<span class="pc-logo pc-count" title="${places} lieu(x) important(s)"><b>${places}</b></span>` : ''}
       <div class="pc-body">
         <h3>${esc(e.name)}</h3>
         <span class="pc-sub">${esc(e.tagline || '')}</span>
