@@ -3513,8 +3513,6 @@ function placeDetailHtml(p, idx) {
     const pres = renderRichBody(parseWriteBody(p.desc || '')) || '<p class="fiche-empty">Pas encore de présentation.</p>';
     const presPanel = pnl('Présentation', p.tagline || cat.label, `${pres}<div class="pl-meta"><span>${esc(lieuDistrictLabel(p.district))}</span><span>${esc(cat.label)}</span></div><div class="pl-acts">${poiActionsHtml(p)}</div>`);
     const first = imgs[0] ? pnl(imgs[0].caption || 'Aperçu', 'Vue 01', poiFigure(p, 0), 'pnl-media') : '';
-    const second = imgs[1] ? pnl(imgs[1].caption || 'Aperçu', 'Vue 02', poiFigure(p, 1), 'pnl-media') : '';
-    const rest = imgs.slice(2).map((im, k) => pnl(im.caption || 'Aperçu', 'Vue ' + String(k + 3).padStart(2, '0'), poiFigure(p, k + 2), 'pnl-media')).join('');
     return `<article class="place" id="place-${p.id}" style="--acc:${poiAccent(p)}">
     <div class="pl-head">
       <span class="pl-emblem">${p.logo ? `<img src="${p.logo}" alt="">` : `<b>${esc(p.name.charAt(0).toUpperCase())}</b>`}</span>
@@ -3526,9 +3524,8 @@ function placeDetailHtml(p, idx) {
     </div>
     <div class="pl-line"></div>
     <div class="pl-grid${imgs.length ? '' : ' solo'}">
-      ${imgs.length ? `<div class="pl-col">${first}</div><div class="pl-col">${presPanel}${second}</div>` : `<div class="pl-col">${presPanel}</div>`}
+      ${imgs.length ? `<div class="pl-col">${first}</div><div class="pl-col">${presPanel}</div>` : `<div class="pl-col">${presPanel}</div>`}
     </div>
-    ${rest ? `<div class="pl-more-imgs">${rest}</div>` : ''}
   </article>`;
 }
 function renderLieuPage(e) {
