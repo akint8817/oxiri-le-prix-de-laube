@@ -3291,7 +3291,8 @@ function cardHtml(e) {
 }
 function renderLieuxIndex(list, c) {
     const totalImportant = nvListPois().filter(p => p.important).length;
-    const firstImg = list.map(e => entryImgs(e)[0]).find(Boolean);
+    const nov = list.find(e => isNovelanceEntry(e));
+    const firstImg = (nov ? entryImgs(nov)[0] : undefined) || list.map(e => entryImgs(e)[0]).find(Boolean);
     const logged = isLoggedIn();
     const cards = list.map((e, i) => {
         const img = entryImgs(e)[0];

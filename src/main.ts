@@ -3910,7 +3910,9 @@ function cardHtml(e: Entry): string {
 // Page « Lieux » : même direction visuelle que les pages de lieu (bandeau, cartes en portrait, fond animé).
 function renderLieuxIndex(list: Entry[], c: CategoryDef): string {
   const totalImportant = nvListPois().filter(p => p.important).length;
-  const firstImg = list.map(e => entryImgs(e)[0]).find(Boolean);
+  // image du bandeau : celle de Novelance (à défaut, la première image trouvée)
+  const nov = list.find(e => isNovelanceEntry(e));
+  const firstImg = (nov ? entryImgs(nov)[0] : undefined) || list.map(e => entryImgs(e)[0]).find(Boolean);
   const logged = isLoggedIn();
   const cards = list.map((e, i) => {
     const img = entryImgs(e)[0];
