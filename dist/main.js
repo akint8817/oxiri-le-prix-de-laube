@@ -923,6 +923,8 @@ function initFirestoreSync() {
         snap.forEach((doc) => { docs[doc.id] = doc.data(); });
         nvPoiDocs = docs;
         nvApplyPois();
+        if (document.querySelector('.city'))
+            render();
     }, (err) => console.error('Firestore (novelancePois) :', err));
 }
 function getCustomEntriesRaw() {
@@ -3297,11 +3299,323 @@ function renderCategory(cat) {
     </div>
   `;
 }
+/* ---------------- PAGE DE LA VILLE (Novelance) ET PAGE D'UN LIEU ---------------- */
+let cityEdit = false;
+let cityNight = false;
+let cityCleanup = null;
+let imgLb = null;
+let nvPendingSel = null;
+let nvPendingPlace = null;
+function isNovelanceEntry(e) {
+    return e.name.normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toLowerCase() === 'novelance';
+}
+function entryImgs(e) {
+    return (e.images && e.images.length) ? e.images : (e.image ? [{ url: e.image }] : []);
+}
+function nvListPois() {
+    if (nvCity)
+        return NV_POIS;
+    const out = [];
+    NV_POIS.forEach(b => {
+        const d = nvPoiDocs[b.id];
+        if (d && d.deleted)
+            return;
+        out.push(d ? nvMergePoi(b, d) : b);
+    });
+    Object.keys(nvPoiDocs).forEach(id => {
+        const d = nvPoiDocs[id];
+        if (d.deleted || NV_POIS.some(b => b.id === id))
+            return;
+        out.push(nvMergePoi({ id, name: 'Lieu', cat: 'service', district: 'populaires', zone: 'populaires', at: d.at || null, desc: '', custom: true }, d));
+    });
+    return out;
+}
+function findPoi(id) { return nvListPois().find(p => p.id === id); }
+function poiAccent(p) { return p.accent || NV_ACCENT_DEFAULT; }
+function poiImgList(p) { return (p.images || []).map((url, i) => ({ url, caption: (p.imageCaps && p.imageCaps[i]) || '' })); }
+function importantPois(e) { return nvListPois().filter(p => p.important && (isNovelanceEntry(e) || p.entryId === e.id)); }
+function lieuDistrictLabel(id) {
+    return id === 'sous' ? "Cité d'en dessous" : (NOVELANCE_DISTRICTS.find(d => d.id === id) || { label: '—' }).label;
+}
+function pnl(title, label, inner, cls = '') {
+    return `<div class="pnl cv-rv ${cls}"><div class="pnl-h"><i></i><b>${esc(title)}</b>${label ? `<span>${esc(label)}</span>` : ''}</div><div class="pnl-b">${inner}</div></div>`;
+}
+function secHead(n, label, titleHtml, desc = '') {
+    return `<div class="sec-h cv-rv"><div class="sec-h-top"><span class="sec-n">${n}</span><span class="sec-l">${esc(label)}</span><span class="sec-line"></span></div><h2 class="sec-t">${titleHtml}</h2>${desc ? `<p class="sec-d">${esc(desc)}</p>` : ''}</div>`;
+}
+function cityHeroHtml(o) {
+    const tapeText = (o.tape + '  ◆  ').repeat(6);
+    return `<header class="city-hero" id="city-top">
+    <div class="city-hero-bgtext">${esc(o.title)}</div>
+    <div class="city-hero-img-edge"></div>
+    <div class="city-hero-img">${o.img ? `<img src="${o.img}" alt="">` : ''}<div class="city-hero-fade"></div></div>
+    ${o.music ? `<div class="city-music"><small>Ambiance</small>${o.music}</div>` : ''}
+    <div class="city-hero-in">
+      <span class="city-kicker">${esc(o.kicker)}</span>
+      <h1 class="city-title${o.title.length > 16 ? ' long' : ''}" data-t="${escAttr(o.title)}">${esc(o.title)}</h1>
+      ${o.tagline ? `<p class="city-tag">${esc(o.tagline)}</p>` : ''}
+      ${o.facts.length ? `<div class="city-facts">${o.facts.map(([k, v]) => `<div><small>${esc(k)}</small><b>${esc(v)}</b></div>`).join('')}</div>` : ''}
+      <div class="city-actions">${o.actions}</div>
+    </div>
+    <div class="city-tape"><div class="city-tape-in"><span>${esc(tapeText)}</span><span>${esc(tapeText)}</span></div></div>
+  </header>`;
+}
+function placeCardHtml(p, i) {
+    const img = p.images && p.images[0];
+    return `<div class="pc cv-rv" style="--acc:${poiAccent(p)}" onclick="scrollToPlace('${p.id}')">
+    <div class="pc-img">${img ? `<img src="${img}" alt="">` : `<span class="pc-noimg">${esc(p.name.charAt(0))}</span>`}</div>
+    <div class="pc-body">
+      <small class="pc-code">LI-${String(i + 1).padStart(2, '0')}</small>
+      <h3>${esc(p.name)}</h3>
+      <span class="pc-sub">${esc(p.tagline || lieuDistrictLabel(p.district))}</span>
+      ${p.logo ? `<img class="pc-logo" src="${p.logo}" alt="">` : ''}
+    </div>
+    ${isLoggedIn() ? `<button type="button" class="ed-only pc-edit" onclick="event.stopPropagation(); editPoiFromPage('${p.id}')">✎ Modifier</button>` : ''}
+  </div>`;
+}
+function poiFigure(p, i) {
+    return `<figure class="pnl-img" onclick="openPoiLightbox('${p.id}', ${i})"><img src="${p.images[i]}" alt=""></figure>`;
+}
+function poiActionsHtml(p) {
+    const linked = p.entryId ? findEntry(p.entryId) : undefined;
+    return `${p.at ? `<button type="button" class="city-btn" onclick="openLieuOnMap('${p.id}')">⌖ Sur la carte</button>` : ''}
+    ${linked ? `<button type="button" class="city-btn" onclick="navigate('entry-${linked.id}')">Fiche : ${esc(linked.name)}</button>` : ''}`;
+}
+function placeDetailHtml(p) {
+    const imgs = poiImgList(p);
+    const cat = NV_CATS.find(c => c.id === p.cat) || NV_CATS[3];
+    const pres = renderRichBody(parseWriteBody(p.desc || '')) || '<p class="fiche-empty">Pas encore de présentation.</p>';
+    const presPanel = pnl('Présentation', p.tagline || cat.label, `${pres}<div class="pl-meta"><span>${esc(lieuDistrictLabel(p.district))}</span><span>${esc(cat.label)}</span></div><div class="pl-acts">${poiActionsHtml(p)}</div>`);
+    const first = imgs[0] ? pnl(imgs[0].caption || 'Aperçu', 'Vue 01', poiFigure(p, 0), 'pnl-media') : '';
+    const second = imgs[1] ? pnl(imgs[1].caption || 'Aperçu', 'Vue 02', poiFigure(p, 1), 'pnl-media') : '';
+    const rest = imgs.slice(2).map((im, k) => pnl(im.caption || 'Aperçu', 'Vue ' + String(k + 3).padStart(2, '0'), poiFigure(p, k + 2), 'pnl-media')).join('');
+    return `<article class="place" id="place-${p.id}" style="--acc:${poiAccent(p)}">
+    <div class="pl-bar">
+      <div class="pl-bar-l">${p.logo ? `<img class="pl-logo" src="${p.logo}" alt="">` : '<i class="pl-glyph"></i>'}<b>${esc(p.name)}</b>${p.tagline ? `<small>${esc(p.tagline)}</small>` : ''}</div>
+      <div class="pl-bar-r">
+        ${isLoggedIn() ? `<button type="button" class="ed-only pl-edit" onclick="editPoiFromPage('${p.id}')">✎ Modifier</button>` : ''}
+        <button type="button" class="pl-more" onclick="navigate('poi-${p.id}')">Informations supplémentaires <span>▶</span></button>
+      </div>
+    </div>
+    <div class="pl-grid${imgs.length ? '' : ' solo'}">
+      ${imgs.length ? `<div class="pl-col">${first}</div><div class="pl-col">${presPanel}${second}</div>` : `<div class="pl-col">${presPanel}</div>`}
+    </div>
+    ${rest ? `<div class="pl-more-imgs">${rest}</div>` : ''}
+  </article>`;
+}
+function renderNovelancePage(e) {
+    const c = CATS[e.cat];
+    const images = entryImgs(e);
+    const { intro, chapters } = splitEntryChapters(e.body);
+    const places = importantPois(e);
+    const logged = isLoggedIn();
+    const panels = [];
+    const introHtml = renderRichBody(intro);
+    if (introHtml)
+        panels.push(pnl('Présentation', "Vue d'ensemble", introHtml, 'span-all'));
+    chapters.forEach((ch, i) => panels.push(pnl(ch.title, 'Section ' + String(i + 1).padStart(2, '0'), renderRichBody(ch.lines) || '<p class="fiche-empty">Cette section est vide pour l\'instant.</p>')));
+    images.slice(1).forEach((im, i) => panels.push(pnl(im.caption || 'Image', 'Vue ' + String(i + 2).padStart(2, '0'), `<figure class="pnl-img" onclick="openEntryLightbox('${escAttr(e.id)}', ${i + 1})"><img src="${encodeURI(im.url)}" alt=""></figure>`, 'pnl-media')));
+    const facts = Object.entries(e.info || {}).slice(0, 3);
+    facts.push(['Lieux importants', String(places.length)]);
+    const actions = `<div class="city-toggle"><button type="button" class="${cityNight ? '' : 'on'}" onclick="toggleCityNight(false)">Jour</button><button type="button" class="${cityNight ? 'on' : ''}" onclick="toggleCityNight(true)">Nuit</button></div>
+    <button type="button" class="city-btn" onclick="navigate('novelance')">⌖ Voir la carte</button>
+    ${entryOwnerActionsHtml(e)}
+    ${logged ? `<button type="button" class="city-btn city-edit-btn${cityEdit ? ' on' : ''}" id="cityEditBtn" onclick="toggleCityEdit()">${cityEdit ? '✓ Terminer l\'édition' : '✎ Édition'}</button>` : ''}`;
+    const hero = cityHeroHtml({
+        kicker: `${c.label} · Cité-bastion`, title: e.name, tagline: e.tagline, facts, img: images[0] ? encodeURI(images[0].url) : '',
+        tape: [e.name, e.tagline || '', 'Halcyon'].filter(Boolean).join('  ◆  ').toUpperCase(), actions, music: musicBarHtml(e.id, e.music),
+    });
+    const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'La ville', g: 'i' }, { id: 'city-lieux', t: 'Lieux importants', g: '◈' }]
+        .concat(places.map(p => ({ id: 'place-' + p.id, t: p.name, g: p.name.charAt(0).toUpperCase() })));
+    const cards = places.map((p, i) => placeCardHtml(p, i)).join('') +
+        (logged ? `<button type="button" class="pc pc-add ed-only" onclick="newPoiFromPage()"><span>+</span>Nouveau lieu important</button>` : '');
+    return `
+    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('cat-${e.cat}')" style="cursor:pointer">${c.label}</span> / ${esc(e.name)}</div>
+    <div class="city${cityNight ? ' night' : ''}${cityEdit ? ' is-edit' : ''}" data-entry="${escAttr(e.id)}" style="--acc:${NV_ACCENT_DEFAULT}">
+      <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
+      ${hero}
+      <section class="city-sec" id="city-ville">
+        ${secHead('01', 'La ville', `L'ESSENTIEL SUR <em>${esc(e.name.toUpperCase())}</em>`, "Ce que l'on sait de la cité.")}
+        <div class="city-panels">${panels.join('') || '<p class="city-empty">Aucune information pour le moment.</p>'}</div>
+      </section>
+      <section class="city-sec" id="city-lieux">
+        ${secHead('02', 'Lieux importants', 'LES LIEUX <em>IMPORTANTS</em>', 'Clique sur un lieu pour descendre jusqu\'à sa fiche.')}
+        <div class="pc-grid">${cards || '<p class="city-empty">Aucun lieu important pour le moment : marque-en depuis la carte ou active l\'édition ici.</p>'}</div>
+        <div class="place-list">${places.map(placeDetailHtml).join('')}</div>
+      </section>
+    </div>`;
+}
+function renderPoiPage(id) {
+    const p = findPoi(id);
+    if (!p)
+        return renderNotFound();
+    const parent = ENTRIES.find(x => x.cat === 'lieux' && isNovelanceEntry(x));
+    const cat = NV_CATS.find(c => c.id === p.cat) || NV_CATS[3];
+    const imgs = poiImgList(p);
+    const { intro, chapters } = splitEntryChapters(parseWriteBody(p.body || ''));
+    const logged = isLoggedIn();
+    const panels = [];
+    const pres = renderRichBody(parseWriteBody(p.desc || ''));
+    if (pres)
+        panels.push(pnl('Présentation', p.tagline || cat.label, pres, 'span-all'));
+    const introHtml = renderRichBody(intro);
+    if (introHtml)
+        panels.push(pnl('Détails', 'Dossier', introHtml));
+    chapters.forEach((ch, i) => panels.push(pnl(ch.title, 'Section ' + String(i + 1).padStart(2, '0'), renderRichBody(ch.lines) || '<p class="fiche-empty">Cette section est vide.</p>')));
+    imgs.slice(1).forEach((im, i) => panels.push(pnl(im.caption || 'Image', 'Galerie', poiFigure(p, i + 1), 'pnl-media')));
+    const facts = [['Zone', lieuDistrictLabel(p.district)], ['Catégorie', cat.label]];
+    if (p.important)
+        facts.push(['Statut', 'Lieu important']);
+    const actions = `${parent ? `<button type="button" class="city-btn" onclick="navigate('entry-${parent.id}')">← ${esc(parent.name)}</button>` : ''}
+    ${poiActionsHtml(p)}
+    ${logged ? `<button type="button" class="city-btn city-edit-btn on" onclick="editPoiFromPage('${p.id}')">✎ Modifier ce lieu</button>` : ''}`;
+    const hero = cityHeroHtml({
+        kicker: `${parent ? parent.name : 'Lieu'} · ${lieuDistrictLabel(p.district)}`, title: p.name, tagline: p.tagline || '', facts, img: imgs[0] ? imgs[0].url : '',
+        tape: [p.name, p.tagline || '', parent ? parent.name : ''].filter(Boolean).join('  ◆  ').toUpperCase(), actions, music: '',
+    });
+    return `
+    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('cat-lieux')" style="cursor:pointer">Lieux</span>${parent ? ` / <span onclick="navigate('entry-${parent.id}')" style="cursor:pointer">${esc(parent.name)}</span>` : ''} / ${esc(p.name)}</div>
+    <div class="city night poi-page is-edit-ready" style="--acc:${poiAccent(p)}">
+      ${hero}
+      <section class="city-sec">
+        ${secHead('01', 'Informations', `TOUT SUR <em>${esc(p.name.toUpperCase())}</em>`)}
+        ${p.logo ? `<img class="poi-logo-big" src="${p.logo}" alt="">` : ''}
+        <div class="city-panels">${panels.join('') || '<p class="city-empty">Aucune information détaillée pour le moment.' + (logged ? ' Utilise « Modifier ce lieu » pour en ajouter.' : '') + '</p>'}</div>
+      </section>
+    </div>`;
+}
+function openLieuOnMap(id) { nvPendingSel = id; navigate('novelance'); }
+function editPoiFromPage(id) { if (isLoggedIn())
+    nvOpenPoiForm(id, undefined, undefined, 'page'); }
+function newPoiFromPage() { if (isLoggedIn())
+    nvOpenPoiForm(null, undefined, undefined, 'page'); }
+function toggleCityNight(night) {
+    cityNight = night;
+    const root = document.querySelector('.city');
+    if (root)
+        root.classList.toggle('night', night);
+    document.querySelectorAll('.city-toggle button').forEach((b, i) => b.classList.toggle('on', (i === 1) === night));
+}
+function toggleCityEdit() {
+    if (!isLoggedIn())
+        return;
+    cityEdit = !cityEdit;
+    document.querySelectorAll('.city').forEach(el => el.classList.toggle('is-edit', cityEdit));
+    const b = document.getElementById('cityEditBtn');
+    if (b) {
+        b.classList.toggle('on', cityEdit);
+        b.textContent = cityEdit ? '✓ Terminer l\'édition' : '✎ Édition';
+    }
+}
+function scrollToCity(id) {
+    const el = document.getElementById(id);
+    if (el)
+        el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+function scrollToPlace(id) {
+    const el = document.getElementById('place-' + id);
+    if (!el)
+        return;
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    el.classList.remove('flash');
+    void el.offsetWidth;
+    el.classList.add('flash');
+    setTimeout(() => el.classList.remove('flash'), 1800);
+}
+function initCityPage(animate) {
+    if (cityCleanup) {
+        cityCleanup();
+        cityCleanup = null;
+    }
+    const root = document.querySelector('.city');
+    if (!root)
+        return;
+    const rv = Array.from(root.querySelectorAll('.cv-rv'));
+    let io = null;
+    if (animate && 'IntersectionObserver' in window) {
+        io = new IntersectionObserver(list => list.forEach(en => {
+            if (en.isIntersecting) {
+                en.target.classList.add('in');
+                io.unobserve(en.target);
+            }
+        }), { rootMargin: '0px 0px -6% 0px', threshold: 0 });
+        rv.forEach(el => io.observe(el));
+    }
+    else {
+        rv.forEach(el => el.classList.add('in'));
+    }
+    const heroImg = root.querySelector('.city-hero-img img');
+    const links = Array.from(root.querySelectorAll('.city-rail a'));
+    const onScroll = () => {
+        const y = window.scrollY;
+        if (heroImg)
+            heroImg.style.transform = `translate3d(0, ${(Math.min(y, 800) * 0.14).toFixed(1)}px, 0) scale(1.08)`;
+        let cur = 0;
+        links.forEach((a, i) => {
+            const t = document.getElementById(a.dataset.target || '');
+            if (t && t.getBoundingClientRect().top < window.innerHeight * 0.4)
+                cur = i;
+        });
+        links.forEach((a, i) => a.classList.toggle('on', i === cur));
+    };
+    window.addEventListener('scroll', onScroll, { passive: true });
+    onScroll();
+    cityCleanup = () => { if (io)
+        io.disconnect(); window.removeEventListener('scroll', onScroll); };
+}
+function openImgLightbox(list, i) {
+    if (!list[i])
+        return;
+    closeImgLightbox();
+    imgLb = { list, i };
+    const box = document.createElement('div');
+    box.className = 'lieu-lb';
+    box.onclick = (ev) => { const t = ev.target; if (t === box || t.classList.contains('lieu-lb-x'))
+        closeImgLightbox(); };
+    document.body.appendChild(box);
+    paintImgLightbox();
+}
+function paintImgLightbox() {
+    const box = document.querySelector('.lieu-lb');
+    if (!box || !imgLb)
+        return;
+    const img = imgLb.list[imgLb.i];
+    const n = imgLb.list.length;
+    box.innerHTML = `<button type="button" class="lieu-lb-x" aria-label="Fermer">✕</button>
+    ${n > 1 ? `<button type="button" class="lieu-lb-nav prev" onclick="stepImgLightbox(-1)" aria-label="Précédente">‹</button><button type="button" class="lieu-lb-nav next" onclick="stepImgLightbox(1)" aria-label="Suivante">›</button>` : ''}
+    <figure><img src="${img.url}" alt=""><figcaption>${img.caption ? esc(img.caption) + ' · ' : ''}${imgLb.i + 1} / ${n}</figcaption></figure>`;
+}
+function stepImgLightbox(d) {
+    if (!imgLb)
+        return;
+    const n = imgLb.list.length;
+    imgLb.i = (imgLb.i + d + n) % n;
+    paintImgLightbox();
+}
+function closeImgLightbox() {
+    const box = document.querySelector('.lieu-lb');
+    imgLb = null;
+    if (!box)
+        return false;
+    box.remove();
+    return true;
+}
+function openEntryLightbox(entryId, i) {
+    const e = findEntry(entryId);
+    if (e)
+        openImgLightbox(entryImgs(e).map(im => ({ url: encodeURI(im.url), caption: im.caption })), i);
+}
+function openPoiLightbox(poiId, i) {
+    const p = findPoi(poiId);
+    if (p)
+        openImgLightbox(poiImgList(p), i);
+}
 function renderEntry(id) {
     const e = findEntry(id);
     if (!e)
         return renderNotFound();
     if (e.cat === 'personnages') return renderPersonnageEntry(e);
+    if (e.cat === 'lieux' && isNovelanceEntry(e)) return renderNovelancePage(e);
     const c = CATS[e.cat];
     return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('cat-${e.cat}')" style="cursor:pointer">${c.label}</span> / ${esc(e.name)}</div>
@@ -6469,14 +6783,14 @@ const NV_FLOORS = [
         icon: '<path d="M5 21V11a7 7 0 0 1 14 0v10"/><path d="M9 21v-6h6v6"/>' },
 ];
 const NV_POIS = [
-    { id: 'hq', name: 'Quartier général de Halcyon', cat: 'halcyon', district: 'centre', zone: 'centre', at: null, desc: "Le siège de l'organisation : bureaux de commandement et laboratoires, derrière plusieurs anneaux de sécurité." },
+    { id: 'hq', important: true, name: 'Quartier général de Halcyon', cat: 'halcyon', district: 'centre', zone: 'centre', at: null, desc: "Le siège de l'organisation : bureaux de commandement et laboratoires, derrière plusieurs anneaux de sécurité." },
     { id: 'palais', name: 'Palais administratif', cat: 'halcyon', district: 'centre', zone: 'centre', at: null, desc: "Les services qui gèrent la cité au quotidien, sous la tutelle directe de Halcyon." },
     { id: 'controle', name: 'Poste de contrôle central', cat: 'danger', district: 'centre', zone:'superieurs', at: null, desc: "Dernier filtre avant le cœur de la cité : habilitation exigée, aucune exception." },
-    { id: 'residences', name: 'Résidences des dirigeants', cat: 'halcyon', district: 'superieurs', zone: 'superieurs', at: null, desc: "Les demeures des cadres et des hybrides de haut rang, surveillées jour et nuit." },
+    { id: 'residences', important: true, name: 'Résidences des dirigeants', cat: 'halcyon', district: 'superieurs', zone: 'superieurs', at: null, desc: "Les demeures des cadres et des hybrides de haut rang, surveillées jour et nuit." },
     { id: 'galerie-haute', name: 'Galerie des Hauts-Quartiers', cat: 'commerce', district: 'superieurs', zone: 'superieurs', at: null, desc: "Boutiques de luxe et salons privés réservés à la haute société de Novelance." },
     { id: 'clinique', name: 'Clinique privée', cat: 'service', district: 'superieurs', zone: 'superieurs', at: null, desc: "Soins de pointe pour l'élite, avec un accès direct aux technologies de Halcyon." },
     { id: 'gare-cercle', name: 'Gare du Cercle', cat: 'transport', district: 'superieurs', zone: 'superieurs', at: null, desc: "Le terminal des lignes rapides qui relient les quartiers supérieurs au reste de la cité." },
-    { id: 'marche-couvert', name: 'Grand marché couvert', cat: 'commerce', district: 'intermediaires', zone: 'intermediaires', at: null, desc: "Le plus fréquenté de la ville : étals, restauration et artisans sous une même halle." },
+    { id: 'marche-couvert', important: true, name: 'Grand marché couvert', cat: 'commerce', district: 'intermediaires', zone: 'intermediaires', at: null, desc: "Le plus fréquenté de la ville : étals, restauration et artisans sous une même halle." },
     { id: 'avenue-marchande', name: 'Avenue marchande', cat: 'commerce', district: 'intermediaires', zone: 'intermediaires', at: null, desc: "Boutiques, cafés et enseignes qui bordent la grande avenue." },
     { id: 'hopital', name: 'Hôpital général', cat: 'service', district: 'intermediaires', zone: 'intermediaires', at: null, desc: "L'établissement de soins ouvert à tous, toujours saturé." },
     { id: 'lycee', name: 'Lycée de Novelance', cat: 'service', district: 'intermediaires', zone: 'intermediaires', at: null, desc: "Là où se forment les futurs techniciens, chercheurs et soldats de la cité." },
@@ -6485,9 +6799,9 @@ const NV_POIS = [
     { id: 'puces', name: 'Marché aux puces', cat: 'commerce', district: 'populaires', zone: 'populaires', at: null, desc: "Récupération, troc et pièces détachées : l'économie parallèle des quartiers populaires." },
     { id: 'dispensaire', name: 'Dispensaire', cat: 'service', district: 'populaires', zone: 'populaires', at: null, desc: "Un centre de soins de quartier, tenu à bout de bras par des bénévoles." },
     { id: 'station-rocade', name: 'Station de la Rocade', cat: 'transport', district: 'populaires', zone: 'populaires', at: null, desc: "Dessert les quartiers populaires et les faubourgs par la grande rocade." },
-    { id: 'usines', name: "Usines d'Essence", cat: 'industrie', district: 'industrielle', zone: 'industrielle', at: null, desc: "Les complexes qui transforment et distribuent l'Essence qui alimente la cité." },
+    { id: 'usines', important: true, name: "Usines d'Essence", cat: 'industrie', district: 'industrielle', zone: 'industrielle', at: null, desc: "Les complexes qui transforment et distribuent l'Essence qui alimente la cité." },
     { id: 'entrepots', name: 'Entrepôts du port', cat: 'industrie', district: 'industrielle', zone: 'industrielle', at: null, desc: "Stockage des marchandises avant leur départ vers le centre ou le reste du monde." },
-    { id: 'quais', name: 'Quais de chargement', cat: 'transport', district: 'industrielle', zone: 'industrielle', at: null, desc: "Cargos, grues et convois : le port ne dort jamais." },
+    { id: 'quais', important: true, name: 'Quais de chargement', cat: 'transport', district: 'industrielle', zone: 'industrielle', at: null, desc: "Cargos, grues et convois : le port ne dort jamais." },
     { id: 'depot', name: 'Dépôt de convois', cat: 'transport', district: 'industrielle', zone: 'industrielle', at: null, desc: "Point de départ des convois de ravitaillement vers le centre." },
     { id: 'vestiges', name: "Vestiges de l'ancienne cité", cat: 'danger', district: 'ruines', zone: 'ruines', at: null, desc: "Des bâtiments à moitié effondrés, que Halcyon ne patrouille presque jamais." },
     { id: 'squat', name: 'Quartier des squats', cat: 'service', district: 'ruines', zone: 'ruines', at: null, desc: "Ceux qui vivent en marge de la Novelance officielle s'y sont installés." },
@@ -7046,7 +7360,8 @@ function openNovelanceOverlay() {
     }
     overlay.className = 'nv-overlay nv-dive';
     nvFloor = 'all';
-    nvSel = null;
+    nvSel = nvPendingSel ? { kind: 'poi', id: nvPendingSel } : null;
+    nvPendingSel = null;
     nvFilters.souterrains = false;
     nvEdit = false;
     nvForm = null;
@@ -7062,7 +7377,7 @@ function openNovelanceOverlay() {
 function novelanceOverlayHtml() {
     const city = nvGetCity();
     return `
-    <div class="nv-stage" id="nvStage"><div class="nv-world" id="nvWorld">${city.svg}<div class="nv-pois">${NV_POIS.map(nvPoiHtml).join('')}</div></div></div>
+    <div class="nv-stage" id="nvStage"><div class="nv-world" id="nvWorld">${city.svg}<div class="nv-pois">${NV_POIS.filter(p => p.at).map(nvPoiHtml).join('')}</div></div></div>
     <div class="nv-scan"></div>
     <div class="nv-vignette"></div>
     <div class="nv-ui">
@@ -7164,10 +7479,11 @@ function nvRefreshUi() {
             card.innerHTML = `<button class="nv-card-x" onclick="nvClearSel()">✕</button>
         ${gallery}
         <div class="nv-card-cat${cat.red ? ' red' : ''}"><svg viewBox="0 0 24 24">${nvIconOf(p, cat)}</svg>${esc(cat.label)}</div>
-        <div class="nv-card-title">${esc(p.name)}</div>
-        <div class="nv-card-sub">${esc(dist)}</div>
+        <div class="nv-card-title">${p.logo ? `<img class="nv-card-logo" src="${p.logo}" alt="">` : ''}${esc(p.name)}</div>
+        <div class="nv-card-sub">${esc(p.tagline ? p.tagline + ' · ' + dist : dist)}</div>
         <p>${esc(p.desc)}</p>
-        ${lieu ? `<a class="nv-card-link" onclick="navigate('entry-${lieu.id}')">Voir la fiche du lieu →</a>` : ''}`;
+        ${lieu ? `<a class="nv-card-link" onclick="navigate('entry-${lieu.id}')">Voir la fiche du lieu →</a>` : ''}
+        <a class="nv-card-link nv-card-more" onclick="navigate('poi-${p.id}')">Informations supplémentaires →</a>`;
             card.classList.add('open');
         }
         else {
@@ -7245,6 +7561,15 @@ function initNovelanceMap() {
     cam.y = home.y;
     clampCam();
     apply();
+    const selPoi = nvSel && nvSel.kind === 'poi' ? NV_POIS.find(p => p.id === nvSel.id) : undefined;
+    if (selPoi && selPoi.at) {
+        const f = centerOn(selPoi.at[0], selPoi.at[1], fitS * 2.2);
+        cam.s = f.s;
+        cam.x = f.x;
+        cam.y = f.y;
+        clampCam();
+        apply();
+    }
     const recenter = () => flyTo(home, 650, true);
     setTimeout(() => { overlay.classList.add('nv-ready'); }, 750);
     let dragging = false, down = null;
@@ -7310,6 +7635,17 @@ function initNovelanceMap() {
         },
     };
     nvRefreshUi();
+    if (nvPendingPlace && isLoggedIn()) {
+        const pid = nvPendingPlace;
+        nvEdit = true;
+        nvRefreshUi();
+        nvOpenPoiForm(pid);
+        if (nvForm) {
+            nvForm.picking = true;
+            nvUpdateFormPos();
+        }
+    }
+    nvPendingPlace = null;
 }
 function closeNovelanceOverlay() {
     const overlay = document.getElementById('novOverlay');
@@ -7333,6 +7669,8 @@ let nvForm = null;
 const NV_MAX_IMAGES = 4;
 const NV_IMAGE_BUDGET = 720 * 1024;
 let nvImgIdx = 0;
+const NV_ACCENTS = ['#35c7e0', '#ffd21f', '#5aa2ff', '#ff5a64', '#38d19b', '#ff9a3d', '#b79cff', '#e8edf4'];
+const NV_ACCENT_DEFAULT = '#35c7e0';
 const NV_ICONS = {
     pin: '<path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z"/><circle cx="12" cy="10" r="2.2"/>',
     shop: '<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>',
@@ -7358,7 +7696,12 @@ const NV_ICONS = {
 function nvIconOf(p, cat) { return (p.icon && NV_ICONS[p.icon]) || cat.icon; }
 function nvMergePoi(b, d) {
     const cat = (d.cat && NV_CATS.some(c => c.id === d.cat)) ? d.cat : b.cat;
-    return { ...b, name: d.name || b.name, cat, icon: d.icon || undefined, district: d.district || b.district, desc: d.desc !== undefined ? d.desc : b.desc, at: d.at || b.at, entryId: d.entryId || undefined, link: d.entryId ? undefined : b.link, images: d.images && d.images.length ? d.images : undefined };
+    return {
+        ...b, name: d.name || b.name, cat, icon: d.icon || undefined, district: d.district || b.district, desc: d.desc !== undefined ? d.desc : b.desc, at: d.at || b.at,
+        entryId: d.entryId || undefined, link: d.entryId ? undefined : b.link, images: d.images && d.images.length ? d.images : undefined,
+        imageCaps: d.imageCaps && d.imageCaps.length ? d.imageCaps : undefined, tagline: d.tagline || undefined, body: d.body || undefined, logo: d.logo || undefined,
+        important: d.important !== undefined ? !!d.important : b.important, accent: d.accent || undefined,
+    };
 }
 function nvCompressImage(file) {
     return new Promise((resolve, reject) => {
@@ -7420,6 +7763,7 @@ async function nvAddImages(input) {
                 break;
             }
             nvForm.images.push(url);
+            nvForm.imageCaps.push('');
             nvRefreshFormImages();
         }
         catch (_e) {
@@ -7431,13 +7775,14 @@ function nvRemoveImage(i) {
     if (!nvForm)
         return;
     nvForm.images.splice(i, 1);
+    nvForm.imageCaps.splice(i, 1);
     nvRefreshFormImages();
 }
 function nvRefreshFormImages() {
     const wrap = document.getElementById('nvfImgs');
     if (!wrap || !nvForm)
         return;
-    wrap.innerHTML = nvForm.images.map((src, i) => `<div class="nv-img-thumb"><img src="${src}" alt=""><button type="button" onclick="nvRemoveImage(${i})" aria-label="Retirer l'image">✕</button></div>`).join('');
+    wrap.innerHTML = nvForm.images.map((src, i) => `<div class="nv-img-thumb"><img src="${src}" alt=""><input type="text" class="nv-cap" value="${escAttr(nvForm.imageCaps[i] || '')}" placeholder="Légende (ex : Vue aérienne)" oninput="nvSetCap(${i}, this.value)"><button type="button" onclick="nvRemoveImage(${i})" aria-label="Retirer l'image">✕</button></div>`).join('');
 }
 function nvOpenLightbox(poiId, i) {
     const p = NV_POIS.find(x => x.id === poiId);
@@ -7474,9 +7819,9 @@ function nvApplyPois() {
     });
     Object.keys(nvPoiDocs).forEach(id => {
         const d = nvPoiDocs[id];
-        if (d.deleted || !d.at || base.some(b => b.id === id))
+        if (d.deleted || base.some(b => b.id === id))
             return;
-        out.push(nvMergePoi({ id, name: 'Lieu', cat: 'service', district: 'populaires', zone: 'populaires', at: d.at, desc: '', custom: true }, d));
+        out.push(nvMergePoi({ id, name: 'Lieu', cat: 'service', district: 'populaires', zone: 'populaires', at: d.at || null, desc: '', custom: true }, d));
     });
     NV_POIS.length = 0;
     out.forEach(p => NV_POIS.push(p));
@@ -7487,7 +7832,7 @@ function nvRefreshPoiLayer() {
     const layer = overlay ? overlay.querySelector('.nv-pois') : null;
     if (!overlay || !layer)
         return;
-    layer.innerHTML = NV_POIS.map(nvPoiHtml).join('');
+    layer.innerHTML = NV_POIS.filter(p => p.at).map(nvPoiHtml).join('');
     if (nvSel && nvSel.kind === 'poi' && !NV_POIS.some(p => p.id === nvSel.id))
         nvSel = null;
     nvUpdateGhost();
@@ -7498,7 +7843,7 @@ function nvUpdateGhost() {
     if (!layer)
         return;
     let g = layer.querySelector('.nv-ghost');
-    if (!nvForm) {
+    if (!nvForm || !nvForm.at) {
         if (g)
             g.remove();
         return;
@@ -7536,26 +7881,60 @@ function nvMapClick(wx, wy) {
 function nvUpdateFormPos() {
     const el = document.getElementById('nvfPos');
     if (el && nvForm)
-        el.textContent = `x ${nvForm.at[0]} · y ${nvForm.at[1]}` + (nvForm.picking ? ' — clique sur la carte…' : '');
+        el.textContent = (nvForm.at ? `x ${nvForm.at[0]} · y ${nvForm.at[1]}` : 'Pas encore placé sur la carte') + (nvForm.picking ? ' — clique sur la carte…' : '');
     const btn = document.getElementById('nvfMove');
     if (btn && nvForm)
         btn.classList.toggle('on', nvForm.picking);
 }
-function nvOpenPoiForm(id, wx, wy) {
-    const box = document.getElementById('nvEdit');
-    if (!box || !nvEdit)
+function pageEditHost() {
+    let back = document.getElementById('poiBackdrop');
+    if (!back) {
+        back = document.createElement('div');
+        back.id = 'poiBackdrop';
+        back.className = 'poi-backdrop';
+        back.onclick = () => nvCloseForm();
+        document.body.appendChild(back);
+    }
+    let box = document.getElementById('nvEdit');
+    if (!box) {
+        box = document.createElement('div');
+        box.id = 'nvEdit';
+        box.className = 'nv-edit-panel page-host';
+        document.body.appendChild(box);
+    }
+    return box;
+}
+function nvOpenPoiForm(id, wx, wy, host = 'map') {
+    let box = document.getElementById('nvEdit');
+    if (host === 'map') {
+        if (!box || !nvEdit)
+            return;
+    }
+    else {
+        nvCloseForm();
+        box = pageEditHost();
+    }
+    if (!box)
         return;
-    const existing = id ? NV_POIS.find(p => p.id === id) || null : null;
+    const existing = id ? nvListPois().find(p => p.id === id) || null : null;
     const isBase = !!id && !!nvBasePois && nvBasePois.some(b => b.id === id);
-    const at = existing && existing.at ? [Math.round(existing.at[0]), Math.round(existing.at[1])] : [Math.round(wx || 0), Math.round(wy || 0)];
+    const at = existing
+        ? (existing.at ? [Math.round(existing.at[0]), Math.round(existing.at[1])] : null)
+        : (host === 'map' ? [Math.round(wx || 0), Math.round(wy || 0)] : null);
     let district = existing ? existing.district : 'populaires';
-    if (!existing && nvCity) {
+    if (!existing && at && nvCity) {
         const l = nvCity.lookup(at[0], at[1]);
         if (l >= 1 && l <= NV_DIDS.length)
             district = NV_DIDS[l - 1];
     }
     const cat = existing ? existing.cat : 'service';
-    nvForm = { id, base: isBase, at, icon: existing && existing.icon ? existing.icon : '', picking: false, images: existing && existing.images ? existing.images.slice() : [] };
+    const imgs = existing && existing.images ? existing.images.slice() : [];
+    nvForm = {
+        id, base: isBase, at, icon: existing && existing.icon ? existing.icon : '', picking: false, host,
+        images: imgs, imageCaps: imgs.map((_s, i) => (existing && existing.imageCaps && existing.imageCaps[i]) || ''),
+        logo: existing && existing.logo ? existing.logo : '', important: existing ? !!existing.important : host === 'page',
+        accent: existing && existing.accent ? existing.accent : NV_ACCENT_DEFAULT,
+    };
     const lieux = ENTRIES.filter(e => e.cat === 'lieux');
     const distOpts = NOVELANCE_DISTRICTS.map(d => `<option value="${d.id}"${d.id === district ? ' selected' : ''}>${esc(d.label)}</option>`).join('') +
         `<option value="sous"${district === 'sous' ? ' selected' : ''}>Cité d'en dessous (souterrains)</option>`;
@@ -7568,21 +7947,32 @@ function nvOpenPoiForm(id, wx, wy) {
     <div class="nv-ed-title">${existing ? 'Modifier le lieu' : 'Nouveau lieu'}</div>
     <label>Nom</label>
     <input id="nvfName" type="text" value="${escAttr(existing ? existing.name : '')}" placeholder="Nom du lieu">
-    <label>Icône</label>
+    <label>Sous-titre <em>(ex : « Groupe Astia », « Siège du pouvoir »)</em></label>
+    <input id="nvfTag" type="text" value="${escAttr(existing && existing.tagline ? existing.tagline : '')}" placeholder="Une ligne sous le nom">
+    <label class="nv-check-row"><input type="checkbox" id="nvfImp"${nvForm.important ? ' checked' : ''} onchange="nvSetImportant(this.checked)"> Lieu important <em>(affiché sur la page de la ville)</em></label>
+    <label>Icône <em>(sur la carte)</em></label>
     <div class="nv-ico-grid">${iconBtns}</div>
+    <label>Logo <em>(affiché sur la page de la ville et du lieu)</em></label>
+    <div class="nv-logo-row" id="nvfLogo"></div>
+    <div class="nv-upload-btn" onclick="document.getElementById('nvfLogoFile').click()">+ Choisir un logo</div>
+    <input id="nvfLogoFile" type="file" accept="image/*" style="display:none" onchange="nvSetLogo(this)">
+    <label>Couleur d'accent</label>
+    <div class="nv-accents">${NV_ACCENTS.map(c => `<button type="button" class="nv-acc${c === nvForm.accent ? ' on' : ''}" data-acc="${c}" style="background:${c}" onclick="nvPickAccent('${c}')" aria-label="${c}"></button>`).join('')}</div>
     <label>Catégorie <em>(filtre « Points d'intérêt »)</em></label>
     <select id="nvfCat">${catOpts}</select>
     <label>Zone affiliée</label>
     <select id="nvfDist">${distOpts}</select>
-    <label>Description</label>
-    <textarea id="nvfDesc" rows="4" placeholder="Ce qu'on y trouve, son rôle, son ambiance…">${esc(existing ? existing.desc : '')}</textarea>
-    <label>Images <em>(visuel du lieu, optionnel — max ${NV_MAX_IMAGES})</em></label>
+    <label>Description <em>(courte : cartes et fiche de la carte)</em></label>
+    <textarea id="nvfDesc" rows="3" placeholder="Ce qu'on y trouve, son rôle, son ambiance…">${esc(existing ? existing.desc : '')}</textarea>
+    <label>Texte détaillé <em>(page « Informations supplémentaires » — # titre, - liste, &gt; citation)</em></label>
+    <textarea id="nvfBody" rows="7" placeholder="# Histoire&#10;Texte long…&#10;&#10;# Ce qu'on y trouve&#10;- …">${esc(existing && existing.body ? existing.body : '')}</textarea>
+    <label>Images <em>(légende optionnelle — max ${NV_MAX_IMAGES})</em></label>
     <div class="nv-imgs" id="nvfImgs"></div>
     <div class="nv-upload-btn" onclick="document.getElementById('nvfFile').click()">+ Ajouter des images</div>
     <input id="nvfFile" type="file" accept="image/*" multiple style="display:none" onchange="nvAddImages(this)">
     <label>Fiche liée <em>(optionnel)</em></label>
     <select id="nvfLink">${linkOpts}</select>
-    <div class="nv-ed-pos"><span id="nvfPos"></span><button type="button" id="nvfMove" onclick="nvMovePoi()">Déplacer</button></div>
+    <div class="nv-ed-pos"><span id="nvfPos"></span>${host === 'map' ? `<button type="button" id="nvfMove" onclick="nvMovePoi()">Déplacer</button>` : (existing && id ? `<button type="button" onclick="placePoiOnMap('${id}')">Placer sur la carte</button>` : '')}</div>
     <div class="nv-ed-actions">
       <button type="button" class="primary" onclick="nvSavePoi()">Enregistrer</button>
       <button type="button" onclick="nvCloseForm()">Annuler</button>
@@ -7593,6 +7983,7 @@ function nvOpenPoiForm(id, wx, wy) {
     nvUpdateFormPos();
     nvUpdateGhost();
     nvRefreshFormImages();
+    nvRefreshFormLogo();
     const nameEl = document.getElementById('nvfName');
     if (nameEl && !existing)
         nameEl.focus();
@@ -7613,10 +8004,93 @@ function nvCloseForm() {
     nvForm = null;
     const box = document.getElementById('nvEdit');
     if (box) {
-        box.classList.remove('open');
-        box.innerHTML = '';
+        if (box.classList.contains('page-host'))
+            box.remove();
+        else {
+            box.classList.remove('open');
+            box.innerHTML = '';
+        }
     }
+    const back = document.getElementById('poiBackdrop');
+    if (back)
+        back.remove();
     nvUpdateGhost();
+}
+function nvSetImportant(v) { if (nvForm)
+    nvForm.important = v; }
+function nvPickAccent(c) {
+    if (!nvForm)
+        return;
+    nvForm.accent = c;
+    document.querySelectorAll('#nvEdit .nv-acc').forEach(b => b.classList.toggle('on', b.dataset.acc === c));
+}
+function nvSetCap(i, v) { if (nvForm)
+    nvForm.imageCaps[i] = v; }
+function nvCompressLogo(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = () => reject(new Error('lecture impossible'));
+        reader.onload = () => {
+            const img = new Image();
+            img.onerror = () => reject(new Error('image illisible'));
+            img.onload = () => {
+                let scale = Math.min(1, 320 / Math.max(img.width, img.height));
+                let out = '';
+                for (let attempt = 0; attempt < 6; attempt++) {
+                    const w = Math.max(1, Math.round(img.width * scale)), h = Math.max(1, Math.round(img.height * scale));
+                    const cv = document.createElement('canvas');
+                    cv.width = w;
+                    cv.height = h;
+                    const ctx = cv.getContext('2d');
+                    if (!ctx) {
+                        reject(new Error('canvas indisponible'));
+                        return;
+                    }
+                    ctx.drawImage(img, 0, 0, w, h);
+                    out = cv.toDataURL('image/webp', 0.85);
+                    if (!out.startsWith('data:image/webp'))
+                        out = cv.toDataURL('image/png');
+                    if (out.length * 0.75 <= 100 * 1024)
+                        break;
+                    scale *= 0.75;
+                }
+                resolve(out);
+            };
+            img.src = reader.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+async function nvSetLogo(input) {
+    const f = input.files && input.files[0];
+    input.value = '';
+    if (!f || !nvForm)
+        return;
+    try {
+        const url = await nvCompressLogo(f);
+        if (!nvForm)
+            return;
+        nvForm.logo = url;
+        nvRefreshFormLogo();
+    }
+    catch (_e) {
+        alert('Impossible de charger ce logo.');
+    }
+}
+function nvRemoveLogo() { if (nvForm) {
+    nvForm.logo = '';
+    nvRefreshFormLogo();
+} }
+function nvRefreshFormLogo() {
+    const wrap = document.getElementById('nvfLogo');
+    if (!wrap || !nvForm)
+        return;
+    wrap.innerHTML = nvForm.logo ? `<img src="${nvForm.logo}" alt=""><button type="button" onclick="nvRemoveLogo()">Retirer le logo</button>` : '';
+}
+function placePoiOnMap(id) {
+    nvCloseForm();
+    nvPendingPlace = id;
+    navigate('novelance');
 }
 function nvSavePoi() {
     if (!nvForm || !isLoggedIn())
@@ -7635,7 +8109,9 @@ function nvSavePoi() {
     const id = nvForm.id || 'custom-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
     const data = {
         name, cat: val('nvfCat'), icon: nvForm.icon || null, district: val('nvfDist'), desc: val('nvfDesc'),
-        entryId: val('nvfLink') || null, images: nvForm.images.length ? nvForm.images : null, at: nvForm.at, author: getCurrentUser() || 'aki', updated: Date.now(),
+        tagline: val('nvfTag') || null, body: val('nvfBody') || null, logo: nvForm.logo || null, important: nvForm.important, accent: nvForm.accent,
+        imageCaps: nvForm.images.length ? nvForm.imageCaps.slice(0, nvForm.images.length) : null,
+        entryId: val('nvfLink') || null, images: nvForm.images.length ? nvForm.images : null, at: nvForm.at || null, author: getCurrentUser() || 'aki', updated: Date.now(),
     };
     db.collection('novelancePois').doc(id).set(data)
         .then(() => nvCloseForm())
@@ -7789,8 +8265,15 @@ function render() {
     const route = (window.location.hash || '#home').slice(1);
     const isNavigation = route !== lastRenderedRoute;
     lastRenderedRoute = route;
-    if (isNavigation)
+    if (isNavigation) {
         closeNav();
+        closeImgLightbox();
+        nvCloseForm();
+    }
+    if (cityCleanup) {
+        cityCleanup();
+        cityCleanup = null;
+    }
     const content = document.getElementById('content');
     if (route !== 'carte')
         closeMapOverlay();
@@ -7921,6 +8404,10 @@ function render() {
     else if (route.startsWith('page-')) {
         content.innerHTML = renderCustomPage(route.replace('page-', ''));
     }
+    else if (route.startsWith('poi-')) {
+        content.innerHTML = renderPoiPage(route.replace('poi-', ''));
+        initCityPage(isNavigation);
+    }
     else if (route.startsWith('cat-')) {
         content.innerHTML = renderCategory(route.replace('cat-', ''));
     }
@@ -7930,6 +8417,7 @@ function render() {
         const oldPlayer = document.getElementById(stablePlayerId);
         content.innerHTML = renderEntry(entryId);
         initPersonnageEntryRail();
+        initCityPage(isNavigation);
         const newPlayer = document.getElementById(stablePlayerId);
         let preserved = false;
         if (oldPlayer && newPlayer && oldPlayer.dataset.kind === newPlayer.dataset.kind) {
@@ -8234,6 +8722,20 @@ window.addEventListener('keydown', (ev) => {
         const tag = (document.activeElement?.tagName || '').toUpperCase();
         if (tag !== 'INPUT' && tag !== 'TEXTAREA' && tag !== 'SELECT')
             stepHalTab(ev.key.toLowerCase() === 'q' ? -1 : 1);
+    }
+    if (imgLb) {
+        if (ev.key === 'ArrowLeft') {
+            stepImgLightbox(-1);
+            return;
+        }
+        if (ev.key === 'ArrowRight') {
+            stepImgLightbox(1);
+            return;
+        }
+        if (ev.key === 'Escape') {
+            closeImgLightbox();
+            return;
+        }
     }
     if (ev.key === 'Escape') {
         const mapOv = document.getElementById('mapOverlay');
