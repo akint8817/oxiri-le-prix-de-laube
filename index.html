@@ -675,6 +675,11 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
   opacity:0; transform: translateX(14px); pointer-events:none; transition: opacity .25s ease, transform .25s ease;
 }
 .nv-card.open{ opacity:1; transform:none; pointer-events:auto; }
+/* texte long : la fiche défile (elle ne dépasse plus de l'écran) et la croix reste visible */
+.nv-card{ max-height: calc(100% - 340px); min-height:120px; overflow-y:auto; scrollbar-width:thin; scrollbar-color: rgba(79,209,232,0.5) transparent; }
+.nv-card::-webkit-scrollbar{ width:6px; }
+.nv-card::-webkit-scrollbar-thumb{ background: rgba(79,209,232,0.45); border-radius:3px; }
+.nv-card .nv-card-x{ position:sticky; top:0; float:right; width:26px; height:26px; margin:-10px -10px 0 0; padding:0; border-radius:50%; background: rgba(2,10,16,0.78); z-index:5; }
 .nv-card-x{ position:absolute; top:8px; right:10px; background:none; border:0; color:#7f95a9; cursor:pointer; font-size:14px; }
 .nv-card-x:hover{ color:#fff; }
 .nv-card-cat{ display:flex; align-items:center; gap:8px; font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:0.14em; text-transform:uppercase; color:var(--nv-blue); }
@@ -811,7 +816,7 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 @media (prefers-reduced-motion: reduce){ .nv-ui, .nv-panel, .nv-card, .nv-overlay{ transition-duration:.01s; transition-delay:0s; } }
 @media (max-width:900px){
   .nv-counters{ display:none; }
-  .nv-card{ top:auto; bottom:70px; right:12px; left:12px; width:auto; }
+  .nv-card{ top:auto; bottom:70px; right:12px; left:12px; width:auto; max-height:55%; }
   .nv-panel{ width:230px; }
 }
 
@@ -4260,6 +4265,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=107"></script>
+<script src="dist/main.js?v=108"></script>
 </body>
 </html>
