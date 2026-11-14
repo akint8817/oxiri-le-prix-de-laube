@@ -3978,11 +3978,11 @@ interface CityHero { kicker: string; title: string; tagline: string; facts: [str
 function cityBgHtml(seed: string): string {
   const r = tmSeeded(tmHash(seed));
   let dots = '';
-  for(let i = 0; i < 30; i++){
-    const s = 2 + r() * 3.5;
+  for(let i = 0; i < 16; i++){
+    const s = 2 + r() * 2.5;
     dots += `<i style="left:${(r() * 100).toFixed(1)}%;top:${(r() * 100).toFixed(1)}%;width:${s.toFixed(1)}px;height:${s.toFixed(1)}px;--dx:${Math.round((r() - 0.5) * 140)}px;animation-duration:${(16 + r() * 20).toFixed(1)}s;animation-delay:-${(r() * 30).toFixed(1)}s"></i>`;
   }
-  return `<div class="city-bg" aria-hidden="true"><div class="cb-topo"></div><div class="cb-glow a"></div><div class="cb-glow b"></div><div class="cb-dots">${dots}</div><div class="cb-grain"></div></div>`;
+  return `<div class="city-bg" aria-hidden="true"><div class="cb-glow a"></div><div class="cb-glow b"></div><div class="cb-dots">${dots}</div></div>`;
 }
 
 function cityHeroHtml(o: CityHero): string {
@@ -3993,7 +3993,6 @@ function cityHeroHtml(o: CityHero): string {
     <div class="ch-bg">${o.img ? `<img src="${o.img}" alt="">` : ''}</div>
     <div class="ch-grade"></div>
     <div class="ch-shade"></div>
-    <div class="ch-grain"></div>
     <div class="ch-orbit"><i></i><i></i><i></i></div>
     <div class="ch-in">
       <span class="ch-kicker">${esc(o.kicker)}</span>
