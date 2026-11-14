@@ -4479,6 +4479,13 @@ function scrollToPlace(id: string): void {
   setTimeout(() => el.classList.remove('flash'), 1800);
 }
 
+function layoutBlocks(grid: HTMLElement): void {
+  grid.querySelectorAll<HTMLElement>('.blk').forEach(b => {
+    const v = 'span ' + Math.max(1, Math.ceil((b.offsetHeight + 24) / 8));
+    if(b.style.gridRowEnd !== v) b.style.gridRowEnd = v;
+  });
+}
+
 function initCityPage(animate: boolean): void {
   if(cityCleanup){ cityCleanup(); cityCleanup = null; }
   const root = document.querySelector<HTMLElement>('.city');
@@ -4492,6 +4499,17 @@ function initCityPage(animate: boolean): void {
     rv.forEach(el => io!.observe(el));
   } else {
     rv.forEach(el => el.classList.add('in'));
+  }
+  // blocs : chaque bloc réserve exactement le nombre de lignes de sa hauteur, donc ils se calent
+  // les uns sous les autres sans laisser de trous (même quand leurs hauteurs diffèrent)
+  const blkGrid = root.querySelector<HTMLElement>('.blk-grid');
+  let ro: ResizeObserver | null = null;
+  if(blkGrid){
+    layoutBlocks(blkGrid);
+    if('ResizeObserver' in window){
+      ro = new ResizeObserver(() => layoutBlocks(blkGrid));
+      blkGrid.querySelectorAll('.blk').forEach(b => ro!.observe(b));
+    }
   }
   const heroImg = root.querySelector<HTMLElement>('.ch-bg img');
   const hero = root.querySelector<HTMLElement>('.city-hero');
@@ -4515,7 +4533,7 @@ function initCityPage(animate: boolean): void {
   };
   window.addEventListener('scroll', onScroll, { passive: true });
   onScroll();
-  cityCleanup = () => { if(io) io.disconnect(); window.removeEventListener('scroll', onScroll); if(hero) hero.removeEventListener('pointermove', onMove); };
+  cityCleanup = () => { if(io) io.disconnect(); if(ro) ro.disconnect(); window.removeEventListener('scroll', onScroll); if(hero) hero.removeEventListener('pointermove', onMove); };
 }
 
 function openImgLightbox(list: EntryImage[], i: number): void {

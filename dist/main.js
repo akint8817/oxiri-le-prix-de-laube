@@ -3870,6 +3870,13 @@ function scrollToPlace(id) {
     el.classList.add('flash');
     setTimeout(() => el.classList.remove('flash'), 1800);
 }
+function layoutBlocks(grid) {
+    grid.querySelectorAll('.blk').forEach(b => {
+        const v = 'span ' + Math.max(1, Math.ceil((b.offsetHeight + 24) / 8));
+        if (b.style.gridRowEnd !== v)
+            b.style.gridRowEnd = v;
+    });
+}
 function initCityPage(animate) {
     if (cityCleanup) {
         cityCleanup();
@@ -3891,6 +3898,15 @@ function initCityPage(animate) {
     }
     else {
         rv.forEach(el => el.classList.add('in'));
+    }
+    const blkGrid = root.querySelector('.blk-grid');
+    let ro = null;
+    if (blkGrid) {
+        layoutBlocks(blkGrid);
+        if ('ResizeObserver' in window) {
+            ro = new ResizeObserver(() => layoutBlocks(blkGrid));
+            blkGrid.querySelectorAll('.blk').forEach(b => ro.observe(b));
+        }
     }
     const heroImg = root.querySelector('.ch-bg img');
     const hero = root.querySelector('.city-hero');
@@ -3919,7 +3935,8 @@ function initCityPage(animate) {
     window.addEventListener('scroll', onScroll, { passive: true });
     onScroll();
     cityCleanup = () => { if (io)
-        io.disconnect(); window.removeEventListener('scroll', onScroll); if (hero)
+        io.disconnect(); if (ro)
+        ro.disconnect(); window.removeEventListener('scroll', onScroll); if (hero)
         hero.removeEventListener('pointermove', onMove); };
 }
 function openImgLightbox(list, i) {
