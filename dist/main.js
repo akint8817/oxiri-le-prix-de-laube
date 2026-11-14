@@ -3493,31 +3493,36 @@ function placeDetailHtml(p, idx) {
     ${rest ? `<div class="pl-more-imgs">${rest}</div>` : ''}
   </article>`;
 }
-function renderNovelancePage(e) {
+function renderLieuPage(e) {
     const c = CATS[e.cat];
+    const novelance = isNovelanceEntry(e);
     const images = entryImgs(e);
-    const { intro, chapters } = splitEntryChapters(e.body);
     const places = importantPois(e);
     const logged = isLoggedIn();
-    const panels = [];
-    const introHtml = renderRichBody(intro);
-    if (introHtml)
-        panels.push(pnl('Présentation', "Vue d'ensemble", introHtml, 'span-all'));
-    chapters.forEach((ch, i) => panels.push(pnl(ch.title, 'Section ' + String(i + 1).padStart(2, '0'), renderRichBody(ch.lines) || '<p class="fiche-empty">Cette section est vide pour l\'instant.</p>')));
-    images.slice(1).forEach((im, i) => panels.push(pnl(im.caption || 'Image', 'Vue ' + String(i + 2).padStart(2, '0'), `<figure class="pnl-img" onclick="openEntryLightbox('${escAttr(e.id)}', ${i + 1})"><img src="${encodeURI(im.url)}" alt=""></figure>`, 'pnl-media')));
+    const ref = 'city:' + e.id;
+    const tg = blkTarget(ref);
     const facts = Object.entries(e.info || {}).slice(0, 3);
-    facts.push(['Lieux importants', String(places.length)]);
-    const actions = `<button type="button" class="city-btn" onclick="navigate('novelance')">⌖ Voir la carte</button>
+    if (places.length)
+        facts.push(['Lieux importants', String(places.length)]);
+    const actions = `<button type="button" class="city-btn" onclick="navigate('${novelance ? 'novelance' : 'carte'}')">⌖ Voir la carte</button>
     ${entryOwnerActionsHtml(e)}
-    ${logged ? `<button type="button" class="city-btn city-edit-btn${cityEdit ? ' on' : ''}" id="cityEditBtn" onclick="toggleCityEdit()">${cityEdit ? '✓ Terminer l\'édition' : '✎ Édition'}</button>` : ''}`;
+    ${logged ? `<button type="button" class="city-btn city-edit-btn${cityEdit ? ' on' : ''}" id="cityEditBtn" onclick="toggleCityEdit()">${cityEdit ? '✓ Terminer l\'édition' : '✎ Mise en page'}</button>` : ''}`;
     const hero = cityHeroHtml({
-        kicker: `${c.label} · Cité-bastion`, title: e.name, tagline: e.tagline, facts, img: images[0] ? encodeURI(images[0].url) : '',
-        tape: [e.name, e.tagline || '', 'Halcyon'].filter(Boolean).join('  ◆  ').toUpperCase(), actions, music: cityMusicHtml(e.id, cityMusicOf(e), (cityPagesCache[e.id] && cityPagesCache[e.id].musicTitle) || '', 'city', e.id),
+        kicker: novelance ? `${c.label} · Cité-bastion` : c.label, title: e.name, tagline: e.tagline, facts, img: images[0] ? encodeURI(images[0].url) : '',
+        tape: '', actions, music: cityMusicHtml(e.id, cityMusicOf(e), (cityPagesCache[e.id] && cityPagesCache[e.id].musicTitle) || '', 'city', e.id),
     });
-    const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'La ville', g: 'i' }, { id: 'city-lieux', t: 'Lieux importants', g: '◈' }]
-        .concat(places.map(p => ({ id: 'place-' + p.id, t: p.name, g: p.name.charAt(0).toUpperCase() })));
+    const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Contenu', g: 'i' }];
+    if (places.length)
+        rail.push({ id: 'city-lieux', t: 'Lieux importants', g: '◈' });
+    places.forEach(p => rail.push({ id: 'place-' + p.id, t: p.name, g: p.name.charAt(0).toUpperCase() }));
     const cards = places.map((p, i) => placeCardHtml(p, i)).join('') +
-        (logged ? `<button type="button" class="pc pc-add ed-only" onclick="newPoiFromPage()"><span>+</span>Nouveau lieu important</button>` : '');
+        (logged ? `<button type="button" class="pc pc-add ed-only" onclick="newPoiFromPage('${novelance ? '' : escAttr(e.id)}')"><span>+</span>Nouveau lieu important</button>` : '');
+    const placeSec = (places.length || logged) ? `
+      <section class="city-sec${places.length ? '' : ' ed-sec'}" id="city-lieux">
+        ${secHead('II', 'Lieux importants', 'LES LIEUX <em>IMPORTANTS</em>', 'Clique sur un lieu pour descendre jusqu\'à sa fiche.')}
+        <div class="pc-grid">${cards}</div>
+        <div class="place-list">${places.map(placeDetailHtml).join('')}</div>
+      </section>` : '';
     return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('cat-${e.cat}')" style="cursor:pointer">${c.label}</span> / ${esc(e.name)}</div>
     <div class="city${cityEdit ? ' is-edit' : ''}" data-entry="${escAttr(e.id)}" style="--acc:${NV_ACCENT_DEFAULT}">
@@ -3525,14 +3530,10 @@ function renderNovelancePage(e) {
       <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
       ${hero}
       <section class="city-sec" id="city-ville">
-        ${secHead('I', 'La ville', `L'ESSENTIEL SUR <em>${esc(e.name.toUpperCase())}</em>`, "Ce que l'on sait de la cité.")}
-        <div class="city-panels">${panels.join('') || '<p class="city-empty">Aucune information pour le moment.</p>'}</div>
-      </section>
-      <section class="city-sec" id="city-lieux">
-        ${secHead('II', 'Lieux importants', 'LES LIEUX <em>IMPORTANTS</em>', 'Clique sur un lieu pour descendre jusqu\'à sa fiche.')}
-        <div class="pc-grid">${cards || '<p class="city-empty">Aucun lieu important pour le moment : marque-en depuis la carte ou active l\'édition ici.</p>'}</div>
-        <div class="place-list">${places.map(placeDetailHtml).join('')}</div>
-      </section>
+        ${secHead('I', 'La ville', `L'ESSENTIEL SUR <em>${esc(e.name.toUpperCase())}</em>`, novelance ? "Ce que l'on sait de la cité." : '')}
+        <div class="blk-grid" id="blkGrid" data-ref="${escAttr(ref)}">${tg.blocks.map(b => blockHtml(ref, tg, b)).join('') || '<p class="city-empty">Aucune information pour le moment.' + (logged ? ' Active « Mise en page » pour ajouter des blocs.' : '') + '</p>'}</div>
+        ${logged ? `<div class="blk-add ed-only"><button type="button" onclick="openBlockEditor('${escAttr(ref)}', null, 'text')">+ Bloc de texte</button><button type="button" onclick="openBlockEditor('${escAttr(ref)}', null, 'image')">+ Bloc d'image</button></div>` : ''}
+      </section>${placeSec}
     </div>`;
 }
 function renderPoiPage(id) {
@@ -3543,7 +3544,8 @@ function renderPoiPage(id) {
     const cat = NV_CATS.find(c => c.id === p.cat) || NV_CATS[3];
     const imgs = poiImgList(p);
     const logged = isLoggedIn();
-    const blocks = currentBlocks(p);
+    const ref = 'poi:' + p.id;
+    const tg = blkTarget(ref);
     const facts = [['Zone', lieuDistrictLabel(p.district)], ['Catégorie', cat.label]];
     if (p.important)
         facts.push(['Statut', 'Lieu important']);
@@ -3564,8 +3566,8 @@ function renderPoiPage(id) {
       <section class="city-sec">
         ${secHead('I', 'Informations', `TOUT SUR <em>${esc(p.name.toUpperCase())}</em>`)}
         ${p.logo ? `<img class="poi-logo-big" src="${p.logo}" alt="">` : ''}
-        <div class="blk-grid" id="blkGrid" data-poi="${escAttr(p.id)}">${blocks.map(b => blockHtml(p, b)).join('') || '<p class="city-empty">Aucun bloc pour le moment.' + (logged ? ' Active « Mise en page » pour en ajouter.' : '') + '</p>'}</div>
-        ${logged ? `<div class="blk-add ed-only"><button type="button" onclick="openBlockEditor('${p.id}', null, 'text')">+ Bloc de texte</button><button type="button" onclick="openBlockEditor('${p.id}', null, 'image')">+ Bloc d'image</button></div>` : ''}
+        <div class="blk-grid" id="blkGrid" data-ref="${escAttr(ref)}">${tg.blocks.map(b => blockHtml(ref, tg, b)).join('') || '<p class="city-empty">Aucun bloc pour le moment.' + (logged ? ' Active « Mise en page » pour en ajouter.' : '') + '</p>'}</div>
+        ${logged ? `<div class="blk-add ed-only"><button type="button" onclick="openBlockEditor('${escAttr(ref)}', null, 'text')">+ Bloc de texte</button><button type="button" onclick="openBlockEditor('${escAttr(ref)}', null, 'image')">+ Bloc d'image</button></div>` : ''}
       </section>
     </div>`;
 }
@@ -3584,44 +3586,84 @@ function defaultBlocks(p) {
         out.push({ id: 'd-i' + i, type: 'image', title: (p.imageCaps && p.imageCaps[i]) || 'Image', label: 'Galerie', img: i, span: 6 }); });
     return out;
 }
-function currentBlocks(p) { return Array.isArray(p.blocks) ? p.blocks : defaultBlocks(p); }
-function blockHtml(p, b) {
-    const span = [4, 6, 8, 12].includes(b.span) ? b.span : 6;
-    const src = b.type === 'image' && p.images ? p.images[b.img || 0] : '';
-    const inner = b.type === 'image'
-        ? (src ? `<figure class="pnl-img" onclick="openPoiLightbox('${p.id}', ${b.img || 0})"><img src="${src}" alt=""></figure>` : '<p class="fiche-empty">Image introuvable.</p>')
-        : (renderRichBody(parseWriteBody(b.text || '')) || '<p class="fiche-empty">Bloc vide.</p>');
-    const spans = [[4, '⅓'], [6, '½'], [8, '⅔'], [12, 'Pleine']];
-    const tools = isLoggedIn() ? `<div class="blk-tools ed-only">
-      <span class="blk-grip" title="Glisse pour déplacer">⠿</span>
-      <button type="button" onclick="moveBlock('${p.id}','${b.id}',-1)" title="Monter">↑</button>
-      <button type="button" onclick="moveBlock('${p.id}','${b.id}',1)" title="Descendre">↓</button>
-      ${spans.map(([n, l]) => `<button type="button" class="${n === span ? 'on' : ''}" onclick="setBlockSpan('${p.id}','${b.id}',${n})" title="Largeur">${l}</button>`).join('')}
-      <button type="button" onclick="openBlockEditor('${p.id}','${b.id}')" title="Modifier">✎</button>
-      <button type="button" class="del" onclick="deleteBlock('${p.id}','${b.id}')" title="Supprimer">✕</button>
-    </div>` : '';
-    return `<div class="pnl cv-rv blk${b.type === 'image' ? ' pnl-media' : ''}" data-bid="${escAttr(b.id)}" style="--span:${span}"${cityEdit ? ' draggable="true"' : ''}
-      ondragstart="blkDragStart(event,'${escAttr(b.id)}')" ondragover="blkDragOver(event)" ondrop="blkDrop(event,'${escAttr(b.id)}')" ondragend="blkDragEnd()">
-    ${tools}
-    <div class="pnl-h"><i></i><b>${esc(b.title || (b.type === 'image' ? 'Image' : 'Texte'))}</b>${b.label ? `<span>${esc(b.label)}</span>` : ''}</div>
-    <div class="pnl-b">${inner}</div>
-  </div>`;
+function defaultEntryBlocks(e) {
+    const out = [];
+    const { intro, chapters } = splitEntryChapters(e.body);
+    if (intro.length)
+        out.push({ id: 'd-intro', type: 'text', title: 'Présentation', label: "Vue d'ensemble", text: intro.join('\n\n'), span: 12 });
+    chapters.forEach((ch, i) => out.push({ id: 'd-c' + i, type: 'text', title: ch.title, label: 'Section ' + String(i + 1).padStart(2, '0'), text: ch.lines.join('\n\n'), span: 6 }));
+    entryImgs(e).forEach((im, i) => { if (i >= 1)
+        out.push({ id: 'd-i' + i, type: 'image', title: im.caption || 'Image', label: 'Vue ' + String(i + 1).padStart(2, '0'), img: i, span: 6 }); });
+    return out;
 }
+function currentBlocks(p) { return Array.isArray(p.blocks) ? p.blocks : defaultBlocks(p); }
 function writePoiPatch(poiId, data) {
     const db = getFirestoreDb();
     if (!db || !isLoggedIn())
         return Promise.reject(new Error('Base de données indisponible'));
     return db.collection('novelancePois').doc(poiId).set({ ...data, updated: Date.now() }, { merge: true });
 }
-function patchBlocks(poiId, fn) {
-    const p = findPoi(poiId);
-    if (!p || !isLoggedIn())
+function writeCityPatch(entryId, data) {
+    const db = getFirestoreDb();
+    if (!db || !isLoggedIn())
+        return Promise.reject(new Error('Base de données indisponible'));
+    return db.collection('cityPages').doc(entryId).set({ ...data, updated: Date.now() }, { merge: true });
+}
+function blkTarget(ref) {
+    const k = ref.indexOf(':');
+    const kind = ref.slice(0, k), id = ref.slice(k + 1);
+    if (kind === 'poi') {
+        const p = findPoi(id);
+        if (!p)
+            return null;
+        const imgs = p.images || [];
+        return {
+            blocks: currentBlocks(p), images: imgs, caps: imgs.map((_s, i) => (p.imageCaps && p.imageCaps[i]) || ''), canUpload: true,
+            lightbox: i => `openPoiLightbox('${p.id}', ${i})`, write: data => writePoiPatch(id, data),
+        };
+    }
+    const e = findEntry(id);
+    if (!e)
+        return null;
+    const imgs = entryImgs(e);
+    const doc = cityPagesCache[id];
+    return {
+        blocks: doc && Array.isArray(doc.blocks) ? doc.blocks : defaultEntryBlocks(e), images: imgs.map(im => encodeURI(im.url)), caps: imgs.map(im => im.caption || ''), canUpload: false,
+        lightbox: i => `openEntryLightbox('${escAttr(id)}', ${i})`, write: data => writeCityPatch(id, data),
+    };
+}
+function blockHtml(ref, t, b) {
+    const span = [4, 6, 8, 12].includes(b.span) ? b.span : 6;
+    const src = b.type === 'image' ? t.images[b.img || 0] : '';
+    const inner = b.type === 'image'
+        ? (src ? `<figure class="pnl-img" onclick="${t.lightbox(b.img || 0)}"><img src="${src}" alt=""></figure>` : '<p class="fiche-empty">Image introuvable.</p>')
+        : (renderRichBody(parseWriteBody(b.text || '')) || '<p class="fiche-empty">Bloc vide.</p>');
+    const spans = [[4, '⅓'], [6, '½'], [8, '⅔'], [12, 'Pleine']];
+    const r = escAttr(ref), bid = escAttr(b.id);
+    const tools = isLoggedIn() ? `<div class="blk-tools ed-only">
+      <span class="blk-grip" title="Glisse pour déplacer">⠿</span>
+      <button type="button" onclick="moveBlock('${r}','${bid}',-1)" title="Monter">↑</button>
+      <button type="button" onclick="moveBlock('${r}','${bid}',1)" title="Descendre">↓</button>
+      ${spans.map(([n, l]) => `<button type="button" class="${n === span ? 'on' : ''}" onclick="setBlockSpan('${r}','${bid}',${n})" title="Largeur">${l}</button>`).join('')}
+      <button type="button" onclick="openBlockEditor('${r}','${bid}')" title="Modifier">✎</button>
+      <button type="button" class="del" onclick="deleteBlock('${r}','${bid}')" title="Supprimer">✕</button>
+    </div>` : '';
+    return `<div class="pnl cv-rv blk${b.type === 'image' ? ' pnl-media' : ''}" data-bid="${bid}" style="--span:${span}"${cityEdit ? ' draggable="true"' : ''}
+      ondragstart="blkDragStart(event,'${bid}')" ondragover="blkDragOver(event)" ondrop="blkDrop(event,'${bid}')" ondragend="blkDragEnd()">
+    ${tools}
+    <div class="pnl-h"><i></i><b>${esc(b.title || (b.type === 'image' ? 'Image' : 'Texte'))}</b>${b.label ? `<span>${esc(b.label)}</span>` : ''}</div>
+    <div class="pnl-b">${inner}</div>
+  </div>`;
+}
+function patchBlocks(ref, fn) {
+    const t = blkTarget(ref);
+    if (!t || !isLoggedIn())
         return;
-    writePoiPatch(poiId, { blocks: fn(currentBlocks(p).map(b => ({ ...b }))) })
+    t.write({ blocks: fn(t.blocks.map(b => ({ ...b }))) })
         .catch((err) => alert('Enregistrement impossible : ' + (err && err.message ? err.message : err)));
 }
-function moveBlock(poiId, bid, d) {
-    patchBlocks(poiId, list => {
+function moveBlock(ref, bid, d) {
+    patchBlocks(ref, list => {
         const i = list.findIndex(b => b.id === bid), j = i + d;
         if (i < 0 || j < 0 || j >= list.length)
             return list;
@@ -3631,13 +3673,13 @@ function moveBlock(poiId, bid, d) {
         return list;
     });
 }
-function setBlockSpan(poiId, bid, span) {
-    patchBlocks(poiId, list => list.map(b => b.id === bid ? { ...b, span } : b));
+function setBlockSpan(ref, bid, span) {
+    patchBlocks(ref, list => list.map(b => b.id === bid ? { ...b, span } : b));
 }
-function deleteBlock(poiId, bid) {
+function deleteBlock(ref, bid) {
     if (!confirm('Supprimer ce bloc ?'))
         return;
-    patchBlocks(poiId, list => list.filter(b => b.id !== bid));
+    patchBlocks(ref, list => list.filter(b => b.id !== bid));
 }
 function blkDragStart(ev, bid) {
     if (!cityEdit) {
@@ -3665,7 +3707,7 @@ function blkDrop(ev, targetId) {
     const grid = document.getElementById('blkGrid');
     if (!src || src === targetId || !grid)
         return;
-    patchBlocks(grid.dataset.poi || '', list => {
+    patchBlocks(grid.dataset.ref || '', list => {
         const from = list.findIndex(b => b.id === src), to = list.findIndex(b => b.id === targetId);
         if (from < 0 || to < 0)
             return list;
@@ -3678,18 +3720,17 @@ function blkDragEnd() {
     blkDrag = null;
     document.querySelectorAll('.blk.over, .blk.dragging').forEach(x => x.classList.remove('over', 'dragging'));
 }
-function openBlockEditor(poiId, blockId, type = 'text') {
+function openBlockEditor(ref, blockId, type = 'text') {
     if (!isLoggedIn())
         return;
-    const p = findPoi(poiId);
-    if (!p)
+    const tg = blkTarget(ref);
+    if (!tg)
         return;
-    const b = blockId ? currentBlocks(p).find(x => x.id === blockId) : undefined;
+    const b = blockId ? tg.blocks.find(x => x.id === blockId) : undefined;
     const t = b ? b.type : type;
     nvCloseForm();
     const box = pageEditHost();
-    blkForm = { poiId, blockId, type: t, img: b && b.img !== undefined ? b.img : 0, span: b ? b.span : (t === 'image' ? 6 : 6),
-        images: (p.images || []).slice(), caps: (p.images || []).map((_s, i) => (p.imageCaps && p.imageCaps[i]) || ''), changed: false };
+    blkForm = { ref, blockId, type: t, img: b && b.img !== undefined ? b.img : 0, span: b ? b.span : 6, images: tg.images.slice(), caps: tg.caps.slice(), changed: false, canUpload: tg.canUpload };
     const spans = [[4, 'Tiers'], [6, 'Moitié'], [8, 'Deux tiers'], [12, 'Pleine largeur']];
     box.innerHTML = `
     <button type="button" class="nv-card-x" onclick="closeBlockEditor()">✕</button>
@@ -3701,8 +3742,8 @@ function openBlockEditor(poiId, blockId, type = 'text') {
     ${t === 'text' ? `<label>Texte <em>(- liste, &gt; citation, ligne vide = nouveau paragraphe)</em></label>
       <textarea id="blkText" rows="10" placeholder="Écris ton texte ici…">${esc(b && b.text ? b.text : '')}</textarea>`
         : `<label>Image</label><div class="blk-imgs" id="blkImgs"></div>
-      <div class="nv-upload-btn" onclick="document.getElementById('blkFile').click()">+ Ajouter une nouvelle image</div>
-      <input id="blkFile" type="file" accept="image/*" style="display:none" onchange="blkAddImage(this)">`}
+      ${tg.canUpload ? `<div class="nv-upload-btn" onclick="document.getElementById('blkFile').click()">+ Ajouter une nouvelle image</div>
+      <input id="blkFile" type="file" accept="image/*" style="display:none" onchange="blkAddImage(this)">` : `<div class="blk-hint">Pour ajouter de nouvelles images à cette page, utilise « Modifier » (espace d'écriture) : elles apparaîtront ici.</div>`}`}
     <label>Largeur</label>
     <div class="blk-spans">${spans.map(([n, l]) => `<button type="button" class="${n === blkForm.span ? 'on' : ''}" data-span="${n}" onclick="blkPickSpan(${n})">${l}</button>`).join('')}</div>
     <div class="nv-ed-actions">
@@ -3719,7 +3760,7 @@ function blkRefreshImgs() {
         return;
     wrap.innerHTML = blkForm.images.length
         ? blkForm.images.map((s, i) => `<button type="button" class="${i === blkForm.img ? 'on' : ''}" onclick="blkPickImg(${i})"><img src="${s}" alt=""><span>${esc(blkForm.caps[i] || 'Image ' + (i + 1))}</span></button>`).join('')
-        : '<p class="blk-hint">Aucune image pour ce lieu : ajoute-en une ci-dessous.</p>';
+        : '<p class="blk-hint">Aucune image pour cette page.</p>';
 }
 function blkPickImg(i) { if (blkForm) {
     blkForm.img = i;
@@ -3765,8 +3806,8 @@ function saveBlock() {
     const f = blkForm;
     if (!f || !isLoggedIn())
         return;
-    const p = findPoi(f.poiId);
-    if (!p)
+    const tg = blkTarget(f.ref);
+    if (!tg)
         return;
     const val = (elId) => ((document.getElementById(elId)?.value) || '').trim();
     const title = val('blkTitle');
@@ -3782,26 +3823,26 @@ function saveBlock() {
         nb.text = val('blkText');
     else
         nb.img = f.img;
-    const list = currentBlocks(p).map(b => ({ ...b }));
+    const list = tg.blocks.map(b => ({ ...b }));
     const at = f.blockId ? list.findIndex(b => b.id === f.blockId) : -1;
     if (at >= 0)
         list[at] = nb;
     else
         list.push(nb);
     const data = { blocks: list };
-    if (f.changed) {
+    if (f.changed && f.canUpload) {
         data.images = f.images;
         data.imageCaps = f.caps;
     }
-    writePoiPatch(f.poiId, data)
+    tg.write(data)
         .then(() => closeBlockEditor())
         .catch((err) => alert('Enregistrement impossible : ' + (err && err.message ? err.message : err)));
 }
 function openLieuOnMap(id) { nvPendingSel = id; navigate('novelance'); }
 function editPoiFromPage(id) { if (isLoggedIn())
     nvOpenPoiForm(id, undefined, undefined, 'page'); }
-function newPoiFromPage() { if (isLoggedIn())
-    nvOpenPoiForm(null, undefined, undefined, 'page'); }
+function newPoiFromPage(entryId = '') { if (isLoggedIn())
+    nvOpenPoiForm(null, undefined, undefined, 'page', entryId); }
 function toggleCityEdit() {
     if (!isLoggedIn())
         return;
@@ -3809,10 +3850,9 @@ function toggleCityEdit() {
     document.querySelectorAll('.city').forEach(el => el.classList.toggle('is-edit', cityEdit));
     document.querySelectorAll('.blk').forEach(el => { el.draggable = cityEdit; });
     const b = document.getElementById('cityEditBtn');
-    const isPoiPage = !!document.querySelector('.poi-page');
     if (b) {
         b.classList.toggle('on', cityEdit);
-        b.textContent = cityEdit ? '✓ Terminer l\'édition' : (isPoiPage ? '✎ Mise en page' : '✎ Édition');
+        b.textContent = cityEdit ? '✓ Terminer l\'édition' : '✎ Mise en page';
     }
 }
 function scrollToCity(id) {
@@ -3934,7 +3974,7 @@ function renderEntry(id) {
     if (!e)
         return renderNotFound();
     if (e.cat === 'personnages') return renderPersonnageEntry(e);
-    if (e.cat === 'lieux' && isNovelanceEntry(e)) return renderNovelancePage(e);
+    if (e.cat === 'lieux') return renderLieuPage(e);
     const c = CATS[e.cat];
     return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('cat-${e.cat}')" style="cursor:pointer">${c.label}</span> / ${esc(e.name)}</div>
@@ -8226,7 +8266,7 @@ function pageEditHost() {
     }
     return box;
 }
-function nvOpenPoiForm(id, wx, wy, host = 'map') {
+function nvOpenPoiForm(id, wx, wy, host = 'map', defEntry = '') {
     let box = document.getElementById('nvEdit');
     if (host === 'map') {
         if (!box || !nvEdit)
@@ -8263,7 +8303,7 @@ function nvOpenPoiForm(id, wx, wy, host = 'map') {
     const distOpts = NOVELANCE_DISTRICTS.map(d => `<option value="${d.id}"${d.id === district ? ' selected' : ''}>${esc(d.label)}</option>`).join('') +
         `<option value="sous"${district === 'sous' ? ' selected' : ''}>Cité d'en dessous (souterrains)</option>`;
     const catOpts = NV_CATS.map(c => `<option value="${c.id}"${c.id === cat ? ' selected' : ''}>${esc(c.label)}</option>`).join('');
-    const linkOpts = `<option value="">Aucune</option>` + lieux.map(e => `<option value="${escAttr(e.id)}"${existing && existing.entryId === e.id ? ' selected' : ''}>${esc(e.name)}</option>`).join('');
+    const linkOpts = `<option value="">Aucune</option>` + lieux.map(e => `<option value="${escAttr(e.id)}"${(existing ? existing.entryId === e.id : defEntry === e.id) ? ' selected' : ''}>${esc(e.name)}</option>`).join('');
     const iconBtns = `<button type="button" class="nv-ico-opt auto${nvForm.icon ? '' : ' on'}" data-icon="" onclick="nvPickIcon('')">Auto</button>` +
         Object.keys(NV_ICONS).map(k => `<button type="button" class="nv-ico-opt${k === nvForm.icon ? ' on' : ''}" data-icon="${k}" onclick="nvPickIcon('${k}')" title="${k}"><svg viewBox="0 0 24 24">${NV_ICONS[k]}</svg></button>`).join('');
     box.innerHTML = `

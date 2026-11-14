@@ -2835,6 +2835,8 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .pl-acts{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
 .pl-more-imgs{ display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:24px; margin-top:6px; }
 /* blocs de la page d'un lieu : grille de 12 colonnes, chaque bloc a sa largeur et on les réordonne */
+.ed-sec{ display:none; }
+.is-edit .ed-sec{ display:block; }
 .blk-grid{ display:grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap:24px; margin-top:40px; align-items:start; grid-auto-flow: dense; }
 .blk-grid .pnl{ margin:0; }
 .blk{ grid-column: span var(--span, 6); }
@@ -4225,6 +4227,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=98"></script>
+<script src="dist/main.js?v=99"></script>
 </body>
 </html>
