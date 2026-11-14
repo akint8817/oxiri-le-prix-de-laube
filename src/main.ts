@@ -4217,6 +4217,7 @@ function renderLieuPage(e: Entry): string {
   if(places.length) facts.push(['Lieux importants', String(places.length)]);
   const actions = `<button type="button" class="city-btn" onclick="navigate('${novelance ? 'novelance' : 'carte'}')">⌖ Voir la carte</button>
     ${entryOwnerActionsHtml(e)}
+    ${logged ? `<button type="button" class="city-btn" onclick="openMusicEditor('city','${escAttr(e.id)}')">♪ Musique</button>` : ''}
     ${logged ? `<button type="button" class="city-btn city-edit-btn${cityEdit ? ' on' : ''}" id="cityEditBtn" onclick="toggleCityEdit()">${cityEdit ? '✓ Terminer l\'édition' : '✎ Mise en page'}</button>` : ''}`;
   const hero = cityHeroHtml({
     kicker: novelance ? `${c.label} · Cité-bastion` : c.label, title: e.name, tagline: e.tagline, facts, img: images[0] ? encodeURI(images[0].url) : '',
@@ -4260,6 +4261,7 @@ function renderPoiPage(id: string): string {
   if(p.important) facts.push(['Statut', 'Lieu important']);
   const actions = `${parent ? `<button type="button" class="city-btn" onclick="navigate('entry-${parent.id}')">← ${esc(parent.name)}</button>` : ''}
     ${poiActionsHtml(p)}
+    ${logged ? `<button type="button" class="city-btn" onclick="openMusicEditor('poi','${escAttr(p.id)}')">♪ Musique</button>` : ''}
     ${logged ? `<button type="button" class="city-btn city-edit-btn${cityEdit ? ' on' : ''}" id="cityEditBtn" onclick="toggleCityEdit()">${cityEdit ? '✓ Terminer l\'édition' : '✎ Mise en page'}</button>` : ''}
     ${logged ? `<button type="button" class="city-btn" onclick="editPoiFromPage('${p.id}')">✎ Infos du lieu</button>` : ''}`;
   const hero = cityHeroHtml({
