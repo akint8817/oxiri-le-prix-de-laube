@@ -1228,9 +1228,10 @@ function initFirestoreSync(): void {
     const docs: Record<string, NvPoiDoc> = {};
     snap.forEach((doc: any) => { docs[doc.id] = doc.data() as NvPoiDoc; });
     nvPoiDocs = docs;
+    nvPoisLoaded = true;
     nvApplyPois();
-    // une page de ville / de lieu est ouverte : on la met à jour avec les nouvelles données
-    if(document.querySelector('.city')) render();
+    // une page de ville / de lieu est ouverte (ou en attente de ses données) : on la met à jour
+    if(document.querySelector('.city') || (window.location.hash || '').startsWith('#poi-')) render();
   }, (err: any) => console.error('Firestore (novelancePois) :', err));
 }
 
@@ -4250,7 +4251,7 @@ function renderLieuPage(e: Entry): string {
 
 function renderPoiPage(id: string): string {
   const p = findPoi(id);
-  if(!p) return renderNotFound();
+  if(!p) return nvPoisLoaded ? renderNotFound() : '<div class="empty-state"><div>Chargement…</div></div>';
   const parent = ENTRIES.find(x => x.cat === 'lieux' && isNovelanceEntry(x));
   const cat = NV_CATS.find(c => c.id === p.cat) || NV_CATS[3];
   const imgs = poiImgList(p);
@@ -8848,6 +8849,7 @@ const NV_MAX_IMAGES = 6;
 const NV_IMAGE_BUDGET = 720 * 1024;   // octets, toutes images d'un lieu (le document Firestore est limité à 1 Mo)
 let nvImgIdx = 0;
 let nvPoiDocs: Record<string, NvPoiDoc> = {};
+let nvPoisLoaded = false;
 let nvBasePois: NvPoi[] | null = null;
 let nvEdit = false;
 let nvForm: NvFormState | null = null;

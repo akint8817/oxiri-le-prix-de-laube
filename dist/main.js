@@ -929,8 +929,9 @@ function initFirestoreSync() {
         const docs = {};
         snap.forEach((doc) => { docs[doc.id] = doc.data(); });
         nvPoiDocs = docs;
+        nvPoisLoaded = true;
         nvApplyPois();
-        if (document.querySelector('.city'))
+        if (document.querySelector('.city') || (window.location.hash || '').startsWith('#poi-'))
             render();
     }, (err) => console.error('Firestore (novelancePois) :', err));
 }
@@ -3610,7 +3611,7 @@ function renderLieuPage(e) {
 function renderPoiPage(id) {
     const p = findPoi(id);
     if (!p)
-        return renderNotFound();
+        return nvPoisLoaded ? renderNotFound() : '<div class="empty-state"><div>Chargement…</div></div>';
     const parent = ENTRIES.find(x => x.cat === 'lieux' && isNovelanceEntry(x));
     const cat = NV_CATS.find(c => c.id === p.cat) || NV_CATS[3];
     const imgs = poiImgList(p);
@@ -8147,6 +8148,7 @@ function closeNovelanceOverlay() {
 }
 /* ---------------- NOVELANCE — ÉDITION DES LIEUX ---------------- */
 let nvPoiDocs = {};
+let nvPoisLoaded = false;
 let nvBasePois = null;
 let nvEdit = false;
 let nvForm = null;
