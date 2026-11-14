@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>OXIRI — Le Prix de l'Aube — Codex</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:wght@300;400;500&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Anton&family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@500;600;700&family=Cormorant+Garamond:wght@300;400;500&family=EB+Garamond:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Mono:wght@400;500&family=Anton&family=Barlow:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=Barlow+Condensed:wght@500;600;700&display=swap');
 
 :root{
   --bg: #08080a;
@@ -2916,6 +2916,24 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
   .cv-rv{ opacity:1; transform:none; transition:none; }
 }
 
+/* typographie des pages de lieux (catalogue, ville, lieu, fenêtres d'édition) : Barlow partout */
+.city, .city *, .nv-edit-panel.page-host, .nv-edit-panel.page-host *, .lieu-lb, .lieu-lb *{ font-family:'Barlow', 'Helvetica Neue', Arial, sans-serif !important; }
+.city .ch-title{ font-weight:700; letter-spacing:.04em; }
+.city .ch-title.long{ letter-spacing:.03em; }
+.city .sec-t, .city .pl-titles h3, .city .pc h3{ font-weight:700; letter-spacing:.03em; }
+.city .sec-n{ font-weight:600; }
+.city .pnl-h b{ font-weight:600; letter-spacing:.04em; }
+.city .pnl-h span, .city .pc-sub, .city .pl-titles p{ font-style:normal; }
+.city .pnl-b p{ font-size: clamp(15.5px, 1.05vw, 17.5px); line-height:1.75; color:#d6dae0; }
+.city .pnl .dossier-list-block li{ font-size:15.5px; }
+.city .pnl .dossier-quote{ font-size:17px; font-style:italic; }
+.city .ch-tag{ font-style:normal; font-size: clamp(16px, 1.4vw, 22px); }
+.city .sec-d{ font-style:normal; font-size:17px; }
+.city .pc-desc{ font-size:14.5px; }
+.city .ch-fact b{ font-size:17px; font-weight:500; }
+.city .ch-music-h b{ font-size:15px; font-weight:500; }
+.city .pl-titles p{ font-size:16px; }
+
 /* --- article page --- */
 .article{
   border: 1px solid var(--border);
@@ -4235,6 +4253,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=104"></script>
+<script src="dist/main.js?v=105"></script>
 </body>
 </html>
