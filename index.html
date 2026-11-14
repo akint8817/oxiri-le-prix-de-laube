@@ -2834,6 +2834,11 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .pl-acts{ display:flex; flex-wrap:wrap; gap:8px; margin-bottom:12px; }
 .pl-more-imgs{ display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:24px; margin-top:6px; }
 /* blocs de la page d'un lieu : grille de 12 colonnes, chaque bloc a sa largeur et on les réordonne */
+/* page « Lieux » (catalogue) : même DA que les pages de lieu */
+.lieux-index .city-hero{ min-height: clamp(400px, 62vh, 600px); }
+.lx-sec{ padding-top: clamp(40px, 5vw, 72px); }
+.lx-grid{ grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); }
+.pc-count b{ font-family:'Cinzel', serif; font-weight:600; font-size:18px; color:#f0ebdc; }
 .ed-sec{ display:none; }
 .is-edit .ed-sec{ display:block; }
 /* mise en page « briques » : lignes de 8 px, chaque bloc couvre le nombre de lignes de sa hauteur (voir layoutBlocks) -> pas de trous */
@@ -4228,6 +4233,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=100"></script>
+<script src="dist/main.js?v=101"></script>
 </body>
 </html>

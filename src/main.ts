@@ -3907,9 +3907,49 @@ function cardHtml(e: Entry): string {
     </div>`;
 }
 
+// Page « Lieux » : même direction visuelle que les pages de lieu (bandeau, cartes en portrait, fond animé).
+function renderLieuxIndex(list: Entry[], c: CategoryDef): string {
+  const totalImportant = nvListPois().filter(p => p.important).length;
+  const firstImg = list.map(e => entryImgs(e)[0]).find(Boolean);
+  const logged = isLoggedIn();
+  const cards = list.map((e, i) => {
+    const img = entryImgs(e)[0];
+    const places = importantPois(e).length;
+    return `<div class="pc cv-rv" onclick="navigate('entry-${e.id}')">
+      <div class="pc-img">${img ? `<img src="${encodeURI(img.url)}" alt="">` : `<span class="pc-noimg">${esc(e.name.charAt(0).toUpperCase())}</span>`}</div>
+      <span class="pc-code">LI-${String(i + 1).padStart(2, '0')}</span>
+      ${places ? `<span class="pc-logo pc-count" title="${places} lieu(x) important(s)"><b>${places}</b></span>` : ''}
+      <div class="pc-body">
+        <h3>${esc(e.name)}</h3>
+        <span class="pc-sub">${esc(e.tagline || '')}</span>
+        ${e.summary ? `<p class="pc-desc">${esc(e.summary)}</p>` : ''}
+        <span class="pc-go">Découvrir →</span>
+      </div>
+    </div>`;
+  }).join('');
+  const hero = cityHeroHtml({
+    kicker: 'Catalogue', title: c.label, tagline: c.desc, img: firstImg ? encodeURI(firstImg.url) : '', tape: '', music: '',
+    facts: [['Lieux', String(list.length)], ['Lieux importants', String(totalImportant)]],
+    actions: `<button type="button" class="city-btn" onclick="navigate('carte')">⌖ Carte du monde</button>
+      <button type="button" class="city-btn" onclick="navigate('novelance')">⌖ Plan de Novelance</button>
+      ${logged ? `<button type="button" class="city-btn" onclick="navigate('ecriture')">+ Écrire un lieu</button>` : ''}`,
+  });
+  return `
+    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / ${c.label}</div>
+    <div class="city lieux-index" style="--acc:${NV_ACCENT_DEFAULT}">
+      ${cityBgHtml('lieux-index')}
+      ${hero}
+      <section class="city-sec lx-sec">
+        ${secHead('I', 'Explorer', 'TOUS LES <em>LIEUX</em>', 'Clique sur un lieu pour ouvrir sa fiche.')}
+        <div class="pc-grid lx-grid">${cards || '<p class="city-empty">Aucun lieu pour l\'instant.</p>'}</div>
+      </section>
+    </div>`;
+}
+
 function renderCategory(cat: string): string {
   const list = ENTRIES.filter(e => e.cat === cat);
   const c = (CATS as Record<string, CategoryDef>)[cat];
+  if(cat === 'lieux') return renderLieuxIndex(list, c);
   return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / ${c.label}</div>
     <div class="cat-header">
@@ -9416,6 +9456,7 @@ function render(): void {
     if(!poiPreserved) initEntryMusicPlayers();
   } else if(route.startsWith('cat-')){
     content.innerHTML = renderCategory(route.replace('cat-',''));
+    initCityPage(isNavigation);
   } else if(route.startsWith('entry-')){
     // render() peut être ré-appelé pendant que la musique d'une fiche joue
     // (une synchronisation Firestore en arrière-plan ré-affiche toute la
