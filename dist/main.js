@@ -3301,7 +3301,6 @@ function renderCategory(cat) {
 }
 /* ---------------- PAGE DE LA VILLE (Novelance) ET PAGE D'UN LIEU ---------------- */
 let cityEdit = false;
-let cityNight = false;
 let cityCleanup = null;
 let imgLb = null;
 let nvPendingSel = null;
@@ -3427,8 +3426,7 @@ function renderNovelancePage(e) {
     images.slice(1).forEach((im, i) => panels.push(pnl(im.caption || 'Image', 'Vue ' + String(i + 2).padStart(2, '0'), `<figure class="pnl-img" onclick="openEntryLightbox('${escAttr(e.id)}', ${i + 1})"><img src="${encodeURI(im.url)}" alt=""></figure>`, 'pnl-media')));
     const facts = Object.entries(e.info || {}).slice(0, 3);
     facts.push(['Lieux importants', String(places.length)]);
-    const actions = `<div class="city-toggle"><button type="button" class="${cityNight ? '' : 'on'}" onclick="toggleCityNight(false)">Aube</button><button type="button" class="${cityNight ? 'on' : ''}" onclick="toggleCityNight(true)">Nuit</button></div>
-    <button type="button" class="city-btn" onclick="navigate('novelance')">⌖ Voir la carte</button>
+    const actions = `<button type="button" class="city-btn" onclick="navigate('novelance')">⌖ Voir la carte</button>
     ${entryOwnerActionsHtml(e)}
     ${logged ? `<button type="button" class="city-btn city-edit-btn${cityEdit ? ' on' : ''}" id="cityEditBtn" onclick="toggleCityEdit()">${cityEdit ? '✓ Terminer l\'édition' : '✎ Édition'}</button>` : ''}`;
     const hero = cityHeroHtml({
@@ -3441,7 +3439,7 @@ function renderNovelancePage(e) {
         (logged ? `<button type="button" class="pc pc-add ed-only" onclick="newPoiFromPage()"><span>+</span>Nouveau lieu important</button>` : '');
     return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('cat-${e.cat}')" style="cursor:pointer">${c.label}</span> / ${esc(e.name)}</div>
-    <div class="city${cityNight ? ' night' : ''}${cityEdit ? ' is-edit' : ''}" data-entry="${escAttr(e.id)}" style="--acc:${NV_ACCENT_DEFAULT}">
+    <div class="city${cityEdit ? ' is-edit' : ''}" data-entry="${escAttr(e.id)}" style="--acc:${NV_ACCENT_DEFAULT}">
       <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
       ${hero}
       <section class="city-sec" id="city-ville">
@@ -3485,7 +3483,7 @@ function renderPoiPage(id) {
     });
     return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('cat-lieux')" style="cursor:pointer">Lieux</span>${parent ? ` / <span onclick="navigate('entry-${parent.id}')" style="cursor:pointer">${esc(parent.name)}</span>` : ''} / ${esc(p.name)}</div>
-    <div class="city night poi-page is-edit-ready" style="--acc:${poiAccent(p)}">
+    <div class="city poi-page is-edit-ready" style="--acc:${poiAccent(p)}">
       ${hero}
       <section class="city-sec">
         ${secHead('I', 'Informations', `TOUT SUR <em>${esc(p.name.toUpperCase())}</em>`)}
@@ -3499,13 +3497,6 @@ function editPoiFromPage(id) { if (isLoggedIn())
     nvOpenPoiForm(id, undefined, undefined, 'page'); }
 function newPoiFromPage() { if (isLoggedIn())
     nvOpenPoiForm(null, undefined, undefined, 'page'); }
-function toggleCityNight(night) {
-    cityNight = night;
-    const root = document.querySelector('.city');
-    if (root)
-        root.classList.toggle('night', night);
-    document.querySelectorAll('.city-toggle button').forEach((b, i) => b.classList.toggle('on', (i === 1) === night));
-}
 function toggleCityEdit() {
     if (!isLoggedIn())
         return;

@@ -2659,10 +2659,8 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
   filter: brightness(1) saturate(1.1); transition: filter .9s ease; animation: chKen 50s ease-in-out infinite alternate;
 }
 @keyframes chKen{ from{ scale:1; } to{ scale:1.1; } }
-.city.night .ch-bg img{ filter: brightness(.55) saturate(1.2) hue-rotate(-12deg); }
 .ch-grade{ position:absolute; inset:0; z-index:1; pointer-events:none; transition: opacity .9s ease, background .9s ease;
   background: linear-gradient(200deg, rgba(255,186,110,0.34), rgba(255,110,90,0.12) 45%, transparent 75%); mix-blend-mode: screen; }
-.city.night .ch-grade{ background: linear-gradient(180deg, rgba(14,32,70,0.5), rgba(3,8,20,0.55)); mix-blend-mode: multiply; }
 .ch-shade{ position:absolute; inset:0; z-index:2; pointer-events:none;
   background: linear-gradient(0deg, rgba(5,8,13,0.96) 0%, rgba(5,8,13,0.55) 38%, rgba(5,8,13,0.1) 70%), linear-gradient(90deg, rgba(5,8,13,0.78), transparent 62%); }
 .ch-orbit{ position:absolute; z-index:2; right:-9%; top:46%; width:62vw; height:62vw; transform: translateY(-50%); pointer-events:none; opacity:.55; }
@@ -2691,9 +2689,6 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .ch-actions .entry-owner-actions{ margin:0; }
 .ch-actions .btn{ color:#f0ebdc; border-color: rgba(255,255,255,0.35); background: rgba(8,12,18,0.4); }
 @keyframes cityIn{ from{ opacity:0; transform: translateY(22px); } }
-.city-toggle{ display:inline-flex; padding:3px; border-radius:999px; background: rgba(8,12,18,0.55); border:1px solid rgba(255,255,255,0.18); backdrop-filter: blur(8px); }
-.city-toggle button{ cursor:pointer; padding:8px 18px; border:0; border-radius:999px; background:transparent; color:#cfc9ba; font-family:'IBM Plex Mono', monospace; font-size:11.5px; letter-spacing:.16em; text-transform:uppercase; transition: background .3s ease, color .3s ease; }
-.city-toggle button.on{ background: var(--acc); color:#04111a; }
 .city-btn{
   cursor:pointer; padding:10px 20px; border-radius:999px; background: rgba(8,12,18,0.5); border:1px solid rgba(255,255,255,0.28); color:#f0ebdc; backdrop-filter: blur(8px);
   font-family:'IBM Plex Mono', monospace; font-size:11.5px; letter-spacing:.14em; text-transform:uppercase; transition: background .25s ease, color .25s ease, border-color .25s ease, transform .25s ease;
@@ -4176,6 +4171,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=90"></script>
+<script src="dist/main.js?v=91"></script>
 </body>
 </html>
