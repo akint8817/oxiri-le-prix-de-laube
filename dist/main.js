@@ -3656,25 +3656,41 @@ function blkTarget(ref) {
             return null;
         const imgs = p.images || [];
         return {
-            blocks: currentBlocks(p), images: imgs, caps: imgs.map((_s, i) => (p.imageCaps && p.imageCaps[i]) || ''), canUpload: true,
+            blocks: currentBlocks(p), images: imgs, caps: imgs.map((_s, i) => (p.imageCaps && p.imageCaps[i]) || ''), nEntry: 0,
+            imgIndex: b => b.img || 0, imagesPatch: (images, caps) => ({ images, imageCaps: caps }),
             lightbox: i => `openPoiLightbox('${p.id}', ${i})`, write: data => writePoiPatch(id, data),
         };
     }
     const e = findEntry(id);
     if (!e)
         return null;
-    const imgs = entryImgs(e);
+    const eImgs = entryImgs(e);
     const doc = cityPagesCache[id];
+    const pImgs = doc && Array.isArray(doc.images) ? doc.images : [];
+    const pCaps = doc && Array.isArray(doc.imageCaps) ? doc.imageCaps : [];
+    const n = eImgs.length;
     return {
-        blocks: doc && Array.isArray(doc.blocks) ? doc.blocks : defaultEntryBlocks(e), images: imgs.map(im => encodeURI(im.url)), caps: imgs.map(im => im.caption || ''), canUpload: false,
-        lightbox: i => `openEntryLightbox('${escAttr(id)}', ${i})`, write: data => writeCityPatch(id, data),
+        blocks: doc && Array.isArray(doc.blocks) ? doc.blocks : defaultEntryBlocks(e),
+        images: eImgs.map(im => encodeURI(im.url)).concat(pImgs), caps: eImgs.map(im => im.caption || '').concat(pImgs.map((_s, i) => pCaps[i] || '')), nEntry: n,
+        imgIndex: b => b.pimg !== undefined ? n + b.pimg : (b.img || 0), imagesPatch: (images, caps) => ({ images: images.slice(n), imageCaps: caps.slice(n) }),
+        lightbox: i => `openCityLightbox('${escAttr(id)}', ${i})`, write: data => writeCityPatch(id, data),
     };
+}
+function openCityLightbox(entryId, i) {
+    const e = findEntry(entryId);
+    if (!e)
+        return;
+    const d = cityPagesCache[entryId];
+    const list = entryImgs(e).map(im => ({ url: encodeURI(im.url), caption: im.caption }));
+    ((d && d.images) || []).forEach((u, k) => list.push({ url: u, caption: (d && d.imageCaps && d.imageCaps[k]) || '' }));
+    openImgLightbox(list, i);
 }
 function blockHtml(ref, t, b) {
     const span = [4, 6, 8, 12].includes(b.span) ? b.span : 6;
-    const src = b.type === 'image' ? t.images[b.img || 0] : '';
+    const ix = b.type === 'image' ? t.imgIndex(b) : 0;
+    const src = b.type === 'image' ? t.images[ix] : '';
     const inner = b.type === 'image'
-        ? (src ? `<figure class="pnl-img" onclick="${t.lightbox(b.img || 0)}"><img src="${src}" alt=""></figure>` : '<p class="fiche-empty">Image introuvable.</p>')
+        ? (src ? `<figure class="pnl-img" onclick="${t.lightbox(ix)}"><img src="${src}" alt=""></figure>` : '<p class="fiche-empty">Image introuvable.</p>')
         : (renderRichBody(parseWriteBody(b.text || '')) || '<p class="fiche-empty">Bloc vide.</p>');
     const spans = [[4, '⅓'], [6, '½'], [8, '⅔'], [12, 'Pleine']];
     const r = escAttr(ref), bid = escAttr(b.id);
@@ -3768,7 +3784,7 @@ function openBlockEditor(ref, blockId, type = 'text') {
     const t = b ? b.type : type;
     nvCloseForm();
     const box = pageEditHost();
-    blkForm = { ref, blockId, type: t, img: b && b.img !== undefined ? b.img : 0, span: b ? b.span : 6, images: tg.images.slice(), caps: tg.caps.slice(), changed: false, canUpload: tg.canUpload };
+    blkForm = { ref, blockId, type: t, img: b ? tg.imgIndex(b) : 0, span: b ? b.span : 6, images: tg.images.slice(), caps: tg.caps.slice(), changed: false, nEntry: tg.nEntry };
     const spans = [[4, 'Tiers'], [6, 'Moitié'], [8, 'Deux tiers'], [12, 'Pleine largeur']];
     box.innerHTML = `
     <button type="button" class="nv-card-x" onclick="closeBlockEditor()">✕</button>
@@ -3780,8 +3796,8 @@ function openBlockEditor(ref, blockId, type = 'text') {
     ${t === 'text' ? `<label>Texte <em>(- liste, &gt; citation, ligne vide = nouveau paragraphe)</em></label>
       <textarea id="blkText" rows="10" placeholder="Écris ton texte ici…">${esc(b && b.text ? b.text : '')}</textarea>`
         : `<label>Image</label><div class="blk-imgs" id="blkImgs"></div>
-      ${tg.canUpload ? `<div class="nv-upload-btn" onclick="document.getElementById('blkFile').click()">+ Ajouter une nouvelle image</div>
-      <input id="blkFile" type="file" accept="image/*" style="display:none" onchange="blkAddImage(this)">` : `<div class="blk-hint">Pour ajouter de nouvelles images à cette page, utilise « Modifier » (espace d'écriture) : elles apparaîtront ici.</div>`}`}
+      <div class="nv-upload-btn" onclick="document.getElementById('blkFile').click()">+ Ajouter une nouvelle image</div>
+      <input id="blkFile" type="file" accept="image/*" style="display:none" onchange="blkAddImage(this)">`}
     <label>Largeur</label>
     <div class="blk-spans">${spans.map(([n, l]) => `<button type="button" class="${n === blkForm.span ? 'on' : ''}" data-span="${n}" onclick="blkPickSpan(${n})">${l}</button>`).join('')}</div>
     <div class="nv-ed-actions">
@@ -3796,9 +3812,29 @@ function blkRefreshImgs() {
     const wrap = document.getElementById('blkImgs');
     if (!wrap || !blkForm)
         return;
+    const canRemove = blkForm.ref.startsWith('city:');
     wrap.innerHTML = blkForm.images.length
-        ? blkForm.images.map((s, i) => `<button type="button" class="${i === blkForm.img ? 'on' : ''}" onclick="blkPickImg(${i})"><img src="${s}" alt=""><span>${esc(blkForm.caps[i] || 'Image ' + (i + 1))}</span></button>`).join('')
-        : '<p class="blk-hint">Aucune image pour cette page.</p>';
+        ? blkForm.images.map((s, i) => `<button type="button" class="${i === blkForm.img ? 'on' : ''}" onclick="blkPickImg(${i})"><img src="${s}" alt=""><span>${esc(blkForm.caps[i] || 'Image ' + (i + 1))}</span>${canRemove && i >= blkForm.nEntry ? `<i class="blk-img-x" title="Supprimer cette image" onclick="event.stopPropagation(); blkRemoveImage(${i})">✕</i>` : ''}</button>`).join('')
+        : '<p class="blk-hint">Aucune image pour cette page : ajoute-en une ci-dessous.</p>';
+}
+function blkRemoveImage(i) {
+    const f = blkForm;
+    if (!f || !isLoggedIn())
+        return;
+    const tg = blkTarget(f.ref);
+    if (!tg || i < tg.nEntry)
+        return;
+    if (!confirm('Supprimer cette image ? Les blocs qui l\'utilisent seront supprimés aussi.'))
+        return;
+    const k = i - tg.nEntry;
+    const blocks = tg.blocks.filter(b => !(b.type === 'image' && b.pimg === k)).map(b => (b.type === 'image' && b.pimg !== undefined && b.pimg > k) ? { ...b, pimg: b.pimg - 1 } : b);
+    f.images.splice(i, 1);
+    f.caps.splice(i, 1);
+    if (f.img >= f.images.length)
+        f.img = 0;
+    tg.write({ blocks, ...tg.imagesPatch(f.images, f.caps) })
+        .then(() => blkRefreshImgs())
+        .catch((err) => alert('Suppression impossible : ' + (err && err.message ? err.message : err)));
 }
 function blkPickImg(i) { if (blkForm) {
     blkForm.img = i;
@@ -3815,15 +3851,15 @@ async function blkAddImage(input) {
     input.value = '';
     if (!f || !blkForm)
         return;
-    if (blkForm.images.length >= NV_MAX_IMAGES) {
-        alert(`Maximum ${NV_MAX_IMAGES} images par lieu.`);
+    if (blkForm.images.length - blkForm.nEntry >= NV_MAX_IMAGES) {
+        alert(`Maximum ${NV_MAX_IMAGES} images ajoutées par page.`);
         return;
     }
     try {
         const url = await nvCompressImage(f);
         if (!blkForm)
             return;
-        const total = blkForm.images.reduce((a, s) => a + s.length * 0.75, 0) + url.length * 0.75;
+        const total = blkForm.images.slice(blkForm.nEntry).reduce((a, s) => a + s.length * 0.75, 0) + url.length * 0.75;
         if (total > NV_IMAGE_BUDGET) {
             alert('Pas assez de place pour cette image : retire-en une depuis « Infos du lieu » avant d\'en ajouter.');
             return;
@@ -3859,6 +3895,8 @@ function saveBlock() {
         nb.label = label;
     if (f.type === 'text')
         nb.text = val('blkText');
+    else if (f.nEntry && f.img >= f.nEntry)
+        nb.pimg = f.img - f.nEntry;
     else
         nb.img = f.img;
     const list = tg.blocks.map(b => ({ ...b }));
@@ -3868,10 +3906,8 @@ function saveBlock() {
     else
         list.push(nb);
     const data = { blocks: list };
-    if (f.changed && f.canUpload) {
-        data.images = f.images;
-        data.imageCaps = f.caps;
-    }
+    if (f.changed)
+        Object.assign(data, tg.imagesPatch(f.images, f.caps));
     tg.write(data)
         .then(() => closeBlockEditor())
         .catch((err) => alert('Enregistrement impossible : ' + (err && err.message ? err.message : err)));
