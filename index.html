@@ -2652,17 +2652,17 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
   position:absolute; inset:-3%; z-index:0; will-change:transform;
   transform: translate3d(calc(var(--mx, 0) * -16px), calc(var(--my, 0) * -10px), 0);
   transition: transform .5s ease-out;
-  background: radial-gradient(ellipse at 70% 30%, #1d3550, #060a10 70%);
+  background: radial-gradient(ellipse at 70% 30%, #2a4a6c, #0a1018 70%);
 }
 .ch-bg img{
   width:100%; height:112%; object-fit:cover; display:block; transform: scale(1.06); will-change:transform;
-  filter: brightness(1) saturate(1.1); transition: filter .9s ease; animation: chKen 50s ease-in-out infinite alternate;
+  filter: brightness(1.12) saturate(1.12) contrast(1.03); transition: filter .9s ease; animation: chKen 50s ease-in-out infinite alternate;
 }
 @keyframes chKen{ from{ scale:1; } to{ scale:1.1; } }
 .ch-grade{ position:absolute; inset:0; z-index:1; pointer-events:none; transition: opacity .9s ease, background .9s ease;
   background: linear-gradient(200deg, rgba(255,186,110,0.34), rgba(255,110,90,0.12) 45%, transparent 75%); mix-blend-mode: screen; }
 .ch-shade{ position:absolute; inset:0; z-index:2; pointer-events:none;
-  background: linear-gradient(0deg, rgba(5,8,13,0.96) 0%, rgba(5,8,13,0.55) 38%, rgba(5,8,13,0.1) 70%), linear-gradient(90deg, rgba(5,8,13,0.78), transparent 62%); }
+  background: linear-gradient(0deg, rgba(5,8,13,0.78) 0%, rgba(5,8,13,0.3) 32%, rgba(5,8,13,0) 62%), linear-gradient(90deg, rgba(5,8,13,0.58), transparent 56%); }
 .ch-orbit{ position:absolute; z-index:2; right:-9%; top:46%; width:62vw; height:62vw; transform: translateY(-50%); pointer-events:none; opacity:.55; }
 .ch-orbit i{ position:absolute; border-radius:50%; border:1px solid rgba(255,255,255,0.1); }
 .ch-orbit i:nth-child(1){ inset:0; animation: chSpin 90s linear infinite; border-style:dashed; }
@@ -2673,9 +2673,11 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .ch-in{ position:relative; z-index:5; width:100%; max-width:min(100%, 1040px); padding: clamp(40px, 5vw, 90px) clamp(28px, 4.4vw, 84px) clamp(70px, 8vw, 116px); }
 .ch-kicker{ display:inline-flex; align-items:center; gap:14px; font-family:'IBM Plex Mono', monospace; font-size:11.5px; letter-spacing:.28em; text-transform:uppercase; color: var(--acc); animation: cityIn .9s ease both; }
 .ch-kicker::before{ content:''; width:46px; height:1px; background: var(--acc); }
+.ch-kicker{ color: color-mix(in srgb, var(--acc) 55%, #fff); text-shadow: 0 1px 3px rgba(0,0,0,0.9), 0 0 14px rgba(0,0,0,0.7); font-weight:500; }
+.ch-tag{ text-shadow: 0 1px 4px rgba(0,0,0,0.85), 0 0 18px rgba(0,0,0,0.6); }
 .ch-title{
   margin:18px 0 6px; font-family:'Cinzel', serif; font-weight:600; text-transform:uppercase; line-height:1.04; letter-spacing:.07em;
-  font-size: clamp(46px, 7.2vw, 132px); color:#f6f1e4; text-shadow: 0 6px 40px rgba(0,0,0,0.6), 0 0 60px color-mix(in srgb, var(--acc) 35%, transparent); overflow-wrap:anywhere;
+  font-size: clamp(46px, 7.2vw, 132px); color:#fbf7ec; text-shadow: 0 2px 4px rgba(0,0,0,0.45), 0 6px 40px rgba(0,0,0,0.55), 0 0 60px color-mix(in srgb, var(--acc) 30%, transparent); overflow-wrap:anywhere;
 }
 .ch-title.long{ font-size: clamp(36px, 4.8vw, 86px); letter-spacing:.05em; }
 .ch-title .w{ display:inline-block; white-space:nowrap; }
@@ -2757,10 +2759,10 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 }
 .pc:hover{ transform: translateY(-8px); border-color: var(--acc); box-shadow: 0 22px 44px rgba(0,0,0,0.55), 0 0 34px color-mix(in srgb, var(--acc) 32%, transparent); }
 .pc-img{ position:absolute; inset:0; background: linear-gradient(160deg, #15263a, #070b11); }
-.pc-img img{ width:100%; height:100%; object-fit:cover; display:block; transition: transform .8s ease, filter .5s ease; filter: saturate(.9) brightness(.85); }
-.pc:hover .pc-img img{ transform: scale(1.09); filter: saturate(1.1) brightness(1); }
+.pc-img img{ width:100%; height:100%; object-fit:cover; display:block; transition: transform .8s ease, filter .5s ease; filter: saturate(1) brightness(1); }
+.pc:hover .pc-img img{ transform: scale(1.09); filter: saturate(1.12) brightness(1.08); }
 .pc-noimg{ display:flex; width:100%; height:100%; align-items:center; justify-content:center; font-family:'Cinzel', serif; font-size:110px; color: var(--acc); opacity:.28; }
-.pc::after{ content:''; position:absolute; inset:0; pointer-events:none; background: linear-gradient(180deg, rgba(4,8,14,0.35) 0%, transparent 28%, rgba(4,8,14,0.5) 55%, rgba(4,8,14,0.95) 100%); }
+.pc::after{ content:''; position:absolute; inset:0; pointer-events:none; background: linear-gradient(180deg, rgba(4,8,14,0.2) 0%, transparent 30%, rgba(4,8,14,0.3) 58%, rgba(4,8,14,0.88) 100%); }
 .pc-code{ position:absolute; z-index:3; top:16px; left:18px; font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:.24em; color: var(--acc); }
 .pc-logo{ position:absolute; z-index:3; top:12px; right:12px; width:54px; height:54px; border-radius:50%; display:flex; align-items:center; justify-content:center; background: rgba(6,10,16,0.62); backdrop-filter: blur(8px); border:1px solid rgba(255,255,255,0.22); transition: border-color .3s ease, transform .4s ease; }
 .pc-logo img{ max-width:62%; max-height:62%; object-fit:contain; }
@@ -4171,6 +4173,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=91"></script>
+<script src="dist/main.js?v=93"></script>
 </body>
 </html>
