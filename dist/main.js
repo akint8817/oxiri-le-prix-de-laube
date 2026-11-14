@@ -918,6 +918,13 @@ function initFirestoreSync() {
         render();
         restoreDraftFormState(draft);
     }, (err) => console.error('Firestore (secretFiles) :', err));
+    db.collection('cityPages').onSnapshot((snap) => {
+        const m = {};
+        snap.forEach((doc) => { m[doc.id] = doc.data(); });
+        cityPagesCache = m;
+        if (document.querySelector('.city'))
+            render();
+    }, (err) => console.error('Firestore (cityPages) :', err));
     db.collection('novelancePois').onSnapshot((snap) => {
         const docs = {};
         snap.forEach((doc) => { docs[doc.id] = doc.data(); });
@@ -3351,6 +3358,71 @@ function cityBgHtml(seed) {
     }
     return `<div class="city-bg" aria-hidden="true"><div class="cb-glow a"></div><div class="cb-glow b"></div><div class="cb-dots">${dots}</div></div>`;
 }
+let cityPagesCache = {};
+let musForm = null;
+function cityMusicOf(e) {
+    const d = cityPagesCache[e.id];
+    return d && 'music' in d ? (d.music || '') : (e.music || '');
+}
+function cityMusicHtml(ownerId, music, title, kind, refId) {
+    const edit = isLoggedIn() ? `<button type="button" class="ed-only ch-music-edit" onclick="openMusicEditor('${kind}','${escAttr(refId)}')">♪ ${music ? 'Changer la musique' : 'Ajouter une musique d\'ambiance'}</button>` : '';
+    if (!music)
+        return edit ? `<div class="ch-music ch-music-empty">${edit}</div>` : '';
+    return `<div class="ch-music"><div class="ch-music-h"><span>Ambiance</span>${title ? `<b>♪ ${esc(title)}</b>` : ''}</div>${musicBarHtml(ownerId, music)}${edit}</div>`;
+}
+function openMusicEditor(kind, refId) {
+    if (!isLoggedIn())
+        return;
+    nvCloseForm();
+    let cur = '', title = '';
+    if (kind === 'city') {
+        const e = findEntry(refId);
+        cur = e ? cityMusicOf(e) : '';
+        title = (cityPagesCache[refId] && cityPagesCache[refId].musicTitle) || '';
+    }
+    else {
+        const p = findPoi(refId);
+        cur = (p && p.music) || '';
+        title = (p && p.musicTitle) || '';
+    }
+    musForm = { kind, refId };
+    const box = pageEditHost();
+    box.innerHTML = `
+    <button type="button" class="nv-card-x" onclick="closeMusicEditor()">✕</button>
+    <div class="nv-ed-title">Musique d'ambiance</div>
+    <label>Lien de la musique</label>
+    <input id="musUrl" type="url" value="${escAttr(cur)}" placeholder="Lien SoundCloud, fichier audio, ou ost/mon-morceau.mp3">
+    <div class="blk-hint">Un lien SoundCloud (page du morceau) marche directement. Pour un fichier audio, le lien doit pointer vers le fichier lui-même ; un mp3 déposé dans le dossier « ost » du site s'écrit <b>ost/nom-du-fichier.mp3</b>.</div>
+    <label>Titre affiché <em>(optionnel)</em></label>
+    <input id="musTitle" type="text" value="${escAttr(title)}" placeholder="ex : Thème de Novelance">
+    <div class="nv-ed-actions">
+      <button type="button" class="primary" onclick="saveMusic()">Enregistrer</button>
+      <button type="button" onclick="closeMusicEditor()">Annuler</button>
+      ${cur ? `<button type="button" class="danger" onclick="saveMusic(true)">Retirer la musique</button>` : ''}
+    </div>`;
+    box.classList.add('open');
+    const inp = document.getElementById('musUrl');
+    if (inp)
+        inp.focus();
+}
+function closeMusicEditor() { musForm = null; nvCloseForm(); }
+function saveMusic(remove = false) {
+    const f = musForm;
+    if (!f || !isLoggedIn())
+        return;
+    const url = remove ? '' : ((document.getElementById('musUrl')?.value) || '').trim();
+    const title = remove ? '' : ((document.getElementById('musTitle')?.value) || '').trim();
+    const data = { music: url || null, musicTitle: title || null };
+    const db = getFirestoreDb();
+    if (!db) {
+        alert('Base de données indisponible : impossible d\'enregistrer.');
+        return;
+    }
+    const op = f.kind === 'city'
+        ? db.collection('cityPages').doc(f.refId).set(data, { merge: true })
+        : writePoiPatch(f.refId, data);
+    op.then(() => closeMusicEditor()).catch((err) => alert('Enregistrement impossible : ' + (err && err.message ? err.message : err)));
+}
 function cityHeroHtml(o) {
     let li = 0;
     const letters = o.title.split(' ').map(w => `<span class="w">${Array.from(w).map(ch => `<span style="--i:${li++}">${esc(ch)}</span>`).join('')}</span>`).join(' ');
@@ -3369,7 +3441,7 @@ function cityHeroHtml(o) {
     <aside class="ch-plaque">
       <div class="ch-plaque-h"><span>Dossier</span><i></i></div>
       ${o.facts.map(([k, v]) => `<div class="ch-fact"><small>${esc(k)}</small><b>${esc(v)}</b></div>`).join('')}
-      ${o.music ? `<div class="ch-music"><small>Ambiance</small>${o.music}</div>` : ''}
+      ${o.music}
     </aside>
     <a class="ch-down" onclick="document.querySelector('.city-sec').scrollIntoView({ behavior: 'smooth' })">Descendre <span>↓</span></a>
   </header>`;
@@ -3440,7 +3512,7 @@ function renderNovelancePage(e) {
     ${logged ? `<button type="button" class="city-btn city-edit-btn${cityEdit ? ' on' : ''}" id="cityEditBtn" onclick="toggleCityEdit()">${cityEdit ? '✓ Terminer l\'édition' : '✎ Édition'}</button>` : ''}`;
     const hero = cityHeroHtml({
         kicker: `${c.label} · Cité-bastion`, title: e.name, tagline: e.tagline, facts, img: images[0] ? encodeURI(images[0].url) : '',
-        tape: [e.name, e.tagline || '', 'Halcyon'].filter(Boolean).join('  ◆  ').toUpperCase(), actions, music: musicBarHtml(e.id, e.music),
+        tape: [e.name, e.tagline || '', 'Halcyon'].filter(Boolean).join('  ◆  ').toUpperCase(), actions, music: cityMusicHtml(e.id, cityMusicOf(e), (cityPagesCache[e.id] && cityPagesCache[e.id].musicTitle) || '', 'city', e.id),
     });
     const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'La ville', g: 'i' }, { id: 'city-lieux', t: 'Lieux importants', g: '◈' }]
         .concat(places.map(p => ({ id: 'place-' + p.id, t: p.name, g: p.name.charAt(0).toUpperCase() })));
@@ -3481,7 +3553,8 @@ function renderPoiPage(id) {
     ${logged ? `<button type="button" class="city-btn" onclick="editPoiFromPage('${p.id}')">✎ Infos du lieu</button>` : ''}`;
     const hero = cityHeroHtml({
         kicker: `${parent ? parent.name : 'Lieu'} · ${lieuDistrictLabel(p.district)}`, title: p.name, tagline: p.tagline || '', facts, img: imgs[0] ? imgs[0].url : '',
-        tape: [p.name, p.tagline || '', parent ? parent.name : ''].filter(Boolean).join('  ◆  ').toUpperCase(), actions, music: '',
+        tape: [p.name, p.tagline || '', parent ? parent.name : ''].filter(Boolean).join('  ◆  ').toUpperCase(), actions,
+        music: cityMusicHtml('poi-' + p.id, p.music || '', p.musicTitle || '', 'poi', p.id),
     });
     return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('cat-lieux')" style="cursor:pointer">Lieux</span>${parent ? ` / <span onclick="navigate('entry-${parent.id}')" style="cursor:pointer">${esc(parent.name)}</span>` : ''} / ${esc(p.name)}</div>
@@ -7947,7 +8020,7 @@ function nvMergePoi(b, d) {
         entryId: d.entryId || undefined, link: d.entryId ? undefined : b.link, images: d.images && d.images.length ? d.images : undefined,
         imageCaps: d.imageCaps && d.imageCaps.length ? d.imageCaps : undefined, tagline: d.tagline || undefined, body: d.body || undefined, logo: d.logo || undefined,
         important: d.important !== undefined ? !!d.important : b.important, accent: d.accent || undefined,
-        blocks: Array.isArray(d.blocks) ? d.blocks : undefined,
+        blocks: Array.isArray(d.blocks) ? d.blocks : undefined, music: d.music || undefined, musicTitle: d.musicTitle || undefined,
     };
 }
 function nvCompressImage(file) {
@@ -8184,6 +8257,7 @@ function nvOpenPoiForm(id, wx, wy, host = 'map') {
         logo: existing && existing.logo ? existing.logo : '', important: existing ? !!existing.important : host === 'page',
         accent: existing && existing.accent ? existing.accent : NV_ACCENT_DEFAULT,
         blocks: existing && Array.isArray(existing.blocks) ? existing.blocks : undefined,
+        music: existing ? existing.music : undefined, musicTitle: existing ? existing.musicTitle : undefined,
     };
     const lieux = ENTRIES.filter(e => e.cat === 'lieux');
     const distOpts = NOVELANCE_DISTRICTS.map(d => `<option value="${d.id}"${d.id === district ? ' selected' : ''}>${esc(d.label)}</option>`).join('') +
@@ -8361,7 +8435,7 @@ function nvSavePoi() {
         name, cat: val('nvfCat'), icon: nvForm.icon || null, district: val('nvfDist'), desc: val('nvfDesc'),
         tagline: val('nvfTag') || null, body: val('nvfBody') || null, logo: nvForm.logo || null, important: nvForm.important, accent: nvForm.accent,
         imageCaps: nvForm.images.length ? nvForm.imageCaps.slice(0, nvForm.images.length) : null,
-        blocks: nvForm.blocks === undefined ? null : nvForm.blocks,
+        blocks: nvForm.blocks === undefined ? null : nvForm.blocks, music: nvForm.music || null, musicTitle: nvForm.musicTitle || null,
         entryId: val('nvfLink') || null, images: nvForm.images.length ? nvForm.images : null, at: nvForm.at || null, author: getCurrentUser() || 'aki', updated: Date.now(),
     };
     db.collection('novelancePois').doc(id).set(data)
@@ -8656,8 +8730,22 @@ function render() {
         content.innerHTML = renderCustomPage(route.replace('page-', ''));
     }
     else if (route.startsWith('poi-')) {
+        const poiPlayerId = 'em-poi-' + route.replace('poi-', '');
+        const oldPoiPlayer = document.getElementById(poiPlayerId);
         content.innerHTML = renderPoiPage(route.replace('poi-', ''));
         initCityPage(isNavigation);
+        const newPoiPlayer = document.getElementById(poiPlayerId);
+        let poiPreserved = false;
+        if (oldPoiPlayer && newPoiPlayer && oldPoiPlayer.dataset.kind === newPoiPlayer.dataset.kind) {
+            const oldSrc = oldPoiPlayer.querySelector('iframe,audio')?.getAttribute('src');
+            const newSrc = newPoiPlayer.querySelector('iframe,audio')?.getAttribute('src');
+            if (oldSrc && oldSrc === newSrc) {
+                newPoiPlayer.replaceWith(oldPoiPlayer);
+                poiPreserved = true;
+            }
+        }
+        if (!poiPreserved)
+            initEntryMusicPlayers();
     }
     else if (route.startsWith('cat-')) {
         content.innerHTML = renderCategory(route.replace('cat-', ''));

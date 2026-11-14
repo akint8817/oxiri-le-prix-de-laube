@@ -2719,8 +2719,20 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .ch-fact small{ display:block; font-family:'IBM Plex Mono', monospace; font-size:9.5px; letter-spacing:.22em; text-transform:uppercase; color:#8e988f; }
 .ch-fact b{ font-family:'EB Garamond', serif; font-weight:500; font-size:19px; color:#f0ebdc; }
 .ch-music{ margin-top:8px; padding-top:12px; border-top:1px solid rgba(255,255,255,0.14); }
-.ch-music small{ font-family:'IBM Plex Mono', monospace; font-size:9.5px; letter-spacing:.22em; text-transform:uppercase; color: var(--acc); }
-.ch-music .entry-music{ margin:8px 0 0; border:0; background:none; padding:0; }
+.ch-music-h{ display:flex; align-items:baseline; gap:10px; flex-wrap:wrap; }
+.ch-music-h span{ font-family:'IBM Plex Mono', monospace; font-size:9.5px; letter-spacing:.22em; text-transform:uppercase; color: var(--acc); }
+.ch-music-h b{ font-family:'EB Garamond', serif; font-weight:500; font-size:16px; color:#f0ebdc; }
+.ch-music .entry-music{ margin:10px 0 0; padding:0; border:0; background:none; flex-wrap:wrap; gap:10px 12px; }
+.ch-music .entry-music-toggle{ width:38px; height:38px; font-size:14px; border-color: var(--acc); color: var(--acc); background: rgba(6,10,16,0.6); }
+.ch-music .entry-music-toggle:hover{ background: var(--acc); color:#04111a; }
+.ch-music .entry-music-track{ flex:1 1 120px; min-width:100px; }
+.ch-music .entry-music-time{ color:#cfc9ba; }
+.ch-music .entry-music-vol{ flex:1 1 100%; }
+.ch-music .entry-music-vol-slider{ flex:1; width:auto; accent-color: var(--acc); }
+.ch-music-edit{ display:none; margin-top:10px; padding:7px 14px; border-radius:999px; cursor:pointer; background:transparent; border:1px dashed var(--acc); color: var(--acc); font-family:'IBM Plex Mono', monospace; font-size:11px; letter-spacing:.1em; text-transform:uppercase; }
+.ch-music-edit:hover{ background: var(--acc); color:#04111a; }
+.ch-music-empty{ display:none; border-top:0; margin-top:0; padding-top:4px; }
+.is-edit .ch-music-empty{ display:block; }
 .ch-down{ position:absolute; z-index:6; left:50%; bottom:16px; transform:translateX(-50%); cursor:pointer; font-family:'IBM Plex Mono', monospace; font-size:10.5px; letter-spacing:.34em; text-transform:uppercase; color:#cfc9ba; animation: chBob 2.4s ease-in-out infinite; }
 .ch-down span{ display:inline-block; margin-left:6px; color: var(--acc); }
 @keyframes chBob{ 50%{ transform: translate(-50%, 6px); } }
@@ -4213,6 +4225,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=97"></script>
+<script src="dist/main.js?v=98"></script>
 </body>
 </html>

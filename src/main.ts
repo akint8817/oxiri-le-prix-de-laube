@@ -1217,6 +1217,13 @@ function initFirestoreSync(): void {
     restoreDraftFormState(draft);
   }, (err: any) => console.error('Firestore (secretFiles) :', err));
 
+  db.collection('cityPages').onSnapshot((snap: any) => {
+    const m: Record<string, { music?: string | null; musicTitle?: string | null }> = {};
+    snap.forEach((doc: any) => { m[doc.id] = doc.data(); });
+    cityPagesCache = m;
+    if(document.querySelector('.city')) render();
+  }, (err: any) => console.error('Firestore (cityPages) :', err));
+
   db.collection('novelancePois').onSnapshot((snap: any) => {
     const docs: Record<string, NvPoiDoc> = {};
     snap.forEach((doc: any) => { docs[doc.id] = doc.data() as NvPoiDoc; });
@@ -3985,6 +3992,71 @@ function cityBgHtml(seed: string): string {
   return `<div class="city-bg" aria-hidden="true"><div class="cb-glow a"></div><div class="cb-glow b"></div><div class="cb-dots">${dots}</div></div>`;
 }
 
+/* ----- Musique d'ambiance d'une page de ville / de lieu : lecteur (lecture, barre, volume) dans le bandeau ----- */
+let cityPagesCache: Record<string, { music?: string | null; musicTitle?: string | null }> = {};
+let musForm: { kind: 'city' | 'poi'; refId: string } | null = null;
+
+// Musique de la ville : celle posée depuis la page (collection cityPages) ou, à défaut, le champ « Musique » de la fiche.
+function cityMusicOf(e: Entry): string {
+  const d = cityPagesCache[e.id];
+  return d && 'music' in d ? (d.music || '') : (e.music || '');
+}
+
+function cityMusicHtml(ownerId: string, music: string, title: string, kind: 'city' | 'poi', refId: string): string {
+  const edit = isLoggedIn() ? `<button type="button" class="ed-only ch-music-edit" onclick="openMusicEditor('${kind}','${escAttr(refId)}')">♪ ${music ? 'Changer la musique' : 'Ajouter une musique d\'ambiance'}</button>` : '';
+  if(!music) return edit ? `<div class="ch-music ch-music-empty">${edit}</div>` : '';
+  return `<div class="ch-music"><div class="ch-music-h"><span>Ambiance</span>${title ? `<b>♪ ${esc(title)}</b>` : ''}</div>${musicBarHtml(ownerId, music)}${edit}</div>`;
+}
+
+function openMusicEditor(kind: 'city' | 'poi', refId: string): void {
+  if(!isLoggedIn()) return;
+  nvCloseForm();
+  let cur = '', title = '';
+  if(kind === 'city'){
+    const e = findEntry(refId);
+    cur = e ? cityMusicOf(e) : '';
+    title = (cityPagesCache[refId] && cityPagesCache[refId].musicTitle) || '';
+  } else {
+    const p = findPoi(refId);
+    cur = (p && p.music) || '';
+    title = (p && p.musicTitle) || '';
+  }
+  musForm = { kind, refId };
+  const box = pageEditHost();
+  box.innerHTML = `
+    <button type="button" class="nv-card-x" onclick="closeMusicEditor()">✕</button>
+    <div class="nv-ed-title">Musique d'ambiance</div>
+    <label>Lien de la musique</label>
+    <input id="musUrl" type="url" value="${escAttr(cur)}" placeholder="Lien SoundCloud, fichier audio, ou ost/mon-morceau.mp3">
+    <div class="blk-hint">Un lien SoundCloud (page du morceau) marche directement. Pour un fichier audio, le lien doit pointer vers le fichier lui-même ; un mp3 déposé dans le dossier « ost » du site s'écrit <b>ost/nom-du-fichier.mp3</b>.</div>
+    <label>Titre affiché <em>(optionnel)</em></label>
+    <input id="musTitle" type="text" value="${escAttr(title)}" placeholder="ex : Thème de Novelance">
+    <div class="nv-ed-actions">
+      <button type="button" class="primary" onclick="saveMusic()">Enregistrer</button>
+      <button type="button" onclick="closeMusicEditor()">Annuler</button>
+      ${cur ? `<button type="button" class="danger" onclick="saveMusic(true)">Retirer la musique</button>` : ''}
+    </div>`;
+  box.classList.add('open');
+  const inp = document.getElementById('musUrl') as HTMLInputElement | null;
+  if(inp) inp.focus();
+}
+
+function closeMusicEditor(): void { musForm = null; nvCloseForm(); }
+
+function saveMusic(remove: boolean = false): void {
+  const f = musForm;
+  if(!f || !isLoggedIn()) return;
+  const url = remove ? '' : ((document.getElementById('musUrl') as HTMLInputElement | null)?.value || '').trim();
+  const title = remove ? '' : ((document.getElementById('musTitle') as HTMLInputElement | null)?.value || '').trim();
+  const data = { music: url || null, musicTitle: title || null };
+  const db = getFirestoreDb();
+  if(!db){ alert('Base de données indisponible : impossible d\'enregistrer.'); return; }
+  const op = f.kind === 'city'
+    ? db.collection('cityPages').doc(f.refId).set(data, { merge: true })
+    : writePoiPatch(f.refId, data);
+  op.then(() => closeMusicEditor()).catch((err: any) => alert('Enregistrement impossible : ' + (err && err.message ? err.message : err)));
+}
+
 function cityHeroHtml(o: CityHero): string {
   // titre : chaque lettre apparaît à son tour (flou -> net)
   let li = 0;
@@ -4004,7 +4076,7 @@ function cityHeroHtml(o: CityHero): string {
     <aside class="ch-plaque">
       <div class="ch-plaque-h"><span>Dossier</span><i></i></div>
       ${o.facts.map(([k, v]) => `<div class="ch-fact"><small>${esc(k)}</small><b>${esc(v)}</b></div>`).join('')}
-      ${o.music ? `<div class="ch-music"><small>Ambiance</small>${o.music}</div>` : ''}
+      ${o.music}
     </aside>
     <a class="ch-down" onclick="document.querySelector('.city-sec').scrollIntoView({ behavior: 'smooth' })">Descendre <span>↓</span></a>
   </header>`;
@@ -4080,7 +4152,7 @@ function renderNovelancePage(e: Entry): string {
     ${logged ? `<button type="button" class="city-btn city-edit-btn${cityEdit ? ' on' : ''}" id="cityEditBtn" onclick="toggleCityEdit()">${cityEdit ? '✓ Terminer l\'édition' : '✎ Édition'}</button>` : ''}`;
   const hero = cityHeroHtml({
     kicker: `${c.label} · Cité-bastion`, title: e.name, tagline: e.tagline, facts, img: images[0] ? encodeURI(images[0].url) : '',
-    tape: [e.name, e.tagline || '', 'Halcyon'].filter(Boolean).join('  ◆  ').toUpperCase(), actions, music: musicBarHtml(e.id, e.music),
+    tape: [e.name, e.tagline || '', 'Halcyon'].filter(Boolean).join('  ◆  ').toUpperCase(), actions, music: cityMusicHtml(e.id, cityMusicOf(e), (cityPagesCache[e.id] && cityPagesCache[e.id].musicTitle) || '', 'city', e.id),
   });
   const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'La ville', g: 'i' }, { id: 'city-lieux', t: 'Lieux importants', g: '◈' }]
     .concat(places.map(p => ({ id: 'place-' + p.id, t: p.name, g: p.name.charAt(0).toUpperCase() })));
@@ -4120,7 +4192,8 @@ function renderPoiPage(id: string): string {
     ${logged ? `<button type="button" class="city-btn" onclick="editPoiFromPage('${p.id}')">✎ Infos du lieu</button>` : ''}`;
   const hero = cityHeroHtml({
     kicker: `${parent ? parent.name : 'Lieu'} · ${lieuDistrictLabel(p.district)}`, title: p.name, tagline: p.tagline || '', facts, img: imgs[0] ? imgs[0].url : '',
-    tape: [p.name, p.tagline || '', parent ? parent.name : ''].filter(Boolean).join('  ◆  ').toUpperCase(), actions, music: '',
+    tape: [p.name, p.tagline || '', parent ? parent.name : ''].filter(Boolean).join('  ◆  ').toUpperCase(), actions,
+    music: cityMusicHtml('poi-' + p.id, p.music || '', p.musicTitle || '', 'poi', p.id),
   });
   return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('cat-lieux')" style="cursor:pointer">Lieux</span>${parent ? ` / <span onclick="navigate('entry-${parent.id}')" style="cursor:pointer">${esc(parent.name)}</span>` : ''} / ${esc(p.name)}</div>
@@ -7758,7 +7831,7 @@ const NV_BORDER: Record<string, string> = {
 type NvCatId ='commerce' | 'halcyon' | 'transport' | 'service' | 'industrie' | 'danger';
 interface NvCat { id: NvCatId; label: string; red: boolean; icon: string; }
 interface NvFloor { id: string; label: string; districts: string[]; icon: string; }
-interface NvPoi { id: string; name: string; cat: NvCatId; district: string; zone: string; at: [number, number] | null; desc: string; link?: string; icon?: string; entryId?: string; custom?: boolean; images?: string[]; imageCaps?: string[]; tagline?: string; body?: string; logo?: string; important?: boolean; accent?: string; blocks?: PoiBlock[]; }
+interface NvPoi { id: string; name: string; cat: NvCatId; district: string; zone: string; at: [number, number] | null; desc: string; link?: string; icon?: string; entryId?: string; custom?: boolean; images?: string[]; imageCaps?: string[]; tagline?: string; body?: string; logo?: string; important?: boolean; accent?: string; blocks?: PoiBlock[]; music?: string; musicTitle?: string; }
 
 const NV_CATS: NvCat[] = [
   { id:'commerce',  label:'Commerces',      red:false, icon:'<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>' },
@@ -8599,8 +8672,8 @@ function closeNovelanceOverlay(): void {
    un clic sur un lieu existant le modifie. Tout est enregistré dans Firestore (collection
    « novelancePois ») : un document dont l'id correspond à un lieu d'origine (NV_POIS) le
    remplace ou, marqué « deleted », le retire ; sinon c'est un nouveau lieu (« custom-… »). */
-interface NvPoiDoc { name?: string; cat?: string; icon?: string | null; district?: string; desc?: string; at?: [number, number] | null; entryId?: string | null; images?: string[] | null; imageCaps?: string[] | null; tagline?: string | null; body?: string | null; logo?: string | null; important?: boolean; accent?: string | null; blocks?: PoiBlock[] | null; deleted?: boolean; }
-interface NvFormState { id: string | null; base: boolean; at: [number, number] | null; icon: string; picking: boolean; images: string[]; imageCaps: string[]; logo: string; important: boolean; accent: string; host: 'map' | 'page'; blocks?: PoiBlock[]; }
+interface NvPoiDoc { name?: string; cat?: string; icon?: string | null; district?: string; desc?: string; at?: [number, number] | null; entryId?: string | null; images?: string[] | null; imageCaps?: string[] | null; tagline?: string | null; body?: string | null; logo?: string | null; important?: boolean; accent?: string | null; blocks?: PoiBlock[] | null; music?: string | null; musicTitle?: string | null; deleted?: boolean; }
+interface NvFormState { id: string | null; base: boolean; at: [number, number] | null; icon: string; picking: boolean; images: string[]; imageCaps: string[]; logo: string; important: boolean; accent: string; host: 'map' | 'page'; blocks?: PoiBlock[]; music?: string; musicTitle?: string; }
 const NV_ACCENTS = ['#35c7e0', '#ffd21f', '#5aa2ff', '#ff5a64', '#38d19b', '#ff9a3d', '#b79cff', '#e8edf4'];
 const NV_ACCENT_DEFAULT = '#35c7e0';
 const NV_MAX_IMAGES = 6;
@@ -8642,7 +8715,7 @@ function nvMergePoi(b: NvPoi, d: NvPoiDoc): NvPoi {
     entryId: d.entryId || undefined, link: d.entryId ? undefined : b.link, images: d.images && d.images.length ? d.images : undefined,
     imageCaps: d.imageCaps && d.imageCaps.length ? d.imageCaps : undefined, tagline: d.tagline || undefined, body: d.body || undefined, logo: d.logo || undefined,
     important: d.important !== undefined ? !!d.important : b.important, accent: d.accent || undefined,
-    blocks: Array.isArray(d.blocks) ? d.blocks : undefined,
+    blocks: Array.isArray(d.blocks) ? d.blocks : undefined, music: d.music || undefined, musicTitle: d.musicTitle || undefined,
   };
 }
 
@@ -8835,6 +8908,7 @@ function nvOpenPoiForm(id: string | null, wx?: number, wy?: number, host: 'map' 
     logo: existing && existing.logo ? existing.logo : '', important: existing ? !!existing.important : host === 'page',
     accent: existing && existing.accent ? existing.accent : NV_ACCENT_DEFAULT,
     blocks: existing && Array.isArray(existing.blocks) ? existing.blocks : undefined,
+    music: existing ? existing.music : undefined, musicTitle: existing ? existing.musicTitle : undefined,
   };
   const lieux = ENTRIES.filter(e => e.cat === 'lieux');
   const distOpts = NOVELANCE_DISTRICTS.map(d => `<option value="${d.id}"${d.id === district ? ' selected' : ''}>${esc(d.label)}</option>`).join('') +
@@ -8993,7 +9067,7 @@ function nvSavePoi(): void {
     name, cat: val('nvfCat'), icon: nvForm.icon || null, district: val('nvfDist'), desc: val('nvfDesc'),
     tagline: val('nvfTag') || null, body: val('nvfBody') || null, logo: nvForm.logo || null, important: nvForm.important, accent: nvForm.accent,
     imageCaps: nvForm.images.length ? nvForm.imageCaps.slice(0, nvForm.images.length) : null,
-    blocks: nvForm.blocks === undefined ? null : nvForm.blocks,
+    blocks: nvForm.blocks === undefined ? null : nvForm.blocks, music: nvForm.music || null, musicTitle: nvForm.musicTitle || null,
     entryId: val('nvfLink') || null, images: nvForm.images.length ? nvForm.images : null, at: nvForm.at || null, author: getCurrentUser() || 'aki', updated: Date.now(),
   };
   db.collection('novelancePois').doc(id).set(data)
@@ -9270,8 +9344,19 @@ function render(): void {
   } else if(route.startsWith('page-')){
     content.innerHTML = renderCustomPage(route.replace('page-',''));
   } else if(route.startsWith('poi-')){
+    // même préservation du lecteur que pour une fiche : une synchro Firestore ne coupe pas la musique en cours
+    const poiPlayerId = 'em-poi-' + route.replace('poi-','');
+    const oldPoiPlayer = document.getElementById(poiPlayerId);
     content.innerHTML = renderPoiPage(route.replace('poi-',''));
     initCityPage(isNavigation);
+    const newPoiPlayer = document.getElementById(poiPlayerId);
+    let poiPreserved = false;
+    if(oldPoiPlayer && newPoiPlayer && oldPoiPlayer.dataset.kind === newPoiPlayer.dataset.kind){
+      const oldSrc = oldPoiPlayer.querySelector('iframe,audio')?.getAttribute('src');
+      const newSrc = newPoiPlayer.querySelector('iframe,audio')?.getAttribute('src');
+      if(oldSrc && oldSrc === newSrc){ newPoiPlayer.replaceWith(oldPoiPlayer); poiPreserved = true; }
+    }
+    if(!poiPreserved) initEntryMusicPlayers();
   } else if(route.startsWith('cat-')){
     content.innerHTML = renderCategory(route.replace('cat-',''));
   } else if(route.startsWith('entry-')){
