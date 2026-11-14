@@ -2863,6 +2863,13 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .blk-imgs button{ padding:0; cursor:pointer; text-align:left; background:#0b1620; border:2px solid transparent; }
 .blk-imgs button img{ width:100%; height:72px; object-fit:cover; display:block; }
 .blk-imgs button span{ display:block; padding:4px 6px; font-size:12px; color:#cfd8e2; }
+.pv-thumbs{ display:flex; flex-wrap:wrap; gap:8px; padding:12px 14px 14px; }
+.pv-thumbs button{ width:78px; height:54px; padding:0; cursor:pointer; background:none; border:2px solid transparent; opacity:.55; transition: opacity .2s ease, border-color .2s ease; }
+.pv-thumbs button img{ width:100%; height:100%; object-fit:cover; display:block; }
+.pv-thumbs button:hover{ opacity:.9; }
+.pv-thumbs button.on{ opacity:1; border-color: var(--acc); }
+.nv-edit-panel .nv-prev{ display:flex; align-items:center; gap:5px; margin:0; flex:none; text-transform:none; letter-spacing:0; font-size:13px; color:#cfe3ef; cursor:pointer; }
+.nv-edit-panel .nv-prev input{ width:auto; }
 .blk-imgs button{ position:relative; }
 .blk-imgs button.on{ border-color:#ffe27a; }
 .blk-img-x{ position:absolute; top:4px; right:4px; width:20px; height:20px; display:flex; align-items:center; justify-content:center; font-style:normal; font-size:11px; border-radius:50%; background:rgba(2,10,16,0.88); border:1px solid rgba(255,74,82,0.8); color:#ffb9bd; cursor:pointer; }
@@ -4253,6 +4260,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=106"></script>
+<script src="dist/main.js?v=107"></script>
 </body>
 </html>

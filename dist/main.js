@@ -3507,12 +3507,47 @@ function poiActionsHtml(p) {
     return `${p.at ? `<button type="button" class="city-btn" onclick="openLieuOnMap('${p.id}')">⌖ Sur la carte</button>` : ''}
     ${linked ? `<button type="button" class="city-btn" onclick="navigate('entry-${linked.id}')">Fiche : ${esc(linked.name)}</button>` : ''}`;
 }
+function previewIndexes(p) {
+    const n = (p.images || []).length;
+    const list = Array.isArray(p.preview) ? p.preview : (n ? [0] : []);
+    return list.filter(i => i >= 0 && i < n);
+}
+function previewPanelHtml(p) {
+    const imgs = poiImgList(p);
+    const pv = previewIndexes(p);
+    if (!pv.length)
+        return '';
+    const k0 = pv[0];
+    const thumbs = pv.length > 1 ? `<div class="pv-thumbs">${pv.map((ix, k) => `<button type="button" class="${k === 0 ? 'on' : ''}" onclick="setPlaceView('${p.id}', ${k})" aria-label="Image ${k + 1}"><img src="${imgs[ix].url}" alt=""></button>`).join('')}</div>` : '';
+    return `<div class="pv-wrap" id="pv-${p.id}">${pnl(imgs[k0].caption || 'Aperçu', 'Vue 01' + (pv.length > 1 ? ' / ' + String(pv.length).padStart(2, '0') : ''), `${poiFigure(p, k0)}${thumbs}`, 'pnl-media')}</div>`;
+}
+function setPlaceView(poiId, k) {
+    const p = findPoi(poiId);
+    const wrap = document.getElementById('pv-' + poiId);
+    if (!p || !wrap)
+        return;
+    const pv = previewIndexes(p), imgs = poiImgList(p), ix = pv[k];
+    if (ix === undefined)
+        return;
+    const img = wrap.querySelector('.pnl-img img');
+    const fig = wrap.querySelector('.pnl-img');
+    if (img)
+        img.src = imgs[ix].url;
+    if (fig)
+        fig.setAttribute('onclick', `openPoiLightbox('${p.id}', ${ix})`);
+    const t = wrap.querySelector('.pnl-h b'), l = wrap.querySelector('.pnl-h span');
+    if (t)
+        t.textContent = imgs[ix].caption || 'Aperçu';
+    if (l)
+        l.textContent = 'Vue ' + String(k + 1).padStart(2, '0') + ' / ' + String(pv.length).padStart(2, '0');
+    wrap.querySelectorAll('.pv-thumbs button').forEach((b, i) => b.classList.toggle('on', i === k));
+}
 function placeDetailHtml(p, idx) {
     const imgs = poiImgList(p);
     const cat = NV_CATS.find(c => c.id === p.cat) || NV_CATS[3];
     const pres = renderRichBody(parseWriteBody(p.desc || '')) || '<p class="fiche-empty">Pas encore de présentation.</p>';
     const presPanel = pnl('Présentation', p.tagline || cat.label, `${pres}<div class="pl-meta"><span>${esc(lieuDistrictLabel(p.district))}</span><span>${esc(cat.label)}</span></div><div class="pl-acts">${poiActionsHtml(p)}</div>`);
-    const first = imgs[0] ? pnl(imgs[0].caption || 'Aperçu', 'Vue 01', poiFigure(p, 0), 'pnl-media') : '';
+    const first = previewPanelHtml(p);
     return `<article class="place" id="place-${p.id}" style="--acc:${poiAccent(p)}">
     <div class="pl-head">
       <span class="pl-emblem">${p.logo ? `<img src="${p.logo}" alt="">` : `<b>${esc(p.name.charAt(0).toUpperCase())}</b>`}</span>
@@ -3523,8 +3558,8 @@ function placeDetailHtml(p, idx) {
       </div>
     </div>
     <div class="pl-line"></div>
-    <div class="pl-grid${imgs.length ? '' : ' solo'}">
-      ${imgs.length ? `<div class="pl-col">${first}</div><div class="pl-col">${presPanel}</div>` : `<div class="pl-col">${presPanel}</div>`}
+    <div class="pl-grid${first ? '' : ' solo'}">
+      ${first ? `<div class="pl-col">${first}</div><div class="pl-col">${presPanel}</div>` : `<div class="pl-col">${presPanel}</div>`}
     </div>
   </article>`;
 }
@@ -8149,6 +8184,7 @@ function nvMergePoi(b, d) {
         imageCaps: d.imageCaps && d.imageCaps.length ? d.imageCaps : undefined, tagline: d.tagline || undefined, body: d.body || undefined, logo: d.logo || undefined,
         important: d.important !== undefined ? !!d.important : b.important, accent: d.accent || undefined,
         blocks: Array.isArray(d.blocks) ? d.blocks : undefined, music: d.music || undefined, musicTitle: d.musicTitle || undefined,
+        preview: Array.isArray(d.preview) ? d.preview : undefined,
     };
 }
 function nvCompressImage(file) {
@@ -8224,6 +8260,7 @@ function nvRemoveImage(i) {
         return;
     nvForm.images.splice(i, 1);
     nvForm.imageCaps.splice(i, 1);
+    nvForm.preview = nvForm.preview.filter(k => k !== i).map(k => k > i ? k - 1 : k);
     if (nvForm.blocks)
         nvForm.blocks = nvForm.blocks.filter(b => !(b.type === 'image' && b.img === i)).map(b => (b.type === 'image' && (b.img || 0) > i) ? { ...b, img: (b.img || 0) - 1 } : b);
     nvRefreshFormImages();
@@ -8232,7 +8269,7 @@ function nvRefreshFormImages() {
     const wrap = document.getElementById('nvfImgs');
     if (!wrap || !nvForm)
         return;
-    wrap.innerHTML = nvForm.images.map((src, i) => `<div class="nv-img-thumb"><img src="${src}" alt=""><input type="text" class="nv-cap" value="${escAttr(nvForm.imageCaps[i] || '')}" placeholder="Titre de l'image (ex : Le hall principal)" oninput="nvSetCap(${i}, this.value)"><button type="button" onclick="nvRemoveImage(${i})" aria-label="Retirer l'image">✕</button></div>`).join('');
+    wrap.innerHTML = nvForm.images.map((src, i) => `<div class="nv-img-thumb"><img src="${src}" alt=""><input type="text" class="nv-cap" value="${escAttr(nvForm.imageCaps[i] || '')}" placeholder="Titre de l'image (ex : Le hall principal)" oninput="nvSetCap(${i}, this.value)"><label class="nv-prev" title="Afficher cette image dans l'aperçu de la page de la ville"><input type="checkbox"${nvForm.preview.includes(i) ? ' checked' : ''} onchange="nvTogglePreview(${i}, this.checked)"> Aperçu</label><button type="button" onclick="nvRemoveImage(${i})" aria-label="Retirer l'image">✕</button></div>`).join('');
 }
 function nvOpenLightbox(poiId, i) {
     const p = NV_POIS.find(x => x.id === poiId);
@@ -8386,6 +8423,7 @@ function nvOpenPoiForm(id, wx, wy, host = 'map', defEntry = '') {
         accent: existing && existing.accent ? existing.accent : NV_ACCENT_DEFAULT,
         blocks: existing && Array.isArray(existing.blocks) ? existing.blocks : undefined,
         music: existing ? existing.music : undefined, musicTitle: existing ? existing.musicTitle : undefined,
+        preview: existing ? previewIndexes(existing) : [],
     };
     const lieux = ENTRIES.filter(e => e.cat === 'lieux');
     const distOpts = NOVELANCE_DISTRICTS.map(d => `<option value="${d.id}"${d.id === district ? ' selected' : ''}>${esc(d.label)}</option>`).join('') +
@@ -8478,6 +8516,14 @@ function nvPickAccent(c) {
 }
 function nvSetCap(i, v) { if (nvForm)
     nvForm.imageCaps[i] = v; }
+function nvTogglePreview(i, on) {
+    if (!nvForm)
+        return;
+    nvForm.preview = nvForm.preview.filter(k => k !== i);
+    if (on)
+        nvForm.preview.push(i);
+    nvForm.preview.sort((a, b) => a - b);
+}
 function nvCompressLogo(file) {
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
@@ -8563,7 +8609,7 @@ function nvSavePoi() {
         name, cat: val('nvfCat'), icon: nvForm.icon || null, district: val('nvfDist'), desc: val('nvfDesc'),
         tagline: val('nvfTag') || null, body: val('nvfBody') || null, logo: nvForm.logo || null, important: nvForm.important, accent: nvForm.accent,
         imageCaps: nvForm.images.length ? nvForm.imageCaps.slice(0, nvForm.images.length) : null,
-        blocks: nvForm.blocks === undefined ? null : nvForm.blocks, music: nvForm.music || null, musicTitle: nvForm.musicTitle || null,
+        blocks: nvForm.blocks === undefined ? null : nvForm.blocks, music: nvForm.music || null, musicTitle: nvForm.musicTitle || null, preview: nvForm.preview,
         entryId: val('nvfLink') || null, images: nvForm.images.length ? nvForm.images : null, at: nvForm.at || null, author: getCurrentUser() || 'aki', updated: Date.now(),
     };
     db.collection('novelancePois').doc(id).set(data)

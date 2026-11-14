@@ -4148,12 +4148,45 @@ function poiActionsHtml(p: NvPoi): string {
     ${linked ? `<button type="button" class="city-btn" onclick="navigate('entry-${linked.id}')">Fiche : ${esc(linked.name)}</button>` : ''}`;
 }
 
+// Images montrées dans l'aperçu d'un lieu : celles cochées dans « Infos du lieu » ; par défaut, la première.
+function previewIndexes(p: NvPoi): number[] {
+  const n = (p.images || []).length;
+  const list = Array.isArray(p.preview) ? p.preview : (n ? [0] : []);
+  return list.filter(i => i >= 0 && i < n);
+}
+
+// Panneau d'aperçu : image principale + miniatures cliquables quand il y a plusieurs images.
+function previewPanelHtml(p: NvPoi): string {
+  const imgs = poiImgList(p);
+  const pv = previewIndexes(p);
+  if(!pv.length) return '';
+  const k0 = pv[0];
+  const thumbs = pv.length > 1 ? `<div class="pv-thumbs">${pv.map((ix, k) => `<button type="button" class="${k === 0 ? 'on' : ''}" onclick="setPlaceView('${p.id}', ${k})" aria-label="Image ${k + 1}"><img src="${imgs[ix].url}" alt=""></button>`).join('')}</div>` : '';
+  return `<div class="pv-wrap" id="pv-${p.id}">${pnl(imgs[k0].caption || 'Aperçu', 'Vue 01' + (pv.length > 1 ? ' / ' + String(pv.length).padStart(2, '0') : ''), `${poiFigure(p, k0)}${thumbs}`, 'pnl-media')}</div>`;
+}
+
+function setPlaceView(poiId: string, k: number): void {
+  const p = findPoi(poiId);
+  const wrap = document.getElementById('pv-' + poiId);
+  if(!p || !wrap) return;
+  const pv = previewIndexes(p), imgs = poiImgList(p), ix = pv[k];
+  if(ix === undefined) return;
+  const img = wrap.querySelector<HTMLImageElement>('.pnl-img img');
+  const fig = wrap.querySelector<HTMLElement>('.pnl-img');
+  if(img) img.src = imgs[ix].url;
+  if(fig) fig.setAttribute('onclick', `openPoiLightbox('${p.id}', ${ix})`);
+  const t = wrap.querySelector('.pnl-h b'), l = wrap.querySelector('.pnl-h span');
+  if(t) t.textContent = imgs[ix].caption || 'Aperçu';
+  if(l) l.textContent = 'Vue ' + String(k + 1).padStart(2, '0') + ' / ' + String(pv.length).padStart(2, '0');
+  wrap.querySelectorAll('.pv-thumbs button').forEach((b, i) => b.classList.toggle('on', i === k));
+}
+
 function placeDetailHtml(p: NvPoi, idx: number): string {
   const imgs = poiImgList(p);
   const cat = NV_CATS.find(c => c.id === p.cat) || NV_CATS[3];
   const pres = renderRichBody(parseWriteBody(p.desc || '')) || '<p class="fiche-empty">Pas encore de présentation.</p>';
   const presPanel = pnl('Présentation', p.tagline || cat.label, `${pres}<div class="pl-meta"><span>${esc(lieuDistrictLabel(p.district))}</span><span>${esc(cat.label)}</span></div><div class="pl-acts">${poiActionsHtml(p)}</div>`);
-  const first = imgs[0] ? pnl(imgs[0].caption || 'Aperçu', 'Vue 01', poiFigure(p, 0), 'pnl-media') : '';
+  const first = previewPanelHtml(p);
   // l'aperçu sur la page de la ville ne montre que l'image principale ; les autres images restent sur la page « Informations supplémentaires »
   return `<article class="place" id="place-${p.id}" style="--acc:${poiAccent(p)}">
     <div class="pl-head">
@@ -4165,8 +4198,8 @@ function placeDetailHtml(p: NvPoi, idx: number): string {
       </div>
     </div>
     <div class="pl-line"></div>
-    <div class="pl-grid${imgs.length ? '' : ' solo'}">
-      ${imgs.length ? `<div class="pl-col">${first}</div><div class="pl-col">${presPanel}</div>` : `<div class="pl-col">${presPanel}</div>`}
+    <div class="pl-grid${first ? '' : ' solo'}">
+      ${first ? `<div class="pl-col">${first}</div><div class="pl-col">${presPanel}</div>` : `<div class="pl-col">${presPanel}</div>`}
     </div>
   </article>`;
 }
@@ -7964,7 +7997,7 @@ const NV_BORDER: Record<string, string> = {
 type NvCatId ='commerce' | 'halcyon' | 'transport' | 'service' | 'industrie' | 'danger';
 interface NvCat { id: NvCatId; label: string; red: boolean; icon: string; }
 interface NvFloor { id: string; label: string; districts: string[]; icon: string; }
-interface NvPoi { id: string; name: string; cat: NvCatId; district: string; zone: string; at: [number, number] | null; desc: string; link?: string; icon?: string; entryId?: string; custom?: boolean; images?: string[]; imageCaps?: string[]; tagline?: string; body?: string; logo?: string; important?: boolean; accent?: string; blocks?: PoiBlock[]; music?: string; musicTitle?: string; }
+interface NvPoi { id: string; name: string; cat: NvCatId; district: string; zone: string; at: [number, number] | null; desc: string; link?: string; icon?: string; entryId?: string; custom?: boolean; images?: string[]; imageCaps?: string[]; tagline?: string; body?: string; logo?: string; important?: boolean; accent?: string; blocks?: PoiBlock[]; music?: string; musicTitle?: string; preview?: number[]; }
 
 const NV_CATS: NvCat[] = [
   { id:'commerce',  label:'Commerces',      red:false, icon:'<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>' },
@@ -8805,8 +8838,8 @@ function closeNovelanceOverlay(): void {
    un clic sur un lieu existant le modifie. Tout est enregistré dans Firestore (collection
    « novelancePois ») : un document dont l'id correspond à un lieu d'origine (NV_POIS) le
    remplace ou, marqué « deleted », le retire ; sinon c'est un nouveau lieu (« custom-… »). */
-interface NvPoiDoc { name?: string; cat?: string; icon?: string | null; district?: string; desc?: string; at?: [number, number] | null; entryId?: string | null; images?: string[] | null; imageCaps?: string[] | null; tagline?: string | null; body?: string | null; logo?: string | null; important?: boolean; accent?: string | null; blocks?: PoiBlock[] | null; music?: string | null; musicTitle?: string | null; deleted?: boolean; }
-interface NvFormState { id: string | null; base: boolean; at: [number, number] | null; icon: string; picking: boolean; images: string[]; imageCaps: string[]; logo: string; important: boolean; accent: string; host: 'map' | 'page'; blocks?: PoiBlock[]; music?: string; musicTitle?: string; }
+interface NvPoiDoc { name?: string; cat?: string; icon?: string | null; district?: string; desc?: string; at?: [number, number] | null; entryId?: string | null; images?: string[] | null; imageCaps?: string[] | null; tagline?: string | null; body?: string | null; logo?: string | null; important?: boolean; accent?: string | null; blocks?: PoiBlock[] | null; music?: string | null; musicTitle?: string | null; preview?: number[] | null; deleted?: boolean; }
+interface NvFormState { id: string | null; base: boolean; at: [number, number] | null; icon: string; picking: boolean; images: string[]; imageCaps: string[]; logo: string; important: boolean; accent: string; host: 'map' | 'page'; blocks?: PoiBlock[]; music?: string; musicTitle?: string; preview: number[]; }
 const NV_ACCENTS = ['#35c7e0', '#ffd21f', '#5aa2ff', '#ff5a64', '#38d19b', '#ff9a3d', '#b79cff', '#e8edf4'];
 const NV_ACCENT_DEFAULT = '#35c7e0';
 const NV_MAX_IMAGES = 6;
@@ -8849,6 +8882,7 @@ function nvMergePoi(b: NvPoi, d: NvPoiDoc): NvPoi {
     imageCaps: d.imageCaps && d.imageCaps.length ? d.imageCaps : undefined, tagline: d.tagline || undefined, body: d.body || undefined, logo: d.logo || undefined,
     important: d.important !== undefined ? !!d.important : b.important, accent: d.accent || undefined,
     blocks: Array.isArray(d.blocks) ? d.blocks : undefined, music: d.music || undefined, musicTitle: d.musicTitle || undefined,
+    preview: Array.isArray(d.preview) ? d.preview : undefined,
   };
 }
 
@@ -8907,6 +8941,7 @@ function nvRemoveImage(i: number): void {
   if(!nvForm) return;
   nvForm.images.splice(i, 1);
   nvForm.imageCaps.splice(i, 1);
+  nvForm.preview = nvForm.preview.filter(k => k !== i).map(k => k > i ? k - 1 : k);
   // les blocs d'image qui pointaient sur cette image disparaissent, les suivants se décalent
   if(nvForm.blocks) nvForm.blocks = nvForm.blocks.filter(b => !(b.type === 'image' && b.img === i)).map(b => (b.type === 'image' && (b.img || 0) > i) ? { ...b, img: (b.img || 0) - 1 } : b);
   nvRefreshFormImages();
@@ -8915,7 +8950,7 @@ function nvRemoveImage(i: number): void {
 function nvRefreshFormImages(): void {
   const wrap = document.getElementById('nvfImgs');
   if(!wrap || !nvForm) return;
-  wrap.innerHTML = nvForm.images.map((src, i) => `<div class="nv-img-thumb"><img src="${src}" alt=""><input type="text" class="nv-cap" value="${escAttr(nvForm!.imageCaps[i] || '')}" placeholder="Titre de l'image (ex : Le hall principal)" oninput="nvSetCap(${i}, this.value)"><button type="button" onclick="nvRemoveImage(${i})" aria-label="Retirer l'image">✕</button></div>`).join('');
+  wrap.innerHTML = nvForm.images.map((src, i) => `<div class="nv-img-thumb"><img src="${src}" alt=""><input type="text" class="nv-cap" value="${escAttr(nvForm!.imageCaps[i] || '')}" placeholder="Titre de l'image (ex : Le hall principal)" oninput="nvSetCap(${i}, this.value)"><label class="nv-prev" title="Afficher cette image dans l'aperçu de la page de la ville"><input type="checkbox"${nvForm!.preview.includes(i) ? ' checked' : ''} onchange="nvTogglePreview(${i}, this.checked)"> Aperçu</label><button type="button" onclick="nvRemoveImage(${i})" aria-label="Retirer l'image">✕</button></div>`).join('');
 }
 
 // Visionneuse plein écran d'une image du lieu (clic sur l'image de la fiche).
@@ -9042,6 +9077,7 @@ function nvOpenPoiForm(id: string | null, wx?: number, wy?: number, host: 'map' 
     accent: existing && existing.accent ? existing.accent : NV_ACCENT_DEFAULT,
     blocks: existing && Array.isArray(existing.blocks) ? existing.blocks : undefined,
     music: existing ? existing.music : undefined, musicTitle: existing ? existing.musicTitle : undefined,
+    preview: existing ? previewIndexes(existing) : [],
   };
   const lieux = ENTRIES.filter(e => e.cat === 'lieux');
   const distOpts = NOVELANCE_DISTRICTS.map(d => `<option value="${d.id}"${d.id === district ? ' selected' : ''}>${esc(d.label)}</option>`).join('') +
@@ -9130,6 +9166,14 @@ function nvPickAccent(c: string): void {
 
 function nvSetCap(i: number, v: string): void { if(nvForm) nvForm.imageCaps[i] = v; }
 
+// Images montrées dans l'aperçu du lieu sur la page de la ville (par défaut : seulement la première).
+function nvTogglePreview(i: number, on: boolean): void {
+  if(!nvForm) return;
+  nvForm.preview = nvForm.preview.filter(k => k !== i);
+  if(on) nvForm.preview.push(i);
+  nvForm.preview.sort((a, b) => a - b);
+}
+
 // Logo : réduit à 320 px max en conservant la transparence (WebP/PNG), quelques dizaines de Ko.
 function nvCompressLogo(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -9200,7 +9244,7 @@ function nvSavePoi(): void {
     name, cat: val('nvfCat'), icon: nvForm.icon || null, district: val('nvfDist'), desc: val('nvfDesc'),
     tagline: val('nvfTag') || null, body: val('nvfBody') || null, logo: nvForm.logo || null, important: nvForm.important, accent: nvForm.accent,
     imageCaps: nvForm.images.length ? nvForm.imageCaps.slice(0, nvForm.images.length) : null,
-    blocks: nvForm.blocks === undefined ? null : nvForm.blocks, music: nvForm.music || null, musicTitle: nvForm.musicTitle || null,
+    blocks: nvForm.blocks === undefined ? null : nvForm.blocks, music: nvForm.music || null, musicTitle: nvForm.musicTitle || null, preview: nvForm.preview,
     entryId: val('nvfLink') || null, images: nvForm.images.length ? nvForm.images : null, at: nvForm.at || null, author: getCurrentUser() || 'aki', updated: Date.now(),
   };
   db.collection('novelancePois').doc(id).set(data)
