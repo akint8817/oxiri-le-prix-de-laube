@@ -119,6 +119,14 @@ const ENTRIES_BASE = [
         info: { "Type": "Consommable", "Effet": "Invisibilité (6s)", "Rareté": "Commune", "Obtention": "Achat / Loot" },
         body: ["Un classique pour les approches furtives. Se combine bien avec les compétences de type Assassin.",
             "Le temps de recharge après usage est de 45 secondes."] },
+    { id: 'hybrides', cat: 'hybrides', name: 'Les Hybrides', tagline: "Ce qu'ils sont, comment ils sont créés", rarity: 'rare',
+        summary: "Qui sont les hybrides, comment ils sont créés et ce qu'ils deviennent.",
+        info: {},
+        body: ["Cette page explique ce que sont les hybrides. Texte à rédiger : active « Mise en page » puis modifie ce bloc.",
+            "# Qu'est-ce qu'un hybride ?", "À rédiger.",
+            "# Comment sont-ils créés ?", "À rédiger.",
+            "# Les rangs", "À rédiger.",
+            "# Le gène d'Oxiri", "À rédiger."] },
 ];
 const ENTRIES = ENTRIES_BASE.map(e => ({ ...e }));
 /* ---------------- ARCHIVES HALCYON — ARTEFACTS OXIRIENS (dossiers secrets des armes) ---------------- */
@@ -3156,9 +3164,9 @@ function renderHome() {
 
     <div class="stats-row" id="homeStart">
       ${Object.entries(CATS).map(([key, c], i) => `
-        <div class="stat" onclick="navigate('cat-${key}')" title="Ouvrir : ${escAttr(c.label)}">
+        <div class="stat" onclick="navigate('${key === 'hybrides' ? 'entry-hybrides' : 'cat-' + key}')" title="Ouvrir : ${escAttr(c.label)}">
           <div class="stat-idx">${String(i + 1).padStart(2, '0')}</div>
-          <div class="num">${counts[key]}</div>
+          <div class="num">${key === 'hybrides' ? '✚' : counts[key]}</div>
           <div class="lbl">${c.label}</div>
           <span class="stat-go">→</span>
         </div>`).join('')}
@@ -3353,8 +3361,10 @@ function renderCategory(cat) {
     const c = CATS[cat];
     if (cat === 'lieux')
         return renderLieuxIndex(list, c);
-    if (cat === 'hybrides')
-        return renderHybridesIndex(list, c);
+    if (cat === 'hybrides') {
+        const he = findEntry('hybrides');
+        return he ? renderHybridesPage(he) : renderNotFound();
+    }
     return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / ${c.label}</div>
     <div class="cat-header">
@@ -3666,81 +3676,69 @@ function hybridMeta(e) {
   return out;
 }
 
-// Page « Hybrides » : registre de dossiers médicaux.
-function renderHybridesIndex(list, c) {
-  const logged = isLoggedIn();
-  const first = list.map(e => entryImgs(e)[0]).find(Boolean);
-  const genes = new Set(list.map(e => e.info["Gène d'Oxiri lié"]).filter(Boolean));
-  const cards = list.map(e => {
-    const img = entryImgs(e)[0];
-    const meta = hybridMeta(e).slice(0, 2);
-    return `<div class="hy-card cv-rv" onclick="navigate('entry-${e.id}')">
-      <div class="hy-top"><span class="hy-cross"></span><span>Dossier médical</span><b>${hybridCode(list, e)}</b></div>
-      <div class="hy-photo">${img ? `<img src="${encodeURI(img.url)}" alt="">` : `<span class="hy-noimg">${esc(e.name.charAt(0).toUpperCase())}</span>`}${ecgSvg('hy-ecg')}</div>
-      <div class="hy-body">
-        <h3>${esc(e.name)}</h3>
-        ${e.tagline ? `<p>${esc(e.tagline)}</p>` : ''}
-        ${meta.length ? `<div class="hy-chips">${meta.map(m => `<span><small>${esc(m.k)}</small>${esc(m.v)}</span>`).join('')}</div>` : ''}
-        <span class="hy-go">Ouvrir le dossier →</span>
-      </div>
-    </div>`;
-  }).join('');
-  const hero = cityHeroHtml({
-    kicker: 'Registre médical', title: c.label, tagline: c.desc, img: first ? encodeURI(first.url) : '', tape: '', music: '', plaque: 'Registre',
-    facts: [['Dossiers', String(list.length)], ['Gènes recensés', String(genes.size)]],
-    actions: logged ? `<button type="button" class="city-btn" onclick="navigate('ecriture')">+ Écrire un dossier</button>` : `<button type="button" class="city-btn" onclick="navigate('demande-fiche')">Demander une fiche</button>`,
-  });
-  return `
-    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / ${c.label}</div>
-    <div class="city med hy-index" style="--acc:${MED_ACCENT}">
-      ${cityBgHtml('hybrides-index', true)}
-      ${hero}
-      <section class="city-sec lx-sec">
-        ${secHead('I', 'Registre', 'TOUS LES <em>DOSSIERS</em>', 'Clique sur un dossier pour l\'ouvrir.')}
-        <div class="hy-grid">${cards || '<p class="city-empty">Aucun dossier pour l\'instant.' + (logged ? ' Crée une fiche dans « Écriture » en choisissant la catégorie Hybrides.' : '') + '</p>'}</div>
-      </section>
-    </div>`;
+// Personnages hybrides connus : ceux dont la fiche indique un rang hybride, un gène d'Oxiri ou « Hybride » dans la ligne de titre.
+function knownHybrids() {
+  return ENTRIES.filter(x => x.cat === 'personnages' && (/hybride/i.test(x.tagline) || x.info['Rang'] || x.info['Rang hybride'] || x.info["Gène d'Oxiri lié"]));
 }
 
-// Page d'un dossier d'hybride : même édition que la page d'un lieu (mise en page libre, images, musique).
-function renderHybridePage(e) {
+// Page « Hybrides » : une page d'explication (ce que sont les hybrides, comment ils sont créés…), éditable comme une page de lieu.
+function renderHybridesPage(e) {
   const c = CATS[e.cat];
-  const list = ENTRIES.filter(x => x.cat === 'hybrides');
-  const code = hybridCode(list, e);
+  const known = knownHybrids();
+  const genes = new Set(known.map(x => x.info["Gène d'Oxiri lié"]).filter(Boolean));
+  const ranks = new Set(known.map(x => x.info['Rang'] || x.info['Rang hybride']).filter(Boolean));
   const images = entryImgs(e);
   const logged = isLoggedIn();
   const ref = 'city:' + e.id;
   const tg = blkTarget(ref);
-  const meta = hybridMeta(e);
-  const facts = [['Dossier', code]];
-  meta.slice(0, 3).forEach(m => facts.push([m.k, m.v]));
+  const facts = [['Hybrides connus', String(known.length)], ['Gènes recensés', String(genes.size)]];
   const actions = `${entryOwnerActionsHtml(e)}
     ${logged ? `<button type="button" class="city-btn" onclick="openMusicEditor('city','${escAttr(e.id)}')">♪ Musique</button>` : ''}
     ${logged ? `<button type="button" class="city-btn city-edit-btn${cityEdit ? ' on' : ''}" id="cityEditBtn" onclick="toggleCityEdit()">${cityEdit ? '✓ Terminer l\'édition' : '✎ Mise en page'}</button>` : ''}`;
   const hero = cityHeroHtml({
-    kicker: `${c.label} · Dossier médical`, title: e.name, tagline: e.tagline, facts, img: images[0] ? encodeURI(images[0].url) : '', tape: '', plaque: 'Dossier médical', actions,
+    kicker: 'Codex · Archives médicales', title: e.name, tagline: e.tagline, facts, img: images[0] ? encodeURI(images[0].url) : '', tape: '', plaque: 'Archives médicales', actions,
     music: cityMusicHtml(e.id, cityMusicOf(e), (cityPagesCache[e.id] && cityPagesCache[e.id].musicTitle) || '', 'city', e.id),
   });
-  const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Identification', g: '+' }, { id: 'city-obs', t: 'Observations', g: 'i' }];
+  const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Relevé', g: '+' }, { id: 'city-obs', t: 'Comprendre', g: 'i' }];
+  if(known.length) rail.push({ id: 'city-connus', t: 'Hybrides connus', g: '◈' });
+  const cards = known.map(h => {
+    const img = entryImgs(h)[0];
+    const meta = hybridMeta(h).slice(0, 2);
+    return `<div class="hy-card cv-rv" onclick="navigate('entry-${h.id}')">
+      <div class="hy-top"><span class="hy-cross"></span><span>Hybride</span><b>${hybridCode(known, h)}</b></div>
+      <div class="hy-photo">${img ? `<img src="${encodeURI(img.url)}" alt="">` : `<span class="hy-noimg">${esc(h.name.charAt(0).toUpperCase())}</span>`}${ecgSvg('hy-ecg')}</div>
+      <div class="hy-body">
+        <h3>${esc(h.name)}</h3>
+        ${h.tagline ? `<p>${esc(h.tagline)}</p>` : ''}
+        ${meta.length ? `<div class="hy-chips">${meta.map(m => `<span><small>${esc(m.k)}</small>${esc(m.v)}</span>`).join('')}</div>` : ''}
+        <span class="hy-go">Ouvrir la fiche →</span>
+      </div>
+    </div>`;
+  }).join('');
   return `
-    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('cat-${e.cat}')" style="cursor:pointer">${c.label}</span> / ${esc(e.name)}</div>
+    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / ${esc(c.label)}</div>
     <div class="city med${cityEdit ? ' is-edit' : ''}" data-entry="${escAttr(e.id)}" style="--acc:${MED_ACCENT}">
       ${cityBgHtml(e.id, true)}
       <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
       ${hero}
       <section class="city-sec" id="city-ville">
-        ${secHead('I', 'Identification', `RELEVÉ DE <em>${esc(e.name.toUpperCase())}</em>`, 'Métadonnées du dossier.')}
+        ${secHead('I', 'Relevé', 'L\'ESSENTIEL EN <em>CHIFFRES</em>', 'Données tirées des fiches du codex.')}
         <div class="med-meta cv-rv">
-          <div class="med-cell med-id"><small>Dossier</small><b>${code}</b></div>
-          ${meta.map(m => `<div class="med-cell"><small>${esc(m.k)}</small><b>${esc(m.v)}</b></div>`).join('')}
+          <div class="med-cell"><small>Hybrides connus</small><b>${known.length}</b></div>
+          <div class="med-cell"><small>Gènes d'Oxiri recensés</small><b>${genes.size}</b></div>
+          <div class="med-cell"><small>Rangs recensés</small><b>${ranks.size}</b></div>
           <div class="med-cell med-sig"><small>Signal vital</small>${ecgSvg('')}</div>
         </div>
       </section>
       <section class="city-sec" id="city-obs">
-        ${secHead('II', 'Observations', 'NOTES <em>CLINIQUES</em>')}
-        <div class="blk-grid" id="blkGrid" data-ref="${escAttr(ref)}">${tg.blocks.map(b => blockHtml(ref, tg, b)).join('') || '<p class="city-empty">Aucune observation pour le moment.' + (logged ? ' Active « Mise en page » pour ajouter des blocs.' : '') + '</p>'}</div>
+        ${secHead('II', 'Comprendre', 'TOUT SAVOIR SUR LES <em>HYBRIDES</em>')}
+        <div class="blk-grid" id="blkGrid" data-ref="${escAttr(ref)}">${tg.blocks.map(b => blockHtml(ref, tg, b)).join('') || '<p class="city-empty">Aucune information pour le moment.' + (logged ? ' Active « Mise en page » pour ajouter des blocs.' : '') + '</p>'}</div>
         ${logged ? `<div class="blk-add ed-only"><button type="button" onclick="openBlockEditor('${escAttr(ref)}', null, 'text')">+ Bloc de texte</button><button type="button" onclick="openBlockEditor('${escAttr(ref)}', null, 'image')">+ Bloc d'image</button></div>` : ''}
-      </section>
+      </section>${known.length ? `
+      <section class="city-sec" id="city-connus">
+        ${secHead('III', 'Dossiers', 'HYBRIDES <em>CONNUS</em>', 'Clique sur un hybride pour ouvrir sa fiche.')}
+        <div class="hy-grid">${cards}</div>
+      </section>` : ''}
     </div>`;
 }
 
@@ -4237,7 +4235,7 @@ function renderEntry(id) {
         return renderNotFound();
     if (e.cat === 'personnages') return renderPersonnageEntry(e);
     if (e.cat === 'lieux') return renderLieuPage(e);
-    if (e.cat === 'hybrides') return renderHybridePage(e);
+    if (e.cat === 'hybrides') return renderHybridesPage(e);
     const c = CATS[e.cat];
     return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('cat-${e.cat}')" style="cursor:pointer">${c.label}</span> / ${esc(e.name)}</div>
