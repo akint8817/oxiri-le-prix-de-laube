@@ -439,6 +439,8 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .content{ padding: 72px 40px 60px; }
 @media (max-width: 800px){ .content{ padding: 68px 20px 50px; } }
 .content.page-enter{ animation: contentFadeIn .45s cubic-bezier(.2,.8,.2,1); }
+/* garde-fou : un élément trop large ne doit jamais faire apparaître de défilement horizontal sur les pages */
+.content{ overflow-x: clip; }
 @keyframes contentFadeIn{ from{ opacity:0; transform:translateY(14px); } to{ opacity:1; transform:none; } }
 
 .crumbs{
@@ -4457,6 +4459,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=128"></script>
+<script src="dist/main.js?v=129"></script>
 </body>
 </html>
