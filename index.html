@@ -3360,7 +3360,7 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .hy-brand em{ font-style:normal; color:#f2e24a; }
 .hy-barcode{ width:120px; height:14px; opacity:.8; }
 .hy-barcode svg{ width:100%; height:100%; fill:#e9eef1; display:block; }
-.hy-cols{ display:grid; grid-template-columns: 250px minmax(0,1fr) 370px; gap:20px; align-items:start; }
+.hy-cols{ display:grid; grid-template-columns: 210px minmax(0,1fr) 340px; gap:20px; align-items:start; }
 .hy-tab{ display:flex; align-items:center; gap:10px; margin-bottom:12px; font-family:'IBM Plex Mono', monospace !important; font-size:10.5px; letter-spacing:.3em; text-transform:uppercase; color:#e9eef1; }
 .hy-tab span{ padding:3px 10px; background: repeating-linear-gradient(135deg, rgba(255,255,255,0.2) 0 2px, transparent 2px 6px), rgba(255,255,255,0.06); }
 .hy-tab i{ flex:1; height:1px; background: linear-gradient(90deg, rgba(255,255,255,0.4), transparent); }
@@ -3374,34 +3374,15 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .hy-tile.on i{ opacity:1; height:3px; }
 .st-n{ --hs:#e8eef2; } .st-v{ --hs:#3ee08f; } .st-j{ --hs:#f2e24a; } .st-r{ --hs:#ff4d4d; }
 
-.hy-stage{ position:relative; display:flex; justify-content:center; padding:6px 0 26px; overflow:hidden; background: radial-gradient(ellipse at 50% 40%, rgba(255,255,255,0.05), transparent 65%); }
-.hy-scan{ position:absolute; left:0; right:0; top:-70px; height:70px; z-index:3; pointer-events:none; background: linear-gradient(180deg, transparent, rgba(255,255,255,0.05) 70%, rgba(255,255,255,0.14) 99%, transparent); animation: hyScan 8s linear infinite; }
-@keyframes hyScan{ from{ top:-70px; } to{ top:100%; } }
-.hy-figure{ position:relative; z-index:2; display:block; height:min(82vh, 880px); width:auto; max-width:100%; overflow:visible; }
-.hy-ruler line{ stroke:rgba(255,255,255,0.4); stroke-width:1; }
-.hy-ruler text{ fill:#8d969c; font-family:'IBM Plex Mono', monospace; font-size:12px; }
-.hy-mesh path{ fill:none; stroke:rgba(235,242,246,0.42); stroke-width:.9; }
-.hy-nodes path{ fill:none; stroke:rgba(245,250,252,0.85); stroke-width:2.6; stroke-linecap:round; }
-.hy-organs path{ fill:rgba(255,255,255,0.05); stroke:rgba(255,255,255,0.4); stroke-width:1; }
-.hy-bones{ filter: drop-shadow(0 0 3px rgba(255,255,255,0.35)); }
-.hy-bones path, .hy-bones rect, .hy-bones ellipse, .hy-bones circle{ fill:rgba(255,255,255,0.06); stroke:rgba(250,252,253,0.78); stroke-width:1.2; }
-.hy-hs{ cursor:pointer; --hs:#e8eef2; }
-.hy-hs.st-v{ --hs:#3ee08f; } .hy-hs.st-j{ --hs:#f2e24a; } .hy-hs.st-r{ --hs:#ff4d4d; }
-.hy-hs .hs-hit{ fill:transparent; }
-.hy-hs .hs-dot{ fill: var(--hs); }
-.hy-hs .hs-ring{ fill: color-mix(in srgb, var(--hs) 22%, transparent); stroke: var(--hs); stroke-width:1.4; transform-box:fill-box; transform-origin:center; animation: hsPulse 2.4s ease-out infinite; }
-@keyframes hsPulse{ 0%{ transform:scale(.7); opacity:1; } 100%{ transform:scale(1.9); opacity:0; } }
-.hy-hs .hs-cross{ fill:none; stroke: var(--hs); stroke-width:1.4; opacity:0; transition: opacity .25s ease; }
-.hy-hs .hs-lead{ stroke:rgba(255,255,255,0.45); stroke-width:1.4; stroke-dasharray:4 4; }
-.hy-hs .hs-chip rect{ fill:#f1f4f6; }
-.hy-hs .hs-chip text{ fill:#0a0b0d; font-family:'IBM Plex Mono', monospace; font-size:13px; letter-spacing:.08em; font-weight:600; }
-.hy-hs:hover .hs-chip rect{ fill:#fff; }
-.hy-hs:hover .hs-cross, .hy-hs.on .hs-cross{ opacity:1; }
-.hy-hs.on .hs-chip rect{ fill: var(--hs); }
-.hy-hs.on .hs-lead{ stroke: var(--hs); stroke-dasharray:none; }
-.hy-hs.on .hs-dot{ r:8; }
-.hy-foot{ position:absolute; left:0; right:0; bottom:0; z-index:4; display:flex; align-items:center; justify-content:center; gap:14px; font-family:'IBM Plex Mono', monospace !important; font-size:11px; letter-spacing:.3em; text-transform:uppercase; color:#8d969c; }
-.hy-foot b{ font-weight:500; color:#f3f6f8; letter-spacing:.2em; font-size:15px; }
+.hy-stage{ position:relative; min-height:clamp(560px, 78vh, 820px); overflow:hidden; background: radial-gradient(ellipse at 50% 45%, #0e1e24 0%, #070c0f 72%); border:1px solid rgba(255,255,255,0.1); }
+.hy-stage canvas{ position:absolute; inset:0; width:100%; height:100%; display:block; }
+.hy-gene{ position:absolute; z-index:3; left:50%; top:46%; width:96px; height:96px; margin:-48px 0 0 -48px; border-radius:50%; cursor:pointer; background:transparent; border:0; --hs:#e8eef2; }
+.hy-gene span{ position:absolute; left:50%; top:100%; transform:translateX(-50%); margin-top:26px; white-space:nowrap; padding:3px 10px; font-family:'IBM Plex Mono', monospace !important; font-size:10.5px; letter-spacing:.18em; text-transform:uppercase; color:#0a0b0d; background:#f1f4f6; }
+.hy-gene.on span{ background:var(--hs); }
+.hy-time{ position:absolute; z-index:3; top:12px; right:14px; width:96px; height:96px; border-radius:50%; border:1px solid rgba(255,255,255,0.5); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; pointer-events:none; background:rgba(6,10,12,0.5); }
+.hy-time::after{ content:''; position:absolute; inset:-8px; border-radius:50%; border:1px solid rgba(255,255,255,0.18); border-top-color:rgba(255,255,255,0.7); }
+.hy-time b{ font-family:'IBM Plex Mono', monospace !important; font-weight:500; font-size:16px; letter-spacing:.06em; color:#f3f6f8; }
+.hy-time small{ font-family:'IBM Plex Mono', monospace !important; font-size:9px; letter-spacing:.14em; text-transform:uppercase; color:#8d969c; }
 
 .hy-detail{ padding:16px 18px 18px; background:#0b0c0e; border:1px solid rgba(255,255,255,0.16); border-top:2px solid var(--hs, #f2e24a); min-height:420px; }
 .hy-detail.pop{ animation: hyPop .35s ease; }
@@ -3437,8 +3418,7 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
   .hy-tiles{ grid-template-columns: repeat(4, 1fr); }
   .hy-body{ height:min(70vh, 620px); }
 }
-@media (max-width:560px){ .hy-tiles{ grid-template-columns: 1fr 1fr; } .hy-barcode{ display:none; } }
-@media (prefers-reduced-motion: reduce){ .hy-scan, .hy-hs .hs-ring{ animation:none; } }
+@media (max-width:560px){ .hy-tiles{ grid-template-columns: 1fr 1fr; } .hy-barcode{ display:none; } @media (prefers-reduced-motion: reduce){ .hy-scan, .hy-hs .hs-ring{ animation:none; } }
 
 /* cartes des hybrides connus */
 .hy-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:22px; margin-top:40px; }
@@ -4482,6 +4462,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=122"></script>
+<script src="dist/main.js?v=126"></script>
 </body>
 </html>

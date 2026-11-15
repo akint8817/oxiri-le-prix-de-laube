@@ -3676,17 +3676,11 @@ function hybridMeta(e) {
   return out;
 }
 
-/* ----- Schéma corporel global des hybrides : mannequin filaire interactif (zones cliquables), même style de console que les références HUD ----- */
+/* ----- Schéma global de l'hybridation : double hélice d'ADN en rotation (canvas) + schémas moléculaires cliquables, style console HUD ----- */
 
 const HY_ZONES = [
-  { id: 'tete', name: 'Tête', sub: 'Système nerveux central', x: 230, y: 92, side: 'r' },
-  { id: 'colonne', name: 'Colonne vertébrale', sub: 'Axe et moelle épinière', x: 230, y: 215, side: 'l' },
-  { id: 'thorax', name: 'Thorax', sub: 'Cœur et poumons', x: 274, y: 262, side: 'r' },
-  { id: 'abdomen', name: 'Abdomen', sub: 'Organes internes', x: 190, y: 388, side: 'l' },
-  { id: 'bras-d', name: 'Bras droit', sub: 'Membre supérieur droit', x: 122, y: 340, side: 'l' },
-  { id: 'bras-g', name: 'Bras gauche', sub: 'Membre supérieur gauche', x: 338, y: 340, side: 'r' },
-  { id: 'jambe-d', name: 'Jambe droite', sub: 'Membre inférieur droit', x: 188, y: 640, side: 'l' },
-  { id: 'jambe-g', name: 'Jambe gauche', sub: 'Membre inférieur gauche', x: 272, y: 640, side: 'r' },
+  { id: 'gene', name: "Gène d'Oxiri", sub: "Cœur de l'hybridation" },
+  { id: 'helice', name: 'Double hélice', sub: "Structure de l'ADN" },
 ];
 const HY_STATUS = {
   '': { label: 'Aucun', color: '#e8eef2' },
@@ -3694,8 +3688,11 @@ const HY_STATUS = {
   j: { label: 'Jaune', color: '#f2e24a' },
   r: { label: 'Rouge', color: '#ff4d4d' },
 };
-let hyZoneSel = 'tete';
+let hyZoneSel = 'gene';
 let hyZoneForm = null;
+let hyDnaRaf = 0;
+let hySprite = null;
+let hyDnaZones = [];
 
 function hyZonesOf(entryId) {
   const d = cityPagesCache[entryId];
@@ -3709,129 +3706,216 @@ function hyZonesOf(entryId) {
   });
 }
 
-// Un « tube » (membre, tronc) : des rangées de nœuds le long d'une ligne centrale [x, y, demi-largeur].
-function hyTube(pts, step, rnd) {
-  const segs = [0];
-  for(let i = 1; i < pts.length; i++) segs.push(segs[i - 1] + Math.hypot(pts[i][0] - pts[i - 1][0], pts[i][1] - pts[i - 1][1]));
-  const total = segs[segs.length - 1];
-  const n = Math.max(2, Math.round(total / step));
-  const rows = [];
-  for(let r = 0; r <= n; r++){
-    const d = total * r / n;
-    let k = 1;
-    while(k < pts.length - 1 && segs[k] < d) k++;
-    const a = pts[k - 1], b = pts[k];
-    const t = segs[k] === segs[k - 1] ? 0 : (d - segs[k - 1]) / (segs[k] - segs[k - 1]);
-    const cx = a[0] + (b[0] - a[0]) * t, cy = a[1] + (b[1] - a[1]) * t, hw = a[2] + (b[2] - a[2]) * t;
-    let dx = b[0] - a[0], dy = b[1] - a[1];
-    const L = Math.hypot(dx, dy) || 1;
-    dx /= L; dy /= L;
-    const nx = -dy, ny = dx;
-    const cols = Math.max(2, Math.round(hw / 13) + 1);
-    const row = [];
-    for(let c = 0; c < cols; c++){
-      const u = (c / (cols - 1)) * 2 - 1;
-      const j = Math.abs(u) === 1 ? 3 : 6;
-      row.push([cx + nx * hw * u + (rnd() - 0.5) * j, cy + ny * hw * u + (rnd() - 0.5) * j]);
+// Sommets d'un hexagone régulier (facettes des nœuds lumineux).
+function hyHex(cx, cy, r, rot) {
+  return Array.from({ length: 6 }, (_v, i) => [cx + r * Math.cos(rot + i * Math.PI / 3), cy + r * Math.sin(rot + i * Math.PI / 3)]);
+}
+
+// Sprite d'un nœud lumineux : halo + polyèdre à facettes (comme les nœuds de l'hélice de référence).
+function hyMakeSprite() {
+  const s = document.createElement('canvas');
+  s.width = 96; s.height = 96;
+  const g = s.getContext('2d');
+  const gr = g.createRadialGradient(48, 48, 2, 48, 48, 46);
+  gr.addColorStop(0, 'rgba(215,255,255,0.6)'); gr.addColorStop(0.35, 'rgba(120,230,240,0.24)'); gr.addColorStop(1, 'rgba(80,200,220,0)');
+  g.fillStyle = gr; g.fillRect(0, 0, 96, 96);
+  const pts = hyHex(48, 48, 20, Math.PI / 6);
+  g.beginPath();
+  pts.forEach((p, i) => { if(i) g.lineTo(p[0], p[1]); else g.moveTo(p[0], p[1]); });
+  g.closePath();
+  g.fillStyle = 'rgba(228,251,255,0.8)'; g.fill();
+  g.strokeStyle = 'rgba(255,255,255,0.95)'; g.lineWidth = 1.4; g.stroke();
+  g.strokeStyle = 'rgba(110,190,210,0.9)'; g.lineWidth = 1;
+  g.beginPath();
+  [0, 2, 4].forEach(i => { g.moveTo(48, 48); g.lineTo(pts[i][0], pts[i][1]); });
+  g.moveTo(pts[1][0], pts[1][1]); g.lineTo(pts[3][0], pts[3][1]); g.lineTo(pts[5][0], pts[5][1]);
+  g.stroke();
+  return s;
+}
+
+// Filaments d'un brin : des dizaines de fils emmêlés (orange, jaune, turquoise, blanc) qui forment un ruban épais, comme sur la référence.
+const HY_FIL = (() => {
+  const r = tmSeeded(tmHash('dna-fil'));
+  const cols = ['236,168,60', '255,205,110', '60,205,195', '255,246,215', '240,140,50', '90,225,215'];
+  return Array.from({ length: 26 }, (_v, i) => ({ c: cols[i % cols.length], w: 0.5 + r() * 1.3, u: r() * 2 - 1, a: 2 + r() * 8, f: 0.05 + r() * 0.16, s: (r() - 0.5) * 4, ph: r() * 6.28, k: 0.018 + r() * 0.03 }));
+})();
+
+function hyFilaments(g, pts, zs, front, t, ph) {
+  const hw = front ? 21 : 15;
+  const alpha = front ? 0.8 : 0.34;
+  HY_FIL.forEach((ln, li) => {
+    g.beginPath();
+    let pen = false;
+    for(let i = 0; i < pts.length; i++){
+      const ok = front ? zs[i] >= 0 : zs[i] < 0;
+      if(!ok){ pen = false; continue; }
+      const y = pts[i][1];
+      const x = pts[i][0] + ln.u * hw * Math.cos(y * ln.k + ln.ph + ph * 1.7 + t * 0.9) + ln.a * Math.sin(y * ln.f + ln.ph + t * ln.s);
+      const yy = y + ln.a * 0.5 * Math.cos(y * ln.f * 1.7 + t * ln.s + li);
+      if(!pen){ g.moveTo(x, yy); pen = true; } else g.lineTo(x, yy);
     }
-    rows.push(row);
-  }
-  return rows;
+    g.strokeStyle = `rgba(${ln.c},${(alpha * (0.55 + ln.w * 0.4)).toFixed(2)})`;
+    g.lineWidth = ln.w * (front ? 1.2 : 0.9);
+    g.stroke();
+  });
 }
 
-function hyMeshPath(rows) {
-  const P = (p) => p[0].toFixed(1) + ' ' + p[1].toFixed(1);
-  let d = '';
-  rows.forEach((row, r) => {
-    for(let i = 0; i < row.length - 1; i++) d += `M${P(row[i])}L${P(row[i + 1])}`;
-    const next = rows[r + 1];
-    if(!next) return;
-    row.forEach((p, i) => {
-      const k = Math.round(i * (next.length - 1) / Math.max(1, row.length - 1));
-      d += `M${P(p)}L${P(next[k])}`;
-      if(k + 1 < next.length && i < row.length - 1) d += `M${P(p)}L${P(next[k + 1])}`;
-    });
-  });
-  return d;
+function hyNode(g, sprite, x, y, z, size) {
+  const d = size * (0.55 + 0.45 * (z + 1) / 2);
+  g.globalAlpha = 0.5 + 0.5 * (z + 1) / 2;
+  g.drawImage(sprite, x - d / 2, y - d / 2, d, d);
+  g.globalAlpha = 1;
 }
 
-function hyNodesPath(rows) {
-  let d = '';
-  rows.forEach(row => row.forEach(p => { d += `M${p[0].toFixed(1)} ${p[1].toFixed(1)}h0`; }));
-  return d;
+function hyRing(g, x, y, rad, a, dash, off) {
+  g.strokeStyle = `rgba(235,250,255,${a})`;
+  g.lineWidth = 1;
+  g.setLineDash(dash ? [4, 5] : []);
+  g.lineDashOffset = off;
+  g.beginPath(); g.arc(x, y, rad, 0, 6.2832); g.stroke();
+  g.setLineDash([]);
 }
 
-function hyBodySvg(zones, sel) {
-  const rnd = tmSeeded(tmHash('hybrid-body'));
-  const mir = (pts) => pts.map(p => [460 - p[0], p[1], p[2]]);
-  const trunk = [[230, 40, 6], [230, 52, 24], [230, 68, 34], [230, 88, 38], [230, 108, 36], [230, 124, 28], [230, 138, 16], [230, 150, 14], [230, 170, 15], [230, 186, 22], [230, 198, 70], [230, 215, 92], [230, 250, 88], [230, 300, 80], [230, 340, 70], [230, 380, 66], [230, 420, 78], [230, 460, 84], [230, 490, 80]];
-  const legL = [[190, 470, 40], [188, 560, 36], [186, 650, 32], [186, 705, 26], [188, 780, 28], [190, 850, 20], [190, 900, 14], [188, 935, 18], [184, 960, 22]];
-  const armL = [[134, 208, 26], [124, 300, 22], [120, 360, 19], [118, 404, 16], [122, 480, 17], [128, 556, 11], [130, 590, 15], [132, 640, 8]];
-  const parts = [trunk, legL, mir(legL), armL, mir(armL)].map(p => hyTube(p, 24, rnd));
-  const mesh = parts.map(hyMeshPath).join('');
-  const nodes = parts.map(hyNodesPath).join('');
-  // squelette : crâne, colonne, côtes, bassin, os longs
-  let bones = '';
-  bones += '<path d="M230 44C200 44 192 70 194 94C195 112 206 124 214 130L214 142L246 142L246 130C254 124 265 112 266 94C268 70 260 44 230 44Z"/><ellipse cx="216" cy="92" rx="8" ry="6"/><ellipse cx="244" cy="92" rx="8" ry="6"/><path d="M230 102l-4 14h8z"/><path d="M216 136h28M222 136v6M230 136v6M238 136v6"/>';
-  for(let i = 0; i < 24; i++){
-    const w = i < 7 ? 14 : i < 19 ? 22 : 26;
-    bones += `<rect x="${230 - w / 2}" y="${150 + i * 13.4}" width="${w}" height="9" rx="2.5"/>`;
-  }
-  bones += '<rect x="222" y="222" width="16" height="92" rx="7"/>';
-  for(let k = 0; k < 7; k++){
-    const y0 = 224 + k * 19, sc = 1 - k * 0.05;
-    [-1, 1].forEach(s => {
-      bones += `<path d="M${230 + s * 8} ${y0}C${230 + s * 48 * sc} ${y0 - 12} ${230 + s * 84 * sc} ${y0 + 6} ${230 + s * 74 * sc} ${y0 + 38}C${230 + s * 62 * sc} ${y0 + 62} ${230 + s * 28} ${y0 + 66} ${230 + s * 14} ${y0 + 62}"/>`;
-    });
-  }
-  [-1, 1].forEach(s => { bones += `<path d="M${230 + s * 8} 208C${230 + s * 34} 198 ${230 + s * 62} 202 ${230 + s * 92} 218"/>`; });
-  bones += '<path d="M168 438C148 450 150 492 176 508L204 472C214 462 246 462 256 472L284 508C310 492 312 450 292 438C272 452 250 454 230 452C210 454 188 452 168 438Z"/>';
-  const long = (p) => `<path d="M${p.map(q => q[0] + ' ' + q[1]).join('L')}"/>`;
-  [false, true].forEach(m => {
-    const X = (x) => (m ? 460 - x : x);
-    bones += long([[X(138), 216], [X(126), 300], [X(120), 404]]);
-    bones += long([[X(118), 404], [X(124), 480], [X(128), 556]]) + long([[X(126), 404], [X(134), 480], [X(138), 556]]);
-    bones += long([[X(130), 560], [X(124), 600], [X(120), 636]]) + long([[X(134), 560], [X(132), 600], [X(132), 640]]) + long([[X(138), 560], [X(142), 600], [X(146), 632]]);
-    bones += long([[X(190), 470], [X(188), 560], [X(186), 700]]);
-    bones += long([[X(186), 706], [X(188), 780], [X(190), 900]]) + long([[X(198), 706], [X(200), 780], [X(198), 896]]);
-    bones += `<path d="M${X(182)} 918L${X(176)} 950L${X(206)} 954L${X(200)} 920"/>`;
-    [[138, 216, 11], [118, 404, 8], [130, 560, 7], [190, 470, 12], [186, 704, 10], [190, 905, 7]].forEach(j => { bones += `<circle cx="${X(j[0])}" cy="${j[1]}" r="${j[2]}"/>`; });
+function hyDnaDraw(g, S, t) {
+  const W = S.W, H = S.H;
+  g.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  // fond : lueur centrale + courbes en perspective
+  const bg = g.createRadialGradient(W / 2, H * 0.45, 10, W / 2, H * 0.45, Math.max(W, H) * 0.7);
+  bg.addColorStop(0, 'rgba(22,52,60,0.6)'); bg.addColorStop(1, 'rgba(6,10,13,0)');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  g.strokeStyle = 'rgba(255,255,255,0.06)'; g.lineWidth = 1;
+  for(let i = 0; i < 6; i++){ const y = H * (0.12 + i * 0.16); g.beginPath(); g.moveTo(0, y); g.quadraticCurveTo(W / 2, y - 40 + i * 12, W, y + 10); g.stroke(); }
+  for(let i = 1; i < 6; i++){ const x = W * i / 6; g.beginPath(); g.moveTo(x, 0); g.quadraticCurveTo(W / 2 + (x - W / 2) * 1.3, H / 2, x + (x - W / 2) * 0.3, H); g.stroke(); }
+  // bulles translucides
+  S.bubbles.forEach(b => {
+    const x = (b.x + Math.sin(t * 0.3 + b.ph) * 0.02) * W;
+    const y = ((((b.y - t * b.v) % 1) + 1) % 1) * H;
+    g.beginPath(); g.arc(x, y, b.r, 0, 6.2832); g.fillStyle = 'rgba(70,190,200,0.08)'; g.fill(); g.strokeStyle = 'rgba(120,225,230,0.34)'; g.lineWidth = 1; g.stroke();
+    g.beginPath(); g.arc(x - b.r * 0.3, y - b.r * 0.3, b.r * 0.2, 0, 6.2832); g.fillStyle = 'rgba(200,255,255,0.28)'; g.fill();
   });
-  const organs = '<path d="M204 236C172 244 160 304 172 354C192 364 216 342 222 302C224 272 220 248 204 236Z"/><path d="M256 236C288 244 300 304 288 354C268 364 244 342 238 302C236 272 240 248 256 236Z"/><path d="M262 262c-10-14-28 0-18 16c6 10 18 18 18 18s12-8 18-18c10-16-8-30-18-16z"/>';
-  // règle verticale (échelle en mètres) + repères
-  let ruler = '';
-  for(let i = 0; i <= 46; i++){
-    const y = 40 + i * 20, long5 = i % 5 === 0;
-    ruler += `<line x1="8" y1="${y}" x2="${long5 ? 30 : 20}" y2="${y}"/>`;
-    if(long5) ruler += `<text x="34" y="${y + 3}">${((960 - y) / 920 * 1.8).toFixed(1)}</text>`;
+  // géométrie : hélice légèrement inclinée
+  const cx0 = W / 2, R = Math.min(W * 0.22, 156), pitch = Math.max(300, H * 0.5), top = -30, bottom = H + 30, rot = t * 0.5;
+  const tilt = (y) => (y - H / 2) * 0.06;
+  const n = Math.ceil((bottom - top) / 5);
+  const pa = [];
+  const pb = [];
+  const za = [];
+  const zb = [];
+  for(let i = 0; i <= n; i++){
+    const y = top + i * 5, th = y / pitch * 6.2832 + rot, sw = 1 + 0.08 * Math.sin(y * 0.021 + t * 0.4);
+    pa.push([cx0 + tilt(y) + R * sw * Math.cos(th), y]); pb.push([cx0 + tilt(y) - R * sw * Math.cos(th), y]);
+    za.push(Math.sin(th)); zb.push(-Math.sin(th));
   }
-  // zones : pastilles + pastilles-étiquettes reliées au corps
-  let hs = '';
-  zones.forEach(z => {
-    const w = Math.round(z.name.length * 9.6 + 24);
-    const left = z.side === 'l';
-    const cx = left ? -34 : 534 - w;
-    const lx2 = left ? cx + w : cx;
-    const lx1 = left ? z.x - 18 : z.x + 18;
-    hs += `<g class="hy-hs st-${z.status || 'n'}${z.id === sel ? ' on' : ''}" data-zone="${z.id}" onclick="hySelectZone('${z.id}')" role="button" aria-label="${escAttr(z.name)}">
-      <line class="hs-lead" x1="${lx1}" y1="${z.y}" x2="${lx2}" y2="${z.y}"/>
-      <g class="hs-chip"><rect x="${cx}" y="${z.y - 13}" width="${w}" height="26"/><text x="${cx + 11}" y="${z.y + 4.5}">${esc(z.name.toUpperCase())}</text></g>
-      <circle class="hs-hit" cx="${z.x}" cy="${z.y}" r="30"/>
-      <circle class="hs-ring" cx="${z.x}" cy="${z.y}" r="16"/>
-      <circle class="hs-dot" cx="${z.x}" cy="${z.y}" r="6"/>
-      <path class="hs-cross" d="M${z.x - 29} ${z.y}H${z.x - 21}M${z.x + 21} ${z.y}H${z.x + 29}M${z.x} ${z.y - 29}V${z.y - 21}M${z.x} ${z.y + 21}V${z.y + 29}"/>
-    </g>`;
+  const step = pitch / 10;
+  const rungs = [];
+  for(let y = -step * 0.5; y < bottom; y += step){
+    const th = y / pitch * 6.2832 + rot;
+    rungs.push([y, cx0 + tilt(y) + R * Math.cos(th), cx0 + tilt(y) - R * Math.cos(th), Math.sin(th)]);
+  }
+  const strandNodes = (front) => {
+    for(let i = 4; i < pa.length; i += 7){
+      const h = ((i * 7919) % 100) / 100;
+      const size = 34 + 44 * h;
+      if((za[i] >= 0) === front) hyNode(g, S.sprite, pa[i][0], pa[i][1], za[i], size);
+      if((zb[i] >= 0) === front) hyNode(g, S.sprite, pb[i][0], pb[i][1], zb[i], size * 0.9);
+    }
+  };
+  // 1) brins arrière  2) nœuds arrière  3) barreaux  4) brins avant  5) nœuds avant et anneaux
+  hyFilaments(g, pa, za, false, t, 0);
+  hyFilaments(g, pb, zb, false, t, 1);
+  strandNodes(false);
+  rungs.forEach(q => { if(q[3] < 0) hyNode(g, S.sprite, q[1], q[0], q[3], 80); else hyNode(g, S.sprite, q[2], q[0], -q[3], 80); });
+  const cols = ['236,168,60', '60,205,195', '255,222,150', '240,140,50'];
+  rungs.forEach((q, k) => {
+    for(let j = 0; j < 8; j++){
+      const o = j - 3.5;
+      const sag = o * 5 * Math.sin(t * 1.2 + k + j);
+      g.beginPath(); g.moveTo(q[1], q[0] + o * 2.4); g.quadraticCurveTo((q[1] + q[2]) / 2 + o * 4, q[0] + sag, q[2], q[0] - o * 2.4);
+      g.strokeStyle = `rgba(${cols[(j + k) % 4]},${j % 3 === 0 ? 0.78 : 0.48})`; g.lineWidth = j % 3 === 0 ? 1.3 : 0.7; g.stroke();
+    }
   });
-  return `<svg class="hy-figure" viewBox="0 0 640 1000" role="img" aria-label="Schéma corporel global">
-    <g class="hy-ruler">${ruler}</g>
-    <g transform="translate(90 0)">
-      <g class="hy-mesh"><path d="${mesh}"/></g>
-      <g class="hy-nodes"><path d="${nodes}"/></g>
-      <g class="hy-organs">${organs}</g>
-      <g class="hy-bones">${bones}</g>
-      ${hs}
-    </g>
-  </svg>`;
+  hyFilaments(g, pa, za, true, t, 0);
+  hyFilaments(g, pb, zb, true, t, 1);
+  strandNodes(true);
+  rungs.forEach((q, k) => {
+    const fx = q[3] >= 0 ? q[1] : q[2], fz = q[3] >= 0 ? q[3] : -q[3];
+    hyNode(g, S.sprite, fx, q[0], fz, 80);
+    if(k % 3 === 0){ hyRing(g, fx, q[0], 28 + 10 * fz, 0.55, false, 0); if(k % 6 === 0) hyRing(g, fx, q[0], 44 + 12 * fz, 0.4, true, -t * 10); }
+  });
+  // lueurs aux croisements des brins (plus fortes près du centre) + cœur de l'hybridation
+  const gy0 = H * 0.46, pulse = 1 + 0.12 * Math.sin(t * 2.2);
+  g.globalCompositeOperation = 'lighter';
+  for(let k = -8; k < 16; k++){
+    const yc = (Math.PI / 2 + k * Math.PI - rot) * pitch / 6.2832;
+    if(yc < -80 || yc > H + 80) continue;
+    const w = Math.exp(-Math.pow((yc - gy0) / (pitch * 0.28), 2));
+    if(w < 0.03) continue;
+    const xc = cx0 + tilt(yc), rad = (50 + 64 * w) * pulse;
+    const gl = g.createRadialGradient(xc, yc, 2, xc, yc, rad);
+    gl.addColorStop(0, `rgba(255,255,255,${(0.95 * w).toFixed(2)})`); gl.addColorStop(0.28, `rgba(255,225,160,${(0.5 * w).toFixed(2)})`); gl.addColorStop(1, 'rgba(255,190,90,0)');
+    g.fillStyle = gl; g.beginPath(); g.arc(xc, yc, rad, 0, 6.2832); g.fill();
+    if(w > 0.2){
+      g.strokeStyle = `rgba(255,240,200,${(0.3 * w).toFixed(2)})`; g.lineWidth = 1;
+      for(let i = 0; i < 12; i++){
+        const a = i * 0.5236 + t * 0.2, l1 = 24, l2 = 56 + 30 * Math.sin(t * 1.4 + i * 1.7);
+        g.beginPath(); g.moveTo(xc + Math.cos(a) * l1, yc + Math.sin(a) * l1); g.lineTo(xc + Math.cos(a) * l2, yc + Math.sin(a) * l2); g.stroke();
+      }
+    }
+  }
+  g.globalCompositeOperation = 'source-over';
+  // repères HUD autour du cœur (sélectionné = couleur du statut ou jaune)
+  const gx = cx0 + tilt(gy0);
+  const sel = hyDnaZones.find(z => z.id === hyZoneSel);
+  const selCol = sel ? (sel.status ? HY_STATUS[sel.status].color : '#f2e24a') : '#f2e24a';
+  const geneOn = hyZoneSel === 'gene';
+  g.strokeStyle = geneOn ? selCol : 'rgba(255,255,255,0.75)'; g.lineWidth = geneOn ? 1.8 : 1.1;
+  g.beginPath(); g.arc(gx, gy0, 32, 0, 6.2832); g.stroke();
+  g.setLineDash([5, 6]); g.lineDashOffset = -t * 14;
+  g.beginPath(); g.arc(gx, gy0, 46, 0, 6.2832); g.stroke();
+  g.setLineDash([]);
+  g.beginPath(); g.arc(gx, gy0, 62, t * 0.5, t * 0.5 + 2.2); g.stroke();
+  // sélection de la double hélice : repères pointillés de part et d'autre
+  if(hyZoneSel === 'helice'){
+    g.strokeStyle = selCol; g.lineWidth = 1.2; g.setLineDash([7, 7]); g.lineDashOffset = -t * 18;
+    [-1, 1].forEach(sd => { g.beginPath(); g.moveTo(cx0 + tilt(0) + sd * (R + 34), 0); g.lineTo(cx0 + tilt(H) + sd * (R + 34), H); g.stroke(); });
+    g.setLineDash([]);
+  }
+}
+
+function hyInitDna() {
+  if(hyDnaRaf){ cancelAnimationFrame(hyDnaRaf); hyDnaRaf = 0; }
+  const stage = document.querySelector('.hy-dna');
+  const canvas = stage ? stage.querySelector('canvas') : null;
+  const g = canvas ? (canvas.getContext('2d')) : null;
+  if(!stage || !canvas || !g) return;
+  if(!hySprite) hySprite = hyMakeSprite();
+  const rnd = tmSeeded(tmHash('dna-bubbles'));
+  const S = { W: 0, H: 0, dpr: 1, sprite: hySprite, bubbles: [] };
+  for(let i = 0; i < 24; i++) S.bubbles.push({ x: rnd(), y: rnd(), r: 4 + rnd() * 30, v: 0.01 + rnd() * 0.03, ph: rnd() * 6.28 });
+  const fit = () => {
+    const r = stage.getBoundingClientRect();
+    S.dpr = Math.min(2, window.devicePixelRatio || 1);
+    S.W = r.width; S.H = r.height;
+    canvas.width = Math.round(r.width * S.dpr); canvas.height = Math.round(r.height * S.dpr);
+  };
+  fit();
+  const ro = new ResizeObserver(fit);
+  ro.observe(stage);
+  const reduce = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches);
+  const t0 = performance.now();
+  canvas.addEventListener('click', ev => {
+    const r = canvas.getBoundingClientRect();
+    const R = Math.min(S.W * 0.22, 156);
+    if(Math.abs(ev.clientX - r.left - S.W / 2) < R * 1.4) hySelectZone('helice');
+  });
+  const frame = (now) => {
+    if(!canvas.isConnected){ ro.disconnect(); hyDnaRaf = 0; return; }
+    hyDnaRaf = requestAnimationFrame(frame);
+    if(document.hidden) return;
+    hyDnaDraw(g, S, reduce ? 2.2 : (now - t0) / 1000);
+  };
+  hyDnaRaf = requestAnimationFrame(frame);
 }
 
 function hyBarcode(seed) {
@@ -3851,7 +3935,7 @@ function hyNowStr() {
 }
 window.setInterval(() => { const el = document.getElementById('hyClock'); if(el) el.textContent = hyNowStr(); }, 1000);
 
-// Panneau de détail d'une zone : titre, statut, anneau de niveau, texte, indicateurs.
+// Panneau de détail d'un élément : titre, statut, anneau de niveau, texte, indicateurs.
 function hyDetailHtml(z, i) {
   const st = HY_STATUS[z.status] || HY_STATUS[''];
   const stats = parseStatLines(z.stats).map(s => {
@@ -3859,27 +3943,34 @@ function hyDetailHtml(z, i) {
     return `<div class="hy-stat"><span>${esc(s.label)}</span>${num === null ? `<b>${esc(s.value)}</b>` : `<b>${num}</b><i style="--v:${num}%"></i>`}</div>`;
   }).join('');
   const ring = z.level === null ? '' : `<div class="hy-ring"><svg viewBox="0 0 80 80"><circle class="bg" cx="40" cy="40" r="34"/><circle class="fg" cx="40" cy="40" r="34" stroke-dasharray="${(z.level / 100 * 213.6).toFixed(1)} 213.6" transform="rotate(-90 40 40)"/><text x="40" y="45" text-anchor="middle">${z.level}<tspan>%</tspan></text></svg><small>Niveau d'hybridation</small></div>`;
-  const text = z.text ? renderRichBody(parseWriteBody(z.text)) : '<p class="hy-empty">Aucune information pour cette zone pour le moment.</p>';
-  return `<div class="hy-d-head"><span>ZN-${String(i + 1).padStart(2, '0')}</span><em class="st-${z.status || 'n'}">${esc(st.label)}</em></div>
+  const text = z.text ? renderRichBody(parseWriteBody(z.text)) : '<p class="hy-empty">Aucune information sur cet élément pour le moment.</p>';
+  return `<div class="hy-d-head"><span>EL-${String(i + 1).padStart(2, '0')}</span><em class="st-${z.status || 'n'}">${esc(st.label)}</em></div>
     <h3 class="hy-d-title">${esc(z.name)}</h3>
     ${z.sub ? `<p class="hy-d-sub">${esc(z.sub)}</p>` : ''}
     ${ring}
     <div class="hy-d-text">${text}</div>
     ${stats ? `<div class="hy-stats">${stats}</div>` : ''}
-    ${isLoggedIn() ? `<button type="button" class="ed-only hy-edit" onclick="openZoneEditor('${z.id}')">✎ Modifier cette zone</button>` : ''}`;
+    ${isLoggedIn() ? `<button type="button" class="ed-only hy-edit" onclick="openZoneEditor('${z.id}')">✎ Modifier cet élément</button>` : ''}`;
 }
 
 function hyConsoleHtml(e) {
   const zones = hyZonesOf(e.id);
+  hyDnaZones = zones;
   if(!zones.some(z => z.id === hyZoneSel)) hyZoneSel = zones[0].id;
   const idx = zones.findIndex(z => z.id === hyZoneSel);
   const tiles = zones.map((z, i) => `<button type="button" class="hy-tile st-${z.status || 'n'}${z.id === hyZoneSel ? ' on' : ''}" data-zone="${z.id}" onclick="hySelectZone('${z.id}')"><small>${String(i + 1).padStart(2, '0')}</small><b>${esc(z.name)}</b><i></i></button>`).join('');
+  const gz = zones.find(q => q.id === 'gene');
+  const d = new Date();
   return `<div class="hy-console cv-rv" data-entry="${escAttr(e.id)}">
     <div class="hy-brackets" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
     <div class="hy-topbar"><span class="hy-brand">ARCHIVES MÉDICALES <em>// HYBRIDATION</em></span><span class="hy-barcode">${hyBarcode('hy-top')}</span></div>
     <div class="hy-cols">
-      <aside class="hy-left"><div class="hy-tab"><span>Zones</span><i></i></div><div class="hy-tiles">${tiles}</div></aside>
-      <div class="hy-stage"><div class="hy-scan"></div>${hyBodySvg(zones, hyZoneSel)}<div class="hy-foot"><span>Schéma global</span><b id="hyClock">${hyNowStr()}</b></div></div>
+      <aside class="hy-left"><div class="hy-tab"><span>Éléments</span><i></i></div><div class="hy-tiles">${tiles}</div></aside>
+      <div class="hy-stage hy-dna">
+        <canvas aria-label="Double hélice d'ADN en rotation"></canvas>
+        <button type="button" class="hy-gene st-${gz.status || 'n'}${gz.id === hyZoneSel ? ' on' : ''}" data-zone="gene" onclick="hySelectZone('gene')" aria-label="${escAttr(gz.name)}"><span>${esc(gz.name)}</span></button>
+        <div class="hy-time" aria-hidden="true"><b id="hyClock">${hyNowStr()}</b><small>${esc(d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }))}</small></div>
+      </div>
       <aside class="hy-right"><div class="hy-tab"><span>Détail</span><i></i></div><div class="hy-detail" id="hyDetail">${hyDetailHtml(zones[idx], idx)}</div></aside>
     </div>
   </div>`;
@@ -3913,17 +4004,17 @@ function openZoneEditor(id) {
   const box = pageEditHost();
   box.innerHTML = `
     <button type="button" class="nv-card-x" onclick="closeZoneEditor()">✕</button>
-    <div class="nv-ed-title">Zone : ${esc(z.name)}</div>
-    <label>Nom de la zone</label>
+    <div class="nv-ed-title">Élément : ${esc(z.name)}</div>
+    <label>Nom</label>
     <input id="hzName" type="text" value="${escAttr(z.name)}">
     <label>Sous-titre</label>
-    <input id="hzSub" type="text" value="${escAttr(z.sub)}" placeholder="ex : Système nerveux central">
+    <input id="hzSub" type="text" value="${escAttr(z.sub)}" placeholder="ex : Base azotée A">
     <label>Couleur de statut</label>
     <select id="hzStatus">${Object.keys(HY_STATUS).map(k => `<option value="${k}"${k === z.status ? ' selected' : ''}>${esc(HY_STATUS[k].label)}</option>`).join('')}</select>
     <label>Niveau d'hybridation en % <em>(optionnel, affiche un anneau)</em></label>
     <input id="hzLevel" type="number" min="0" max="100" value="${z.level === null ? '' : z.level}" placeholder="ex : 65">
     <label>Texte</label>
-    <textarea id="hzText" rows="8" placeholder="Ce qui se passe dans cette zone lors de l'hybridation…&#10;&#10;# Un titre&#10;Un paragraphe.">${esc(z.text)}</textarea>
+    <textarea id="hzText" rows="8" placeholder="Ce qui se passe ici lors de l'hybridation…&#10;&#10;# Un titre&#10;Un paragraphe.">${esc(z.text)}</textarea>
     <label>Indicateurs <em>(une ligne par indicateur : « Libellé : valeur » ; une valeur de 0 à 100 dessine une barre)</em></label>
     <textarea id="hzStats" rows="4" placeholder="Compatibilité : 80&#10;Risque : 35&#10;Durée : 3 jours">${esc(z.stats.join('\n'))}</textarea>
     <div class="nv-ed-actions">
@@ -3953,7 +4044,7 @@ function resetZone() {
   const f = hyZoneForm;
   const db = getFirestoreDb();
   if(!f || !db || !isLoggedIn()) return;
-  if(!confirm('Rétablir cette zone telle qu\'elle était à l\'origine ?')) return;
+  if(!confirm('Rétablir cet élément tel qu\'il était à l\'origine ?')) return;
   db.collection('cityPages').doc(f.entryId).update({ ['zones.' + f.id]: {} })
     .then(() => closeZoneEditor())
     .catch((err) => alert('Impossible de rétablir : ' + (err && err.message ? err.message : err)));
@@ -3981,7 +4072,7 @@ function knownHybrids() {
 }
 
 // Page « Hybrides » : une page d'explication (ce que sont les hybrides, comment ils sont créés…), éditable comme une page de lieu,
-// avec un schéma corporel global interactif.
+// avec un schéma global de l'hybridation (ADN) interactif.
 function renderHybridesPage(e) {
   const c = CATS[e.cat];
   const known = knownHybrids();
@@ -3993,14 +4084,14 @@ function renderHybridesPage(e) {
   const tg = blkTarget(ref);
   const facts = [['Hybrides connus', String(known.length)], ['Gènes recensés', String(genes.size)]];
   const actions = `${entryOwnerActionsHtml(e)}
-    <button type="button" class="city-btn" onclick="scrollToCity('city-ville')">⌖ Schéma du corps</button>
+    <button type="button" class="city-btn" onclick="scrollToCity('city-ville')">⌖ Schéma ADN</button>
     ${logged ? `<button type="button" class="city-btn" onclick="openMusicEditor('city','${escAttr(e.id)}')">♪ Musique</button>` : ''}
     ${logged ? `<button type="button" class="city-btn city-edit-btn${cityEdit ? ' on' : ''}" id="cityEditBtn" onclick="toggleCityEdit()">${cityEdit ? '✓ Terminer l\'édition' : '✎ Mise en page'}</button>` : ''}`;
   const hero = cityHeroHtml({
     kicker: 'Codex · Archives médicales', title: e.name, tagline: e.tagline, facts, img: images[0] ? encodeURI(images[0].url) : '', tape: '', plaque: 'Archives médicales', actions,
     music: cityMusicHtml(e.id, cityMusicOf(e), (cityPagesCache[e.id] && cityPagesCache[e.id].musicTitle) || '', 'city', e.id),
   });
-  const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Schéma du corps', g: '+' }, { id: 'city-rel', t: 'Relevé', g: '%' }, { id: 'city-obs', t: 'Comprendre', g: 'i' }];
+  const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Schéma ADN', g: '+' }, { id: 'city-rel', t: 'Relevé', g: '%' }, { id: 'city-obs', t: 'Comprendre', g: 'i' }];
   if(known.length) rail.push({ id: 'city-connus', t: 'Hybrides connus', g: '◈' });
   const cards = known.map(h => {
     const img = entryImgs(h)[0];
@@ -4023,7 +4114,7 @@ function renderHybridesPage(e) {
       <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
       ${hero}
       <section class="city-sec" id="city-ville">
-        ${secHead('I', 'Anatomie', 'LE CORPS <em>HYBRIDÉ</em>', 'Clique sur une zone du corps pour lire ce qui la concerne.')}
+        ${secHead('I', 'Génétique', 'L\'ADN <em>HYBRIDÉ</em>', 'Clique sur un élément du schéma pour lire ce qui le concerne.')}
         ${hyConsoleHtml(e)}
       </section>
       <section class="city-sec" id="city-rel">
@@ -4426,6 +4517,7 @@ function layoutBlocks(grid) {
     });
 }
 function initCityPage(animate) {
+    hyInitDna();
     if (cityCleanup) {
         cityCleanup();
         cityCleanup = null;
