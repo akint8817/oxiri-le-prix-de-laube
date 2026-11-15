@@ -3609,19 +3609,54 @@ function openPageLightbox(docId, i) {
   openImgLightbox(imgs.map((u, k) => ({ url: u, caption: (d && d.imageCaps && d.imageCaps[k]) || '' })), i);
 }
 
-// Titre et accroche de la page, modifiables depuis le bandeau.
+// Apparence de la page : surtitre, titre, accroche, image de fond, couleur et motif d'arrière-plan.
+let apImage = '';
+let apAccent = '';
+const AP_COLORS = ['#35c6ff', '#ff7a45', '#36e0b4', '#5aa9ff', '#b79bff', '#ff4d6d', '#f2e24a', '#e8eef2'];
+const AP_MOTIFS = [['arm', 'Grille hexagonale (par défaut)'], ['ops', 'Radar'], ['lab', 'Atome et papier millimétré'], ['law', 'Balance et colonnes'], ['none', 'Aucun motif']];
+
+function apRefresh() {
+  const el = document.getElementById('apPrev');
+  if(el) el.innerHTML = apImage ? `<img src="${apImage}" alt=""><button type="button" onclick="apRemoveImage()">Retirer l'image</button>` : '';
+  document.querySelectorAll('.ap-sw').forEach(b => b.classList.toggle('on', (b.dataset.c || '') === apAccent));
+  const ci = document.getElementById('apColor');
+  if(ci && /^#[0-9a-fA-F]{6}$/.test(apAccent)) ci.value = apAccent;
+}
+
+function apRemoveImage() { apImage = ''; apRefresh(); }
+function apPickColor(c) { apAccent = c; apRefresh(); }
+
+function apPickImage(input) {
+  const f = input.files && input.files[0];
+  input.value = '';
+  if(!f) return;
+  nvCompressImage(f).then(url => { apImage = url; apRefresh(); }).catch(() => alert('Image illisible.'));
+}
+
 function openArsPageEditor() {
   if(!isLoggedIn()) return;
   const d = cityPagesCache['arsenal'];
   nvCloseForm();
+  apImage = (d && d.heroImg) || '';
+  apAccent = (d && d.accent) || '';
+  const motif = (d && d.motif) || 'arm';
   const box = pageEditHost();
   box.innerHTML = `
     <button type="button" class="nv-card-x" onclick="closeArsEditor()">✕</button>
-    <div class="nv-ed-title">Titre de la page</div>
+    <div class="nv-ed-title">Apparence de la page</div>
+    <label>Surtitre <em>(petit texte au-dessus du titre)</em></label>
+    <input id="apKicker" type="text" value="${escAttr((d && d.kicker) || 'Archives · Arsenal')}">
     <label>Titre</label>
     <input id="apTitle" type="text" value="${escAttr((d && d.title) || CATS.objets.label)}">
     <label>Accroche <em>(la phrase sous le titre)</em></label>
     <textarea id="apTag" rows="3">${esc((d && d.tagline) || CATS.objets.desc)}</textarea>
+    <label>Image de fond <em>(bandeau et fond discret de la page, réduite automatiquement)</em></label>
+    <div class="ars-prev" id="apPrev">${apImage ? `<img src="${apImage}" alt=""><button type="button" onclick="apRemoveImage()">Retirer l'image</button>` : ''}</div>
+    <input id="apFile" type="file" accept="image/*" onchange="apPickImage(this)">
+    <label>Couleur d'accent</label>
+    <div class="ap-colors">${AP_COLORS.map(c => `<button type="button" class="ap-sw${c === apAccent ? ' on' : ''}" data-c="${c}" style="background:${c}" onclick="apPickColor('${c}')" aria-label="${c}"></button>`).join('')}<input id="apColor" type="color" value="${/^#[0-9a-fA-F]{6}$/.test(apAccent) ? apAccent : '#35c6ff'}" oninput="apPickColor(this.value)" aria-label="Autre couleur"></div>
+    <label>Motif d'arrière-plan</label>
+    <select id="apMotif">${AP_MOTIFS.map(m => `<option value="${m[0]}"${m[0] === motif ? ' selected' : ''}>${esc(m[1])}</option>`).join('')}</select>
     <div class="nv-ed-actions">
       <button type="button" class="primary" onclick="saveArsPage()">Enregistrer</button>
       <button type="button" onclick="closeArsEditor()">Annuler</button>
@@ -3633,9 +3668,16 @@ function openArsPageEditor() {
 function saveArsPage(reset) {
   if(!isLoggedIn()) return;
   const v = (id) => ((document.getElementById(id))?.value || '').trim();
-  const title = reset ? null : (v('apTitle') || null);
-  const tagline = reset ? null : (v('apTag') || null);
-  writeCityPatch('arsenal', { title, tagline })
+  if(!reset){
+    const d = cityPagesCache['arsenal'];
+    const used = ((d && d.images) || []).reduce((a, s) => a + s.length * 0.75, 0) + apImage.length * 0.75;
+    if(used > 850 * 1024){ alert('Pas assez de place sur cette page : retire une image des blocs ou prends une image plus légère.'); return; }
+  }
+  const accent = /^#[0-9a-fA-F]{6}$/.test(apAccent) ? apAccent : null;
+  const data = reset
+    ? { title: null, tagline: null, kicker: null, heroImg: null, accent: null, motif: null }
+    : { title: v('apTitle') || null, tagline: v('apTag') || null, kicker: v('apKicker') || null, heroImg: apImage || null, accent, motif: v('apMotif') || null };
+  writeCityPatch('arsenal', data)
     .then(() => closeArsEditor())
     .catch((err) => alert('Enregistrement impossible : ' + (err && err.message ? err.message : err)));
 }
@@ -3647,6 +3689,9 @@ function renderObjetsPage() {
   const pd = cityPagesCache['arsenal'];
   const title = (pd && pd.title) || c.label;
   const tagline = (pd && pd.tagline) || c.desc;
+  const accent = pd && pd.accent && /^#[0-9a-fA-F]{6}$/.test(pd.accent) ? pd.accent : SQ_ACCENTS.arm;
+  const motif = (pd && pd.motif) || 'arm';
+  const heroImg = (pd && pd.heroImg) || '';
   const ref = 'page:arsenal';
   const tg = blkTarget(ref);
   const facts = [['Armes', String(n)]];
@@ -3654,7 +3699,7 @@ function renderObjetsPage() {
     ${logged ? `<button type="button" class="city-btn" onclick="openArsPageEditor()">Modifier</button>` : ''}
     ${logged ? `<button type="button" class="city-btn" onclick="openMusicEditor('page','arsenal')">♪ Musique</button>` : ''}
     ${logged ? `<button type="button" class="city-btn city-edit-btn${cityEdit ? ' on' : ''}" id="cityEditBtn" onclick="toggleCityEdit()">${cityEdit ? '✓ Terminer l\'édition' : '✎ Mise en page'}</button>` : ''}`;
-  const hero = cityHeroHtml({ kicker: 'Archives · Arsenal', title, tagline, facts, img: '', tape: '', plaque: 'Arsenal', actions,
+  const hero = cityHeroHtml({ kicker: (pd && pd.kicker) || 'Archives · Arsenal', title, tagline, facts, img: heroImg, tape: '', plaque: 'Arsenal', actions,
     music: cityMusicHtml('arsenal', (pd && pd.music) || '', (pd && pd.musicTitle) || '', 'page', 'arsenal') });
   const hasBlocks = tg.blocks.length > 0;
   const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Arsenal', g: '+' }];
@@ -3667,8 +3712,8 @@ function renderObjetsPage() {
       </section>` : '';
   return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / ${esc(c.label)}</div>
-    <div class="city med sq sq-arm${cityEdit ? ' is-edit' : ''}" style="--acc:${SQ_ACCENTS.arm}">
-      ${sqBgHtml('arm', 'objets')}
+    <div class="city med sq sq-arm${cityEdit ? ' is-edit' : ''}" style="--acc:${accent}">
+      ${sqBgHtml(motif, 'objets', heroImg)}
       <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
       ${hero}
       <section class="city-sec" id="city-ville">
@@ -6449,9 +6494,11 @@ function sqThemeOf(s) {
 }
 
 // Fond de page propre à chaque thème (motif géant très discret + réseau de points qui dérive).
-function sqBgHtml(theme, seed) {
+function sqBgHtml(theme, seed, img) {
   let mark = '';
-  if(theme === 'law'){
+  if(theme === 'none'){
+    mark = '';
+  } else if(theme === 'law'){
     mark = `<div class="sq-cols"></div><svg class="sq-mark" viewBox="0 0 400 400" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M200 40V340M130 360H270M160 340H240M70 110H330"/><circle cx="200" cy="58" r="12"/><path d="M90 110L40 220M90 110L140 220M310 110L260 220M310 110L360 220"/><path d="M30 220H150Q140 270 90 270Q40 270 30 220ZM250 220H370Q360 270 310 270Q260 270 250 220Z"/></svg>`;
   } else if(theme === 'arm'){
     mark = `<div class="sq-hex"></div><svg class="sq-mark" viewBox="0 0 400 400" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M40 110V40H110M290 40H360V110M360 290V360H290M110 360H40V290"/><circle cx="200" cy="200" r="120"/><circle cx="200" cy="200" r="70"/><circle cx="200" cy="200" r="6" fill="currentColor"/><path d="M200 60V130M200 270V340M60 200H130M270 200H340"/></svg>`;
@@ -6465,7 +6512,8 @@ function sqBgHtml(theme, seed) {
     }
     mark = `<div class="sq-sweep"></div><svg class="sq-mark" viewBox="-20 -20 440 440" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="200" cy="200" r="190"/><circle cx="200" cy="200" r="140"/><circle cx="200" cy="200" r="90"/><circle cx="200" cy="200" r="40"/><path d="M200 10V390M10 200H390"/><path d="${ticks}"/></svg>`;
   }
-  return `<div class="city-bg med sq-bg sq-${theme}" aria-hidden="true">${mark}${hyPlexSvg('sq-' + seed)}</div>`;
+  const bgImg = img ? `<div class="sq-bgimg" style="background-image:url('${escAttr(img)}')"></div>` : '';
+  return `<div class="city-bg med sq-bg sq-${theme}" aria-hidden="true">${bgImg}${mark}${hyPlexSvg('sq-' + seed)}</div>`;
 }
 
 // Formulaire d'édition du dossier (nom, résumé, tag, catégorie, images, musique, texte).
