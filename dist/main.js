@@ -3679,8 +3679,8 @@ function hybridMeta(e) {
 /* ----- Schéma global de l'hybridation : double hélice d'ADN en rotation (canvas) + schémas moléculaires cliquables, style console HUD ----- */
 
 const HY_ZONES = [
-  { id: 'gene', name: "Gène d'Oxiri", sub: "Cœur de l'hybridation" },
-  { id: 'helice', name: 'Double hélice', sub: "Structure de l'ADN" },
+  { id: 'gene', name: "Gène d'Oxiri", sub: "Cœur de l'hybridation", side: 'c', y: 46 },
+  { id: 'helice', name: 'Double hélice', sub: "Structure de l'ADN", side: 'h', y: 50 },
 ];
 const HY_STATUS = {
   '': { label: 'Aucun', color: '#e8eef2' },
@@ -3697,13 +3697,12 @@ let hyDnaZones = [];
 function hyZonesOf(entryId) {
   const d = cityPagesCache[entryId];
   const ov = (d && d.zones) || {};
-  return HY_ZONES.map(z => {
-    const o = ov[z.id] || {};
-    return {
-      ...z, name: o.name || z.name, sub: typeof o.sub === 'string' ? o.sub : z.sub, text: o.text || '', status: o.status || '',
-      level: typeof o.level === 'number' ? o.level : null, stats: Array.isArray(o.stats) ? o.stats : [], custom: Object.keys(o).length > 0,
-    };
-  });
+  const src = d && Array.isArray(d.elements) ? d.elements : HY_ZONES.map(z => { const o = ov[z.id] || {}; return { ...z, ...o, name: o.name || z.name }; });
+  return src.map((o, i) => ({
+    id: o.id || 'el-' + i, name: o.name || 'Élément', sub: typeof o.sub === 'string' ? o.sub : '', text: o.text || '', status: o.status || '',
+    level: typeof o.level === 'number' ? o.level : null, stats: Array.isArray(o.stats) ? o.stats : [],
+    side: o.side === 'l' || o.side === 'r' || o.side === 'c' || o.side === 'h' ? o.side : 'h', y: typeof o.y === 'number' ? Math.max(0, Math.min(100, o.y)) : 50,
+  }));
 }
 
 // Sommets d'un hexagone régulier (facettes des nœuds lumineux).
@@ -3865,16 +3864,30 @@ function hyDnaDraw(g, S, t) {
   }
   g.globalCompositeOperation = 'source-over';
   // repères HUD autour du cœur (sélectionné = couleur du statut ou jaune)
-  const gx = cx0 + tilt(gy0);
   const sel = hyDnaZones.find(z => z.id === hyZoneSel);
   const selCol = sel ? (sel.status ? HY_STATUS[sel.status].color : '#f2e24a') : '#f2e24a';
-  const geneOn = hyZoneSel === 'gene';
-  g.strokeStyle = geneOn ? selCol : 'rgba(255,255,255,0.75)'; g.lineWidth = geneOn ? 1.8 : 1.1;
-  g.beginPath(); g.arc(gx, gy0, 32, 0, 6.2832); g.stroke();
-  g.setLineDash([5, 6]); g.lineDashOffset = -t * 14;
-  g.beginPath(); g.arc(gx, gy0, 46, 0, 6.2832); g.stroke();
-  g.setLineDash([]);
-  g.beginPath(); g.arc(gx, gy0, 62, t * 0.5, t * 0.5 + 2.2); g.stroke();
+  S.cores.forEach(c => {
+    const on = c.id === hyZoneSel;
+    const z = hyDnaZones.find(q => q.id === c.id);
+    const gx = cx0 + tilt(c.y);
+    g.strokeStyle = on ? (z && z.status ? HY_STATUS[z.status].color : '#f2e24a') : 'rgba(255,255,255,0.75)'; g.lineWidth = on ? 1.8 : 1.1;
+    g.beginPath(); g.arc(gx, c.y, 32, 0, 6.2832); g.stroke();
+    g.setLineDash([5, 6]); g.lineDashOffset = -t * 14;
+    g.beginPath(); g.arc(gx, c.y, 46, 0, 6.2832); g.stroke();
+    g.setLineDash([]);
+    g.beginPath(); g.arc(gx, c.y, 62, t * 0.5, t * 0.5 + 2.2); g.stroke();
+  });
+  // traits de liaison entre les étiquettes et l'hélice
+  S.cards.forEach(c => {
+    const on = c.id === hyZoneSel;
+    const z = hyDnaZones.find(q => q.id === c.id);
+    const col = on ? (z && z.status ? HY_STATUS[z.status].color : '#f2e24a') : 'rgba(255,255,255,0.55)';
+    const ex = cx0 + tilt(c.y) + (c.left ? -R * 0.3 : R * 0.3);
+    g.strokeStyle = col; g.lineWidth = on ? 1.6 : 1;
+    g.beginPath(); g.moveTo(c.x, c.y); g.lineTo(ex, c.y); g.stroke();
+    g.beginPath(); g.arc(ex, c.y, 10, 0, 6.2832); g.stroke();
+    g.fillStyle = col; g.beginPath(); g.arc(ex, c.y, 3, 0, 6.2832); g.fill();
+  });
   // sélection de la double hélice : repères pointillés de part et d'autre
   if(hyZoneSel === 'helice'){
     g.strokeStyle = selCol; g.lineWidth = 1.2; g.setLineDash([7, 7]); g.lineDashOffset = -t * 18;
@@ -3891,13 +3904,22 @@ function hyInitDna() {
   if(!stage || !canvas || !g) return;
   if(!hySprite) hySprite = hyMakeSprite();
   const rnd = tmSeeded(tmHash('dna-bubbles'));
-  const S = { W: 0, H: 0, dpr: 1, sprite: hySprite, bubbles: [] };
+  const S = { W: 0, H: 0, dpr: 1, sprite: hySprite, bubbles: [], cards: [], cores: [] };
   for(let i = 0; i < 24; i++) S.bubbles.push({ x: rnd(), y: rnd(), r: 4 + rnd() * 30, v: 0.01 + rnd() * 0.03, ph: rnd() * 6.28 });
   const fit = () => {
     const r = stage.getBoundingClientRect();
     S.dpr = Math.min(2, window.devicePixelRatio || 1);
     S.W = r.width; S.H = r.height;
     canvas.width = Math.round(r.width * S.dpr); canvas.height = Math.round(r.height * S.dpr);
+    S.cards = Array.from(stage.querySelectorAll('.hy-mark')).map(el => {
+      const b = el.getBoundingClientRect();
+      const left = el.dataset.side === 'l';
+      return { id: el.dataset.zone || '', left, x: (left ? b.right : b.left) - r.left, y: b.top - r.top + b.height / 2 };
+    });
+    S.cores = Array.from(stage.querySelectorAll('.hy-gene')).map(el => {
+      const b = el.getBoundingClientRect();
+      return { id: el.dataset.zone || '', y: b.top - r.top + b.height / 2 };
+    });
   };
   fit();
   const ro = new ResizeObserver(fit);
@@ -3930,6 +3952,16 @@ function hyBarcode(seed) {
 }
 
 
+// Élément -> objet enregistrable (Firestore n'accepte pas « undefined »).
+function hyToEl(z) {
+  return { id: z.id, name: z.name, sub: z.sub, text: z.text, status: z.status, level: z.level, stats: z.stats.length ? z.stats : null, side: z.side, y: z.y };
+}
+
+function hyEntryId() {
+  const root = document.querySelector('.hy-console');
+  return (root && root.dataset.entry) || 'hybrides';
+}
+
 // Panneau de détail d'un élément : titre, statut, anneau de niveau, texte, indicateurs.
 function hyDetailHtml(z, i) {
   const st = HY_STATUS[z.status] || HY_STATUS[''];
@@ -3945,26 +3977,36 @@ function hyDetailHtml(z, i) {
     ${ring}
     <div class="hy-d-text">${text}</div>
     ${stats ? `<div class="hy-stats">${stats}</div>` : ''}
-    ${isLoggedIn() ? `<button type="button" class="ed-only hy-edit" onclick="openZoneEditor('${z.id}')">✎ Modifier cet élément</button>` : ''}`;
+    ${isLoggedIn() ? `<div class="hy-d-acts ed-only"><button type="button" class="hy-edit" onclick="openZoneEditor('${z.id}')">✎ Modifier</button><button type="button" class="hy-edit hy-del" onclick="deleteZone('${z.id}')">🗑 Supprimer</button></div>` : ''}`;
 }
 
 function hyConsoleHtml(e) {
   const zones = hyZonesOf(e.id);
   hyDnaZones = zones;
-  if(!zones.some(z => z.id === hyZoneSel)) hyZoneSel = zones[0].id;
+  if(!zones.some(z => z.id === hyZoneSel)) hyZoneSel = zones.length ? zones[0].id : '';
   const idx = zones.findIndex(z => z.id === hyZoneSel);
+  const logged = isLoggedIn();
+  const custom = !!(cityPagesCache[e.id] && Array.isArray(cityPagesCache[e.id].elements));
   const tiles = zones.map((z, i) => `<button type="button" class="hy-tile st-${z.status || 'n'}${z.id === hyZoneSel ? ' on' : ''}" data-zone="${z.id}" onclick="hySelectZone('${z.id}')"><small>${String(i + 1).padStart(2, '0')}</small><b>${esc(z.name)}</b><i></i></button>`).join('');
-  const gz = zones.find(q => q.id === 'gene');
+  const marks = zones.map(z => {
+    const on = z.id === hyZoneSel ? ' on' : '';
+    if(z.side === 'c') return `<button type="button" class="hy-gene st-${z.status || 'n'}${on}" data-zone="${z.id}" style="top:${z.y}%" onclick="hySelectZone('${z.id}')" aria-label="${escAttr(z.name)}"><span>${esc(z.name)}</span></button>`;
+    if(z.side === 'l' || z.side === 'r') return `<button type="button" class="hy-mark st-${z.status || 'n'}${on}" data-zone="${z.id}" data-side="${z.side}" style="top:${z.y}%;${z.side === 'l' ? 'left' : 'right'}:3%" onclick="hySelectZone('${z.id}')">${esc(z.name)}</button>`;
+    return '';
+  }).join('');
+  const detail = idx >= 0 ? hyDetailHtml(zones[idx], idx)
+    : `<p class="hy-empty">Aucun élément pour le moment.</p>${logged ? `<div class="hy-d-acts ed-only"><button type="button" class="hy-edit" onclick="openZoneEditor('')">+ Ajouter un élément</button></div>` : ''}`;
+  const acts = logged ? `<div class="hy-left-acts ed-only"><button type="button" class="hy-edit" onclick="openZoneEditor('')">+ Ajouter un élément</button>${custom ? `<button type="button" class="hy-edit hy-reset" onclick="resetElements()">↺ Éléments d'origine</button>` : ''}</div>` : '';
   return `<div class="hy-console cv-rv" data-entry="${escAttr(e.id)}">
     <div class="hy-brackets" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
     <div class="hy-topbar"><span class="hy-brand">ARCHIVES MÉDICALES <em>// HYBRIDATION</em></span><span class="hy-barcode">${hyBarcode('hy-top')}</span></div>
     <div class="hy-cols">
-      <aside class="hy-left"><div class="hy-tab"><span>Éléments</span><i></i></div><div class="hy-tiles">${tiles}</div></aside>
+      <aside class="hy-left"><div class="hy-tab"><span>Éléments</span><i></i></div><div class="hy-tiles">${tiles}</div>${acts}</aside>
       <div class="hy-stage hy-dna">
         <canvas aria-label="Double hélice d'ADN en rotation"></canvas>
-        <button type="button" class="hy-gene st-${gz.status || 'n'}${gz.id === hyZoneSel ? ' on' : ''}" data-zone="gene" onclick="hySelectZone('gene')" aria-label="${escAttr(gz.name)}"><span>${esc(gz.name)}</span></button>
+        ${marks}
       </div>
-      <aside class="hy-right"><div class="hy-tab"><span>Détail</span><i></i></div><div class="hy-detail" id="hyDetail">${hyDetailHtml(zones[idx], idx)}</div></aside>
+      <aside class="hy-right"><div class="hy-tab"><span>Détail</span><i></i></div><div class="hy-detail" id="hyDetail">${detail}</div></aside>
     </div>
   </div>`;
 }
@@ -3986,22 +4028,27 @@ function hySelectZone(id) {
   }
 }
 
+// Ajout (id vide) ou modification d'un élément du schéma.
 function openZoneEditor(id) {
   if(!isLoggedIn()) return;
-  const root = document.querySelector('.hy-console');
-  const entryId = (root && root.dataset.entry) || 'hybrides';
-  const z = hyZonesOf(entryId).find(x => x.id === id);
-  if(!z) return;
+  const entryId = hyEntryId();
+  const found = hyZonesOf(entryId).find(x => x.id === id);
+  const z = found || { id: '', name: '', sub: '', text: '', status: '', level: null, stats: [], side: 'l', y: 50 };
   nvCloseForm();
   hyZoneForm = { id, entryId };
   const box = pageEditHost();
+  const sides = [['c', 'Au cœur de l\'hélice (point lumineux)'], ['l', 'À gauche (étiquette reliée à l\'hélice)'], ['r', 'À droite (étiquette reliée à l\'hélice)'], ['h', 'Aucun repère (liste uniquement)']];
   box.innerHTML = `
     <button type="button" class="nv-card-x" onclick="closeZoneEditor()">✕</button>
-    <div class="nv-ed-title">Élément : ${esc(z.name)}</div>
+    <div class="nv-ed-title">${found ? 'Élément : ' + esc(z.name) : 'Nouvel élément'}</div>
     <label>Nom</label>
-    <input id="hzName" type="text" value="${escAttr(z.name)}">
+    <input id="hzName" type="text" value="${escAttr(z.name)}" placeholder="ex : Gène d'Oxiri">
     <label>Sous-titre</label>
-    <input id="hzSub" type="text" value="${escAttr(z.sub)}" placeholder="ex : Base azotée A">
+    <input id="hzSub" type="text" value="${escAttr(z.sub)}" placeholder="ex : Cœur de l'hybridation">
+    <label>Position sur le schéma</label>
+    <select id="hzSide">${sides.map(s => `<option value="${s[0]}"${s[0] === z.side ? ' selected' : ''}>${esc(s[1])}</option>`).join('')}</select>
+    <label>Hauteur sur le schéma en % <em>(0 = haut, 100 = bas)</em></label>
+    <input id="hzY" type="number" min="0" max="100" value="${z.y}">
     <label>Couleur de statut</label>
     <select id="hzStatus">${Object.keys(HY_STATUS).map(k => `<option value="${k}"${k === z.status ? ' selected' : ''}>${esc(HY_STATUS[k].label)}</option>`).join('')}</select>
     <label>Niveau d'hybridation en % <em>(optionnel, affiche un anneau)</em></label>
@@ -4011,9 +4058,9 @@ function openZoneEditor(id) {
     <label>Indicateurs <em>(une ligne par indicateur : « Libellé : valeur » ; une valeur de 0 à 100 dessine une barre)</em></label>
     <textarea id="hzStats" rows="4" placeholder="Compatibilité : 80&#10;Risque : 35&#10;Durée : 3 jours">${esc(z.stats.join('\n'))}</textarea>
     <div class="nv-ed-actions">
-      <button type="button" class="primary" onclick="saveZone()">Enregistrer</button>
+      <button type="button" class="primary" onclick="saveZone()">${found ? 'Enregistrer' : 'Ajouter'}</button>
       <button type="button" onclick="closeZoneEditor()">Annuler</button>
-      ${z.custom ? `<button type="button" class="danger" onclick="resetZone()">Rétablir</button>` : ''}
+      ${found ? `<button type="button" class="danger" onclick="deleteZone('${z.id}')">Supprimer</button>` : ''}
     </div>`;
   box.classList.add('open');
 }
@@ -4024,22 +4071,45 @@ function saveZone() {
   const f = hyZoneForm;
   if(!f || !isLoggedIn()) return;
   const v = (id) => ((document.getElementById(id))?.value || '');
+  const name = v('hzName').trim();
+  if(!name){ alert('Donne un nom à l\'élément.'); return; }
   const lvlRaw = v('hzLevel').trim();
   const level = lvlRaw === '' ? null : Math.max(0, Math.min(100, Math.round(Number(lvlRaw) || 0)));
+  const yRaw = v('hzY').trim();
+  const y = yRaw === '' ? 50 : Math.max(0, Math.min(100, Math.round(Number(yRaw) || 0)));
   const stats = v('hzStats').split('\n').map(s => s.trim()).filter(Boolean);
-  const data = { name: v('hzName').trim() || null, sub: v('hzSub').trim(), text: v('hzText').trim(), status: v('hzStatus'), level, stats: stats.length ? stats : null };
-  writeCityPatch(f.entryId, { zones: { [f.id]: data } })
+  const el = {
+    id: f.id || 'el-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), name, sub: v('hzSub').trim(), text: v('hzText').trim(),
+    status: v('hzStatus'), level, stats: stats.length ? stats : null, side: v('hzSide') || 'h', y,
+  };
+  const list = hyZonesOf(f.entryId).map(hyToEl);
+  const i = list.findIndex(x => x.id === f.id);
+  if(f.id && i >= 0) list[i] = el; else list.push(el);
+  hyZoneSel = el.id || '';
+  writeCityPatch(f.entryId, { elements: list })
     .then(() => closeZoneEditor())
     .catch((err) => alert('Enregistrement impossible : ' + (err && err.message ? err.message : err)));
 }
 
-function resetZone() {
-  const f = hyZoneForm;
-  const db = getFirestoreDb();
-  if(!f || !db || !isLoggedIn()) return;
-  if(!confirm('Rétablir cet élément tel qu\'il était à l\'origine ?')) return;
-  db.collection('cityPages').doc(f.entryId).update({ ['zones.' + f.id]: {} })
+function deleteZone(id) {
+  if(!isLoggedIn()) return;
+  const entryId = hyEntryId();
+  const all = hyZonesOf(entryId);
+  const z = all.find(x => x.id === id);
+  if(!z) return;
+  if(!confirm('Supprimer l\'élément « ' + z.name + ' » ? Cette action est définitive.')) return;
+  const list = all.filter(x => x.id !== id).map(hyToEl);
+  if(hyZoneSel === id) hyZoneSel = list.length ? (list[0].id || '') : '';
+  writeCityPatch(entryId, { elements: list })
     .then(() => closeZoneEditor())
+    .catch((err) => alert('Suppression impossible : ' + (err && err.message ? err.message : err)));
+}
+
+function resetElements() {
+  if(!isLoggedIn()) return;
+  if(!confirm('Rétablir les éléments d\'origine ? Tes ajouts et modifications seront perdus.')) return;
+  hyZoneSel = 'gene';
+  writeCityPatch(hyEntryId(), { elements: null, zones: null })
     .catch((err) => alert('Impossible de rétablir : ' + (err && err.message ? err.message : err)));
 }
 

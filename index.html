@@ -3409,6 +3409,14 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .hy-stat i::after{ content:''; position:absolute; left:0; top:0; bottom:0; width:var(--v); background:#f2e24a; }
 .hy-edit{ margin-top:16px; padding:8px 14px; cursor:pointer; background:transparent; border:1px dashed #f2e24a; color:#f2e24a; font-family:'IBM Plex Mono', monospace !important; font-size:11px; letter-spacing:.1em; text-transform:uppercase; }
 .hy-edit:hover{ background:#f2e24a; color:#0a0b0d; }
+.hy-mark{ position:absolute; z-index:3; transform:translateY(-50%); max-width:42%; padding:6px 14px; cursor:pointer; border:0; background:#f1f4f6; color:#0a0b0d; --hs:#e8eef2; font-family:'IBM Plex Mono', monospace !important; font-size:11px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; text-align:left; transition: background .2s ease; }
+.hy-mark:hover{ background:#fff; }
+.hy-mark.st-n.on{ --hs:#f2e24a; }
+.hy-mark.on{ background:var(--hs); }
+.hy-left-acts, .hy-d-acts{ margin-top:12px; flex-wrap:wrap; gap:8px; }
+.hy-left-acts .hy-edit, .hy-d-acts .hy-edit{ margin-top:0; }
+.hy-del{ border-color:#ff4d4d !important; color:#ff4d4d !important; }
+.hy-del:hover{ background:#ff4d4d !important; color:#0a0b0d !important; }
 @media (max-width:1180px){ .hy-cols{ grid-template-columns: 200px minmax(0,1fr) 320px; } }
 @media (max-width:980px){
   .hy-cols{ grid-template-columns: 1fr; }
@@ -4459,6 +4467,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=129"></script>
+<script src="dist/main.js?v=130"></script>
 </body>
 </html>
