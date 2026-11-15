@@ -3412,9 +3412,8 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
   .hy-cols{ grid-template-columns: 1fr; }
   .hy-stage{ order:1; } .hy-left{ order:2; } .hy-right{ order:3; }
   .hy-tiles{ grid-template-columns: repeat(4, 1fr); }
-  .hy-body{ height:min(70vh, 620px); }
 }
-@media (max-width:560px){ .hy-tiles{ grid-template-columns: 1fr 1fr; } .hy-barcode{ display:none; } @media (prefers-reduced-motion: reduce){ .hy-scan, .hy-hs .hs-ring{ animation:none; } }
+@media (max-width:560px){ .hy-tiles{ grid-template-columns: 1fr 1fr; } .hy-barcode{ display:none; } .hy-gene{ width:70px; height:70px; margin:-35px 0 0 -35px; } }
 
 /* cartes des hybrides connus */
 .hy-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:22px; margin-top:40px; }
@@ -4458,6 +4457,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=127"></script>
+<script src="dist/main.js?v=128"></script>
 </body>
 </html>
