@@ -2182,39 +2182,6 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .featured-card:hover{ border-color:#c9a45e; }
 @media (prefers-reduced-motion: reduce){ .featured-card{ animation:none; } }
 
-/* ---- Accueil v2 : même langage que les pages de lieux (kicker + titre Barlow à gauche, filet à losange, boutons pilule, plaque « Dossier ») ---- */
-.hero-v2{ --acc:#c9a45e; align-items:flex-start; justify-content:flex-end; text-align:left; padding:0 !important; min-height: clamp(580px, 84vh, 840px); }
-.hero-v2 .hero-flora{
-  -webkit-mask-image: linear-gradient(180deg, transparent 14%, #000 70%), linear-gradient(90deg, rgba(0,0,0,0.2), #000 66%);
-  mask-image: linear-gradient(180deg, transparent 14%, #000 70%), linear-gradient(90deg, rgba(0,0,0,0.2), #000 66%);
-  -webkit-mask-composite: source-in; mask-composite: intersect;
-}
-.hero-v2 .ch-orbit{ right:-14%; top:42%; opacity:.5; }
-.hero-v2 .hero-in{ position:relative; z-index:5; width:100%; max-width:min(100%, 980px); padding: clamp(110px, 12vw, 190px) clamp(28px, 4.4vw, 84px) clamp(90px, 8vw, 128px); }
-.hero-v2 h1{ margin:18px 0 0; font-size:inherit; line-height:1; text-align:left; letter-spacing:.04em; font-weight:700; text-transform:uppercase; color:#fbf7ec; text-shadow: 0 2px 4px rgba(0,0,0,0.45), 0 6px 40px rgba(0,0,0,0.55), 0 0 60px rgba(201,164,94,0.28); }
-.hero-v2 .h1-l.big{ font-size: clamp(64px, 10.4vw, 190px); line-height:.9; }
-.hero-v2 .h1-l.sub{ font-size: clamp(22px, 3.3vw, 60px); letter-spacing:.16em; font-weight:600; color:#e3c88a; margin-top:10px; }
-.hero-v2 .ch-rule{ margin:24px 0 20px; }
-.hero-v2 p{ max-width:54ch; text-align:left; margin:0; font-size: clamp(16px, 1.25vw, 20px); line-height:1.7; color:#dcd6c6; text-shadow: 0 1px 4px rgba(0,0,0,0.85), 0 0 18px rgba(0,0,0,0.6); }
-.hero-v2 .ch-actions{ margin-top:30px; }
-.hero-v2 .ch-plaque{ bottom:clamp(60px, 7vw, 110px); }
-.hero-v2 .hero-scroll{ left:auto; right:clamp(24px, 4vw, 70px); bottom:22px; transform:none; flex-direction:row; align-items:center; gap:12px; }
-.hero-v2 .hero-scroll i{ height:1px; width:36px; background: linear-gradient(90deg, #c9a45e, transparent); transform-origin:left; }
-@keyframes heroScroll{ 0%{ transform:scaleX(0); } 50%{ transform:scaleX(1); } 100%{ transform:scaleX(1); opacity:0; } }
-@media (max-width:900px){
-  .hero-v2 .ch-plaque{ position:relative; right:auto; bottom:auto; width:auto; margin:0 clamp(20px, 4vw, 44px) 64px; }
-  .hero-v2{ justify-content:flex-end; }
-  .hero-v2 .hero-in{ padding-bottom:30px; }
-}
-@media (max-height:720px){ .hero-v2 .hero-in{ padding-top:96px; } }
-/* typographie : Barlow, comme les pages de lieux */
-.hero-v2, .hero-v2 *, .home-title h2, .home-title a, .stat .num, .stat .lbl, .stat-idx, .featured-name, .featured-tag, .featured-idx, .hero-scroll{ font-family:'Barlow', 'Helvetica Neue', Arial, sans-serif !important; }
-.home-title h2{ font-weight:700; letter-spacing:.06em; }
-.stat .num{ font-weight:600; }
-.stat .lbl{ letter-spacing:.14em; }
-.featured-name{ font-weight:700; letter-spacing:.05em; }
-.hero-v2 .ch-fact b{ font-size:17px; font-weight:500; }
-
 /* ---- Accueil : « Les Organisations » — dossiers scotchés, posés de travers
    sur un fond de rubans de police croisés qui défilent ---- */
 .org-table{
@@ -4352,6 +4319,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=115"></script>
+<script src="dist/main.js?v=116"></script>
 </body>
 </html>
