@@ -1228,7 +1228,7 @@ function initFirestoreSync(): void {
   }, (err: any) => console.error('Firestore (secretFiles) :', err));
 
   db.collection('cityPages').onSnapshot((snap: any) => {
-    const m: Record<string, { music?: string | null; musicTitle?: string | null; blocks?: PoiBlock[] | null; images?: string[] | null; imageCaps?: string[] | null; zones?: Record<string, HyZoneOv> | null; elements?: HyElement[] | null; ars?: ArsDoc | null }> = {};
+    const m: Record<string, { music?: string | null; musicTitle?: string | null; blocks?: PoiBlock[] | null; images?: string[] | null; imageCaps?: string[] | null; zones?: Record<string, HyZoneOv> | null; elements?: HyElement[] | null; ars?: ArsDoc | null; title?: string | null; tagline?: string | null }> = {};
     snap.forEach((doc: any) => { m[doc.id] = doc.data(); });
     cityPagesCache = m;
     if(document.querySelector('.city')) render();
@@ -4228,15 +4228,69 @@ function deleteArs(id: string): void {
     .catch((err: any) => alert('Suppression impossible : ' + (err && err.message ? err.message : err)));
 }
 
+// Visionneuse des images ajoutées dans les blocs de la page.
+function openPageLightbox(docId: string, i: number): void {
+  const d = cityPagesCache[docId];
+  const imgs = (d && d.images) || [];
+  openImgLightbox(imgs.map((u, k) => ({ url: u, caption: (d && d.imageCaps && d.imageCaps[k]) || '' })), i);
+}
+
+// Titre et accroche de la page, modifiables depuis le bandeau.
+function openArsPageEditor(): void {
+  if(!isLoggedIn()) return;
+  const d = cityPagesCache['arsenal'];
+  nvCloseForm();
+  const box = pageEditHost();
+  box.innerHTML = `
+    <button type="button" class="nv-card-x" onclick="closeArsEditor()">✕</button>
+    <div class="nv-ed-title">Titre de la page</div>
+    <label>Titre</label>
+    <input id="apTitle" type="text" value="${escAttr((d && d.title) || CATS.objets.label)}">
+    <label>Accroche <em>(la phrase sous le titre)</em></label>
+    <textarea id="apTag" rows="3">${esc((d && d.tagline) || CATS.objets.desc)}</textarea>
+    <div class="nv-ed-actions">
+      <button type="button" class="primary" onclick="saveArsPage()">Enregistrer</button>
+      <button type="button" onclick="closeArsEditor()">Annuler</button>
+      <button type="button" class="danger" onclick="saveArsPage(true)">Rétablir</button>
+    </div>`;
+  box.classList.add('open');
+}
+
+function saveArsPage(reset: boolean = false): void {
+  if(!isLoggedIn()) return;
+  const v = (id: string): string => ((document.getElementById(id) as HTMLInputElement | null)?.value || '').trim();
+  const title = reset ? null : (v('apTitle') || null);
+  const tagline = reset ? null : (v('apTag') || null);
+  writeCityPatch('arsenal', { title, tagline })
+    .then(() => closeArsEditor())
+    .catch((err: any) => alert('Enregistrement impossible : ' + (err && err.message ? err.message : err)));
+}
+
 function renderObjetsPage(): string {
   const c = CATS.objets;
   const n = arsDocs().length;
   const logged = isLoggedIn();
+  const pd = cityPagesCache['arsenal'];
+  const title = (pd && pd.title) || c.label;
+  const tagline = (pd && pd.tagline) || c.desc;
+  const ref = 'page:arsenal';
+  const tg = blkTarget(ref) as BlkTarget;
   const facts: [string, string][] = [['Armes', String(n)]];
   const actions = `<button type="button" class="city-btn" onclick="scrollToCity('city-ville')">⌖ Parcourir l'arsenal</button>
-    ${logged ? `<button type="button" class="city-btn city-edit-btn${cityEdit ? ' on' : ''}" id="cityEditBtn" data-label="✎ Édition" onclick="toggleCityEdit()">${cityEdit ? '✓ Terminer l\'édition' : '✎ Édition'}</button>` : ''}`;
-  const hero = cityHeroHtml({ kicker: 'Archives · Arsenal', title: c.label, tagline: c.desc, facts, img: '', tape: '', plaque: 'Arsenal', actions, music: '' });
+    ${logged ? `<button type="button" class="city-btn" onclick="openArsPageEditor()">Modifier</button>` : ''}
+    ${logged ? `<button type="button" class="city-btn" onclick="openMusicEditor('page','arsenal')">♪ Musique</button>` : ''}
+    ${logged ? `<button type="button" class="city-btn city-edit-btn${cityEdit ? ' on' : ''}" id="cityEditBtn" onclick="toggleCityEdit()">${cityEdit ? '✓ Terminer l\'édition' : '✎ Mise en page'}</button>` : ''}`;
+  const hero = cityHeroHtml({ kicker: 'Archives · Arsenal', title, tagline, facts, img: '', tape: '', plaque: 'Arsenal', actions,
+    music: cityMusicHtml('arsenal', (pd && pd.music) || '', (pd && pd.musicTitle) || '', 'page', 'arsenal') });
+  const hasBlocks = tg.blocks.length > 0;
   const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Arsenal', g: '+' }];
+  if(hasBlocks || logged) rail.push({ id: 'city-obs', t: 'Notes', g: 'i' });
+  const blocksSec = (hasBlocks || logged) ? `
+      <section class="city-sec${hasBlocks ? '' : ' ed-sec'}" id="city-obs">
+        ${secHead('II', 'Informations', 'NOTES SUR L\'<em>ARSENAL</em>')}
+        <div class="blk-grid" id="blkGrid" data-ref="${escAttr(ref)}">${tg.blocks.map(b => blockHtml(ref, tg, b)).join('') || '<p class="city-empty">Aucune note pour le moment. Active « Mise en page » pour ajouter des blocs.</p>'}</div>
+        ${logged ? `<div class="blk-add ed-only"><button type="button" onclick="openBlockEditor('${escAttr(ref)}', null, 'text')">+ Bloc de texte</button><button type="button" onclick="openBlockEditor('${escAttr(ref)}', null, 'image')">+ Bloc d'image</button></div>` : ''}
+      </section>` : '';
   return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / ${esc(c.label)}</div>
     <div class="city med sq sq-arm${cityEdit ? ' is-edit' : ''}" style="--acc:${SQ_ACCENTS.arm}">
@@ -4246,7 +4300,7 @@ function renderObjetsPage(): string {
       <section class="city-sec" id="city-ville">
         ${secHead('I', 'Arsenal', 'L\'<em>ARSENAL</em>', 'Fais tourner la roue (molette, flèches ou clic) pour parcourir les armes.')}
         ${obConsoleHtml()}
-      </section>
+      </section>${blocksSec}
     </div>`;
 }
 
@@ -4342,8 +4396,8 @@ function cityBgHtml(seed: string, med: boolean = false): string {
 }
 
 /* ----- Musique d'ambiance d'une page de ville / de lieu : lecteur (lecture, barre, volume) dans le bandeau ----- */
-let cityPagesCache: Record<string, { music?: string | null; musicTitle?: string | null; blocks?: PoiBlock[] | null; images?: string[] | null; imageCaps?: string[] | null; zones?: Record<string, HyZoneOv> | null; elements?: HyElement[] | null; ars?: ArsDoc | null }> = {};
-let musForm: { kind: 'city' | 'poi'; refId: string } | null = null;
+let cityPagesCache: Record<string, { music?: string | null; musicTitle?: string | null; blocks?: PoiBlock[] | null; images?: string[] | null; imageCaps?: string[] | null; zones?: Record<string, HyZoneOv> | null; elements?: HyElement[] | null; ars?: ArsDoc | null; title?: string | null; tagline?: string | null }> = {};
+let musForm: { kind: 'city' | 'poi' | 'page'; refId: string } | null = null;
 
 // Musique de la ville : celle posée depuis la page (collection cityPages) ou, à défaut, le champ « Musique » de la fiche.
 function cityMusicOf(e: Entry): string {
@@ -4351,19 +4405,22 @@ function cityMusicOf(e: Entry): string {
   return d && 'music' in d ? (d.music || '') : (e.music || '');
 }
 
-function cityMusicHtml(ownerId: string, music: string, title: string, kind: 'city' | 'poi', refId: string): string {
+function cityMusicHtml(ownerId: string, music: string, title: string, kind: 'city' | 'poi' | 'page', refId: string): string {
   const edit = isLoggedIn() ? `<button type="button" class="ed-only ch-music-edit" onclick="openMusicEditor('${kind}','${escAttr(refId)}')">♪ ${music ? 'Changer la musique' : 'Ajouter une musique d\'ambiance'}</button>` : '';
   if(!music) return edit ? `<div class="ch-music ch-music-empty">${edit}</div>` : '';
   return `<div class="ch-music"><div class="ch-music-h"><span>Ambiance</span>${title ? `<b>♪ ${esc(title)}</b>` : ''}</div>${musicBarHtml(ownerId, music)}${edit}</div>`;
 }
 
-function openMusicEditor(kind: 'city' | 'poi', refId: string): void {
+function openMusicEditor(kind: 'city' | 'poi' | 'page', refId: string): void {
   if(!isLoggedIn()) return;
   nvCloseForm();
   let cur = '', title = '';
   if(kind === 'city'){
     const e = findEntry(refId);
     cur = e ? cityMusicOf(e) : '';
+    title = (cityPagesCache[refId] && cityPagesCache[refId].musicTitle) || '';
+  } else if(kind === 'page'){
+    cur = (cityPagesCache[refId] && cityPagesCache[refId].music) || '';
     title = (cityPagesCache[refId] && cityPagesCache[refId].musicTitle) || '';
   } else {
     const p = findPoi(refId);
@@ -4400,7 +4457,7 @@ function saveMusic(remove: boolean = false): void {
   const data = { music: url || null, musicTitle: title || null };
   const db = getFirestoreDb();
   if(!db){ alert('Base de données indisponible : impossible d\'enregistrer.'); return; }
-  const op = f.kind === 'city'
+  const op = f.kind !== 'poi'
     ? db.collection('cityPages').doc(f.refId).set(data, { merge: true })
     : writePoiPatch(f.refId, data);
   op.then(() => closeMusicEditor()).catch((err: any) => alert('Enregistrement impossible : ' + (err && err.message ? err.message : err)));
@@ -5212,6 +5269,16 @@ function blkTarget(ref: string): BlkTarget | null {
       lightbox: i => `openPoiLightbox('${p.id}', ${i})`, write: data => writePoiPatch(id, data),
     };
   }
+  if(kind === 'page'){
+    const pd = cityPagesCache[id];
+    const pimgs: string[] = pd && Array.isArray(pd.images) ? pd.images : [];
+    const pcaps: string[] = pd && Array.isArray(pd.imageCaps) ? pd.imageCaps : [];
+    return {
+      blocks: pd && Array.isArray(pd.blocks) ? pd.blocks : [], images: pimgs, caps: pimgs.map((_s, i) => pcaps[i] || ''), nEntry: 0,
+      imgIndex: b => b.pimg !== undefined ? b.pimg : (b.img || 0), imagesPatch: (images, caps) => ({ images, imageCaps: caps }),
+      lightbox: i => `openPageLightbox('${escAttr(id)}', ${i})`, write: data => writeCityPatch(id, data),
+    };
+  }
   const e = findEntry(id);
   if(!e) return null;
   const eImgs = entryImgs(e);
@@ -5357,7 +5424,7 @@ function openBlockEditor(ref: string, blockId: string | null, type: 'text' | 'im
 function blkRefreshImgs(): void {
   const wrap = document.getElementById('blkImgs');
   if(!wrap || !blkForm) return;
-  const canRemove = blkForm.ref.startsWith('city:');   // sur une fiche, on peut retirer les images ajoutées depuis la page
+  const canRemove = blkForm.ref.startsWith('city:') || blkForm.ref.startsWith('page:');   // sur une fiche, on peut retirer les images ajoutées depuis la page
   wrap.innerHTML = blkForm.images.length
     ? blkForm.images.map((s, i) => `<button type="button" class="${i === blkForm!.img ? 'on' : ''}" onclick="blkPickImg(${i})"><img src="${s}" alt=""><span>${esc(blkForm!.caps[i] || 'Image ' + (i + 1))}</span>${canRemove && i >= blkForm!.nEntry ? `<i class="blk-img-x" title="Supprimer cette image" onclick="event.stopPropagation(); blkRemoveImage(${i})">✕</i>` : ''}</button>`).join('')
     : '<p class="blk-hint">Aucune image pour cette page : ajoute-en une ci-dessous.</p>';
@@ -5421,7 +5488,7 @@ function saveBlock(): void {
   const label = val('blkLabel');
   if(label) nb.label = label;
   if(f.type === 'text') nb.text = val('blkText');
-  else if(f.nEntry && f.img >= f.nEntry) nb.pimg = f.img - f.nEntry;
+  else if((f.nEntry && f.img >= f.nEntry) || f.ref.indexOf('page:') === 0) nb.pimg = f.img - f.nEntry;
   else nb.img = f.img;
   const list = tg.blocks.map(b => ({ ...b }));
   const at = f.blockId ? list.findIndex(b => b.id === f.blockId) : -1;
