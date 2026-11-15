@@ -3412,7 +3412,9 @@ function nvListPois() {
 function findPoi(id) { return nvListPois().find(p => p.id === id); }
 function poiAccent(p) { return p.accent || NV_ACCENT_DEFAULT; }
 function poiImgList(p) { return (p.images || []).map((url, i) => ({ url, caption: (p.imageCaps && p.imageCaps[i]) || '' })); }
-function importantPois(e) { return nvListPois().filter(p => p.important && (isNovelanceEntry(e) || p.entryId === e.id)); }
+// Lieux importants d'une page : ceux rattachés à cette fiche (« Fiche liée »). La page de Novelance montre aussi ceux qui ne sont rattachés à aucune autre fiche
+// (les lieux d'une autre fiche, comme les souterrains, restent sur la page de cette fiche et ne sont pas dupliqués sur Novelance).
+function importantPois(e) { const nov = isNovelanceEntry(e); return nvListPois().filter(p => p.important && (p.entryId === e.id || (nov && !p.entryId))); }
 function lieuDistrictLabel(id) {
     return id === 'sous' ? "Cité d'en dessous" : (NOVELANCE_DISTRICTS.find(d => d.id === id) || { label: '—' }).label;
 }
