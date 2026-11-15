@@ -3132,29 +3132,37 @@ function renderHome() {
         return acc;
     }, {});
     const featured = ENTRIES.filter(e => e.cat === 'personnages').slice(-5);
+    const total = Object.keys(counts).reduce((n, k) => n + counts[k], 0);
     return `
     <div class="hero">
       <div class="hero-flora"></div>
+      <div class="hero-dust" aria-hidden="true">${homeDustHtml()}</div>
+      <div class="hero-frame" aria-hidden="true"><i class="c1"></i><i class="c2"></i><i class="c3"></i><i class="c4"></i></div>
+      <div class="hero-meta hm-l"><span>Codex</span><b>Vivant</b></div>
+      <div class="hero-meta hm-r"><span>Fiches</span><b>${total}</b></div>
       <svg class="hero-sigil" viewBox="0 0 24 24" fill="none" stroke="#c4c9d1" stroke-width="1"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2"/><line x1="12" y1="1" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="1" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="23" y2="12"/></svg>
       <div class="hero-eyebrow">Codex non-officiel</div>
-      <h1>OXIRI<br>LE PRIX DE L'AUBE</h1>
+      <h1><span class="h1-l" style="--d:.15s">OXIRI</span><span class="h1-l" style="--d:.45s">LE PRIX DE L'AUBE</span></h1>
       <div class="hero-divider"></div>
       <p>Entre les ruines d'un âge oublié et les flèches de verre d'un présent technologique, un même monde continue de se souvenir. Explore ses régions, ses factions et ceux qui portent encore le poids du passé.</p>
       <div class="hero-actions">
         <span class="btn btn-primary" onclick="navigate('cat-personnages')">Parcourir le codex</span>
         <span class="btn btn-ghost" onclick="navigate('carte')">Voir la carte du monde</span>
       </div>
+      <div class="hero-scroll" onclick="document.getElementById('homeStart')?.scrollIntoView({behavior:'smooth'})"><span>Descendre</span><i></i></div>
     </div>
 
-    <div class="stats-row">
-      ${Object.entries(CATS).map(([key, c]) => `
-        <div class="stat">
+    <div class="stats-row" id="homeStart">
+      ${Object.entries(CATS).map(([key, c], i) => `
+        <div class="stat" onclick="navigate('cat-${key}')" title="Ouvrir : ${escAttr(c.label)}">
+          <div class="stat-idx">${String(i + 1).padStart(2, '0')}</div>
           <div class="num">${counts[key]}</div>
           <div class="lbl">${c.label}</div>
+          <span class="stat-go">→</span>
         </div>`).join('')}
     </div>
 
-    <div class="section-title">
+    <div class="section-title home-title">
       <h2>Dernièrement</h2>
       <a onclick="navigate('cat-personnages')">Voir tout →</a>
     </div>
@@ -3221,12 +3229,24 @@ function homeOrganisationsHtml() {
       </div>
     </section>`;
 }
+function homeDustHtml() {
+    const r = tmSeeded(tmHash('home-dust'));
+    let out = '';
+    for (let i = 0; i < 22; i++) {
+        const s = 1.5 + r() * 2.5;
+        out += `<i style="left:${(r() * 100).toFixed(1)}%;top:${(40 + r() * 60).toFixed(1)}%;width:${s.toFixed(1)}px;height:${s.toFixed(1)}px;--dx:${Math.round((r() - 0.5) * 90)}px;animation-duration:${(14 + r() * 16).toFixed(1)}s;animation-delay:-${(r() * 24).toFixed(1)}s"></i>`;
+    }
+    return out;
+}
 function featuredGridHtml(list) {
     return list.map((e, i) => {
         return `
-    <div class="featured-card ${i === list.length - 1 ? 'featured-large' : ''}" onclick="showCharacterReveal('${e.id}')">
+    <div class="featured-card ${i === list.length - 1 ? 'featured-large' : ''}" style="--i:${i}" onclick="showCharacterReveal('${e.id}')">
       ${e.image ? `<img class="featured-img" src="${encodeURI(e.image)}" alt="${esc(e.name)}" style="${e.imagePos ? `object-position:${e.imagePos}` : ''}">` : ''}
+      <span class="featured-idx">${String(i + 1).padStart(2, '0')}</span>
+      <i class="featured-frame"></i>
       <div class="featured-info">
+        <span class="featured-rule"></span>
         <div class="featured-tag">${esc(e.tagline)}</div>
         <div class="featured-name">${esc(e.name)}</div>
       </div>
