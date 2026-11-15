@@ -3366,8 +3366,9 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .hy-tab{ display:flex; align-items:center; gap:10px; margin-bottom:12px; font-family:'IBM Plex Mono', monospace !important; font-size:10.5px; letter-spacing:.3em; text-transform:uppercase; color:#e9eef1; }
 .hy-tab span{ padding:3px 10px; background: repeating-linear-gradient(135deg, rgba(255,255,255,0.2) 0 2px, transparent 2px 6px), rgba(255,255,255,0.06); }
 .hy-tab i{ flex:1; height:1px; background: linear-gradient(90deg, rgba(255,255,255,0.4), transparent); }
-.hy-tiles{ display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
-.hy-tile{ position:relative; text-align:left; cursor:pointer; padding:9px 10px 14px; min-height:74px; color:#cdd5da; background:#0d0f12; border:1px solid rgba(255,255,255,0.18); --hs:#e8eef2; transition: background .2s ease, border-color .2s ease, transform .2s ease; }
+.hy-left{ min-width:0; }
+.hy-tiles{ display:grid; grid-template-columns: repeat(auto-fill, minmax(124px, 1fr)); gap:8px; }
+.hy-tile{ position:relative; min-width:0; overflow-wrap:anywhere; text-align:left; cursor:pointer; padding:9px 10px 14px; min-height:74px; color:#cdd5da; background:#0d0f12; border:1px solid rgba(255,255,255,0.18); --hs:#e8eef2; transition: background .2s ease, border-color .2s ease, transform .2s ease; }
 .hy-tile small{ display:block; font-family:'IBM Plex Mono', monospace !important; font-size:10px; letter-spacing:.14em; color:#8d969c; }
 .hy-tile b{ display:block; margin-top:6px; font-size:13.5px; font-weight:600; line-height:1.2; text-transform:uppercase; letter-spacing:.04em; }
 .hy-tile i{ position:absolute; left:6px; right:6px; bottom:5px; height:2px; background: var(--hs); opacity:.55; }
@@ -3421,9 +3422,8 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 @media (max-width:980px){
   .hy-cols{ grid-template-columns: 1fr; }
   .hy-stage{ order:1; } .hy-left{ order:2; } .hy-right{ order:3; }
-  .hy-tiles{ grid-template-columns: repeat(4, 1fr); }
 }
-@media (max-width:560px){ .hy-tiles{ grid-template-columns: 1fr 1fr; } .hy-barcode{ display:none; } .hy-gene{ width:70px; height:70px; margin:-35px 0 0 -35px; } }
+@media (max-width:560px){ .hy-barcode{ display:none; } .hy-gene{ width:70px; height:70px; margin:-35px 0 0 -35px; } }
 
 /* cartes des hybrides connus */
 .hy-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:22px; margin-top:40px; }
@@ -4467,6 +4467,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=130"></script>
+<script src="dist/main.js?v=131"></script>
 </body>
 </html>
