@@ -3736,21 +3736,27 @@ function renderHome(): string {
   const featured = ENTRIES.filter(e=>e.cat==='personnages').slice(-5);
   const total = Object.keys(counts).reduce((n, k) => n + counts[k], 0);
   return `
-    <div class="hero">
+    <div class="hero hero-v2">
       <div class="hero-flora"></div>
       <div class="hero-dust" aria-hidden="true">${homeDustHtml()}</div>
       <div class="hero-frame" aria-hidden="true"><i class="c1"></i><i class="c2"></i><i class="c3"></i><i class="c4"></i></div>
-      <div class="hero-meta hm-l"><span>Codex</span><b>Vivant</b></div>
-      <div class="hero-meta hm-r"><span>Fiches</span><b>${total}</b></div>
-      <svg class="hero-sigil" viewBox="0 0 24 24" fill="none" stroke="#c4c9d1" stroke-width="1"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3.2"/><line x1="12" y1="1" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="1" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="23" y2="12"/></svg>
-      <div class="hero-eyebrow">Codex non-officiel</div>
-      <h1><span class="h1-l" style="--d:.15s">OXIRI</span><span class="h1-l" style="--d:.45s">LE PRIX DE L'AUBE</span></h1>
-      <div class="hero-divider"></div>
-      <p>Entre les ruines d'un âge oublié et les flèches de verre d'un présent technologique, un même monde continue de se souvenir. Explore ses régions, ses factions et ceux qui portent encore le poids du passé.</p>
-      <div class="hero-actions">
-        <span class="btn btn-primary" onclick="navigate('cat-personnages')">Parcourir le codex</span>
-        <span class="btn btn-ghost" onclick="navigate('carte')">Voir la carte du monde</span>
+      <div class="ch-orbit" aria-hidden="true"><i></i><i></i><i></i></div>
+      <div class="hero-in">
+        <span class="ch-kicker">Codex non-officiel</span>
+        <h1><span class="h1-l big" style="--d:.15s">OXIRI</span><span class="h1-l sub" style="--d:.45s">LE PRIX DE L'AUBE</span></h1>
+        <div class="ch-rule"><i></i></div>
+        <p>Entre les ruines d'un âge oublié et les flèches de verre d'un présent technologique, un même monde continue de se souvenir. Explore ses régions, ses factions et ceux qui portent encore le poids du passé.</p>
+        <div class="ch-actions">
+          <span class="city-btn on" onclick="navigate('cat-personnages')">Parcourir le codex</span>
+          <span class="city-btn" onclick="navigate('carte')">Voir la carte du monde</span>
+        </div>
       </div>
+      <aside class="ch-plaque">
+        <div class="ch-plaque-h"><span>Dossier</span><i></i></div>
+        <div class="ch-fact"><small>Codex</small><b>Non officiel</b></div>
+        <div class="ch-fact"><small>Fiches</small><b>${total}</b></div>
+        ${featured.length ? `<div class="ch-fact"><small>Dernière fiche</small><b>${esc(featured[featured.length - 1].name)}</b></div>` : ''}
+      </aside>
       <div class="hero-scroll" onclick="document.getElementById('homeStart')?.scrollIntoView({behavior:'smooth'})"><span>Descendre</span><i></i></div>
     </div>
 
