@@ -3138,7 +3138,7 @@ function scrollRoster(rosterId, dir) {
 }
 function renderHome() {
     const counts = Object.keys(CATS).reduce((acc, c) => {
-        acc[c] = ENTRIES.filter(e => e.cat === c).length;
+        acc[c] = ENTRIES.filter(e => e.cat === c).length + (c === 'objets' ? WEAPONS.length : 0);
         return acc;
     }, {});
     const featured = ENTRIES.filter(e => e.cat === 'personnages').slice(-5);
@@ -3356,6 +3356,191 @@ function renderLieuxIndex(list, c) {
       </section>
     </div>`;
 }
+/* ----- Page « Objets & armes » : roue de sélection (armes et objets) + écran holographique qui s'anime à chaque choix ----- */
+let obSel = 0;
+let obKeyBound = false;
+
+function obItems() {
+  const out = WEAPONS.map(w => {
+    const locked = !!w.restricted && !armesFinalUnlocked;
+    return {
+      id: w.id, code: w.dossier, name: w.name, sub: w.danger, image: locked ? '' : (w.image || ''),
+      info: locked ? [] : Object.entries(w.info).slice(0, 6),
+      tags: locked ? [['forbidden', 'ACCÈS INTERDIT']] : [[dangerClass(w.danger), w.danger], [statusClass(w.status), w.status]],
+      locked, route: 'arme-' + w.id, kind: 'weapon',
+    };
+  });
+  ENTRIES.filter(e => e.cat === 'objets').forEach((e, i) => {
+    const img = entryImgs(e)[0];
+    out.push({ id: e.id, code: 'OB-' + String(i + 1).padStart(2, '0'), name: e.name, sub: e.tagline, image: img ? encodeURI(img.url) : '', info: Object.entries(e.info || {}).slice(0, 6), tags: [], locked: false, route: 'entry-' + e.id, kind: 'entry' });
+  });
+  out.push({ id: 'corrompu', code: '???', name: '????', sub: 'Données corrompues', image: '', info: [], tags: [['unknown', 'DONNÉES CORROMPUES']], locked: false, route: 'archives-corrompues', kind: 'corrupt' });
+  return out;
+}
+
+function obFinder(x, y) {
+  return `<rect x="${x + 0.3}" y="${y + 0.3}" width="2.4" height="2.4" fill="none" stroke="currentColor" stroke-width=".6"/><rect x="${x + 1.1}" y="${y + 1.1}" width=".8" height=".8"/>`;
+}
+
+// Petit code QR décoratif (motif propre à chaque élément).
+function obQr(seed) {
+  const r = tmSeeded(tmHash('qr-' + seed));
+  const N = 9;
+  let out = '';
+  for(let y = 0; y < N; y++){
+    for(let x = 0; x < N; x++){
+      const finder = (x < 3 && y < 3) || (x >= N - 3 && y < 3) || (x < 3 && y >= N - 3);
+      if(!finder && r() > 0.5) out += `<rect x="${x}" y="${y}" width="1" height="1"/>`;
+    }
+  }
+  return `<svg viewBox="0 0 ${N} ${N}" fill="currentColor" aria-hidden="true">${out}${obFinder(0, 0)}${obFinder(N - 3, 0)}${obFinder(0, N - 3)}</svg>`;
+}
+
+function obInfoHtml(it) {
+  let rows = it.info;
+  if(it.locked) rows = [['Accès', 'Dossier verrouillé : habilitation supérieure à OMEGA requise']];
+  else if(it.kind === 'corrupt') rows = [['État', 'Données corrompues : lecture impossible']];
+  else if(!rows.length) rows = [['Désignation', it.sub || it.name]];
+  return rows.map((r, i) => `<div class="ob-irow" style="--d:${i * 70}ms"><span class="ob-node"></span><div class="ob-itile${i === 0 ? ' hot' : ''}"><small>${esc(r[0])}</small><b>${esc(r[1])}</b></div></div>`).join('');
+}
+
+function obScreenHtml(it) {
+  const glyph = it.locked ? '🔒' : it.kind === 'corrupt' ? '?' : '✕';
+  const img = it.image ? `<img src="${encodeURI(it.image)}" alt="${escAttr(it.name)}">` : `<span class="ob-noimg">${glyph}</span>`;
+  const tags = it.tags.map(t => `<span class="ob-tag ${t[0]}">${esc(t[1])}</span>`).join('');
+  return `<div class="ob-wrap">
+      <div class="ob-card" id="obCard">
+        <div class="ob-card-in">
+          <i class="ob-c c1"></i><i class="ob-c c2"></i><i class="ob-c c3"></i><i class="ob-c c4"></i>
+          <div class="ob-qr">${obQr(it.id)}</div>
+          <div class="ob-vtext">DOSSIER ${esc(it.code)} // HALCYON</div>
+          <div class="ob-img">${img}<i class="ob-scan"></i></div>
+          <div class="ob-cap"><b>${esc(it.name)}</b><span>${esc(it.sub)}</span></div>
+          <svg class="ob-emblem" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="20" cy="20" r="13"/><circle cx="20" cy="20" r="3"/><path d="M20 3v8M20 29v8M3 20h8M29 20h8"/></svg>
+          <i class="ob-glare"></i>
+        </div>
+      </div>
+    </div>
+    <div class="ob-floor" aria-hidden="true"><i></i><i></i><i></i></div>
+    <div class="ob-tags">${tags}</div>
+    <button type="button" class="city-btn ob-open" onclick="navigate('${it.route}')">${it.locked ? 'Saisir le code d\'accès' : 'Ouvrir le dossier'} →</button>`;
+}
+
+function obConsoleHtml() {
+  const items = obItems();
+  if(obSel >= items.length) obSel = 0;
+  const tiles = items.map((it, i) => `<div class="ob-tile-wrap${i === obSel ? ' on' : ''}" data-i="${i}" data-far="${Math.abs(i - obSel) > 2 ? 1 : 0}" style="--off:${i - obSel}"><button type="button" class="ob-tile${it.locked ? ' lock' : ''}" onclick="obSelect(${i})"><small>${it.locked ? '🔒 ' : ''}${esc(it.code)}</small><b>${esc(it.name)}</b></button></div>`).join('');
+  return `<div class="ob-console cv-rv">
+    <div class="hy-brackets" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="hy-topbar"><span class="hy-brand">ARSENAL <em>// ARCHIVES D'ÉQUIPEMENT</em></span><span class="hy-barcode">${hyBarcode('ob-top')}</span></div>
+    <div class="ob-grid">
+      <div class="ob-wheel" id="obWheel">
+        <svg class="ob-rings" viewBox="0 0 800 800" fill="none" aria-hidden="true"><g class="r1"><circle cx="400" cy="400" r="390" stroke-dasharray="3 9"/><circle cx="400" cy="400" r="350" stroke-width="2"/></g><g class="r2"><circle cx="400" cy="400" r="250" stroke-dasharray="24 10 4 10"/><circle cx="400" cy="400" r="215"/></g><g class="r3"><circle cx="400" cy="400" r="130" stroke-dasharray="2 6"/></g></svg>
+        ${tiles}
+        <div class="ob-nav"><button type="button" onclick="obStep(-1)" aria-label="Précédent">▲</button><button type="button" onclick="obStep(1)" aria-label="Suivant">▼</button></div>
+      </div>
+      <div class="ob-info" id="obInfo">${obInfoHtml(items[obSel])}</div>
+      <div class="ob-screen-col" id="obScreen">${obScreenHtml(items[obSel])}</div>
+    </div>
+  </div>`;
+}
+
+function obSelect(i) {
+  const items = obItems();
+  if(i < 0 || i >= items.length) return;
+  obSel = i;
+  document.querySelectorAll('.ob-tile-wrap').forEach(w => {
+    const k = Number(w.dataset.i);
+    w.style.setProperty('--off', String(k - i));
+    w.dataset.far = Math.abs(k - i) > 2 ? '1' : '0';
+    w.classList.toggle('on', k === i);
+  });
+  const info = document.getElementById('obInfo');
+  const screen = document.getElementById('obScreen');
+  if(info) info.innerHTML = obInfoHtml(items[i]);
+  if(screen) screen.innerHTML = obScreenHtml(items[i]);
+  obBindTilt();
+}
+
+function obStep(d) {
+  const n = obItems().length;
+  obSelect(Math.max(0, Math.min(n - 1, obSel + d)));
+}
+
+// Inclinaison 3D de la carte selon la souris + reflet qui suit le curseur.
+function obBindTilt() {
+  const col = document.getElementById('obScreen');
+  const card = document.getElementById('obCard');
+  if(!col || !card) return;
+  col.onmousemove = ev => {
+    const r = card.getBoundingClientRect();
+    const px = (ev.clientX - r.left) / r.width - 0.5, py = (ev.clientY - r.top) / r.height - 0.5;
+    card.classList.add('tilt');
+    card.style.setProperty('--ry', (px * 26).toFixed(1) + 'deg');
+    card.style.setProperty('--rx', (-py * 22).toFixed(1) + 'deg');
+    card.style.setProperty('--gx', ((px + 0.5) * 100).toFixed(0) + '%');
+  };
+  col.onmouseleave = () => {
+    card.classList.remove('tilt');
+    card.style.removeProperty('--ry'); card.style.removeProperty('--rx'); card.style.removeProperty('--gx');
+  };
+}
+
+function obInit() {
+  const wheel = document.getElementById('obWheel');
+  if(!wheel) return;
+  wheel.onwheel = ev => {
+    const n = obItems().length;
+    const d = ev.deltaY > 0 ? 1 : -1;
+    if((d > 0 && obSel >= n - 1) || (d < 0 && obSel <= 0)) return;
+    ev.preventDefault();
+    obStep(d);
+  };
+  let y0 = 0;
+  wheel.ontouchstart = ev => { y0 = ev.touches[0].clientY; };
+  wheel.ontouchend = ev => { const dy = ev.changedTouches[0].clientY - y0; if(Math.abs(dy) > 40) obStep(dy < 0 ? 1 : -1); };
+  obBindTilt();
+  if(!obKeyBound){
+    obKeyBound = true;
+    document.addEventListener('keydown', ev => {
+      if(!document.getElementById('obWheel')) return;
+      const t = ev.target;
+      if(t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA' || t.tagName === 'SELECT')) return;
+      if(ev.key === 'ArrowDown' || ev.key === 'ArrowRight'){ ev.preventDefault(); obStep(1); }
+      else if(ev.key === 'ArrowUp' || ev.key === 'ArrowLeft'){ ev.preventDefault(); obStep(-1); }
+    });
+  }
+}
+
+function renderObjetsPage() {
+  const c = CATS.objets;
+  const nObjets = ENTRIES.filter(e => e.cat === 'objets').length;
+  const logged = isLoggedIn();
+  const facts = [['Armes', String(WEAPONS.length)], ['Objets', String(nObjets)]];
+  const actions = `<button type="button" class="city-btn" onclick="scrollToCity('city-ville')">⌖ Parcourir l'arsenal</button>
+    <button type="button" class="city-btn" onclick="navigate('armes')">Archives des artefacts</button>
+    ${logged ? `<button type="button" class="city-btn" onclick="navigate('ecriture')">+ Écrire un objet</button>` : ''}`;
+  const hero = cityHeroHtml({ kicker: 'Archives · Arsenal', title: c.label, tagline: c.desc, facts, img: '', tape: '', plaque: 'Arsenal', actions, music: '' });
+  const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Arsenal', g: '+' }, { id: 'city-arch', t: 'Archives', g: 'i' }];
+  return `
+    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / ${esc(c.label)}</div>
+    <div class="city med sq sq-arm" style="--acc:${SQ_ACCENTS.arm}">
+      ${sqBgHtml('arm', 'objets')}
+      <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
+      ${hero}
+      <section class="city-sec" id="city-ville">
+        ${secHead('I', 'Arsenal', 'L\'ARSENAL <em>OXIRIEN</em>', 'Fais tourner la roue (molette, flèches ou clic) pour parcourir les armes et les objets.')}
+        ${obConsoleHtml()}
+      </section>
+      <section class="city-sec" id="city-arch">
+        ${secHead('II', 'Archives', 'MOT DES <em>ARCHIVES</em>')}
+        <div class="sq-intro" style="grid-template-columns:1fr">
+          ${pnl('Archives des Artefacts Oxiriens', 'OMEGA', `<div class="dossier-quote">« Il existe des armes capables de tuer un homme. Il existe des armes capables de détruire une ville. Et il existe des armes qui peuvent changer la définition même de ce qu'est un homme. »</div><p>Extrait des archives du Département des Reliques de Halcyon.</p><div class="pl-acts"><button type="button" class="city-btn" onclick="navigate('armes')">Accéder aux archives →</button></div>`)}
+        </div>
+      </section>
+    </div>`;
+}
+
 function renderCategory(cat) {
     const list = ENTRIES.filter(e => e.cat === cat);
     const c = CATS[cat];
@@ -3365,6 +3550,8 @@ function renderCategory(cat) {
         const he = findEntry('hybrides');
         return he ? renderHybridesPage(he) : renderNotFound();
     }
+    if (cat === 'objets')
+        return renderObjetsPage();
     return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / ${c.label}</div>
     <div class="cat-header">
@@ -4583,6 +4770,7 @@ function layoutBlocks(grid) {
 }
 function initCityPage(animate) {
     hyInitDna();
+    obInit();
     if (cityCleanup) {
         cityCleanup();
         cityCleanup = null;
@@ -6100,7 +6288,7 @@ function renderBranchDossierCard(p, squad, docCode, pCode, editing) {
 // Dossier complet d'un escadron ou d'un département : même habillage HUD que la page Hybrides (bandeau, plaque « Dossier »,
 // panneaux pleins, fond animé), avec une couleur et un motif par thème : « ops » (escadron : radar), « law » (justice : balance)
 // et « lab » (recherche : atome). Le texte du dossier, les projets et l'effectif restent éditables comme avant.
-const SQ_ACCENTS = { ops: '#ff7a45', law: '#5aa9ff', lab: '#36e0b4' };
+const SQ_ACCENTS = { ops: '#ff7a45', law: '#5aa9ff', lab: '#36e0b4', arm: '#35c6ff' };
 
 function sqThemeOf(s) {
   const t = ((s.category || '') + ' ' + s.name + ' ' + (s.tag || '')).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -6114,6 +6302,8 @@ function sqBgHtml(theme, seed) {
   let mark = '';
   if(theme === 'law'){
     mark = `<div class="sq-cols"></div><svg class="sq-mark" viewBox="0 0 400 400" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M200 40V340M130 360H270M160 340H240M70 110H330"/><circle cx="200" cy="58" r="12"/><path d="M90 110L40 220M90 110L140 220M310 110L260 220M310 110L360 220"/><path d="M30 220H150Q140 270 90 270Q40 270 30 220ZM250 220H370Q360 270 310 270Q260 270 250 220Z"/></svg>`;
+  } else if(theme === 'arm'){
+    mark = `<div class="sq-hex"></div><svg class="sq-mark" viewBox="0 0 400 400" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true"><path d="M40 110V40H110M290 40H360V110M360 290V360H290M110 360H40V290"/><circle cx="200" cy="200" r="120"/><circle cx="200" cy="200" r="70"/><circle cx="200" cy="200" r="6" fill="currentColor"/><path d="M200 60V130M200 270V340M60 200H130M270 200H340"/></svg>`;
   } else if(theme === 'lab'){
     mark = `<div class="sq-grid"></div><svg class="sq-mark" viewBox="0 0 400 400" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><ellipse cx="200" cy="200" rx="185" ry="68"/><ellipse cx="200" cy="200" rx="185" ry="68" transform="rotate(60 200 200)"/><ellipse cx="200" cy="200" rx="185" ry="68" transform="rotate(120 200 200)"/><circle cx="200" cy="200" r="18" fill="currentColor"/><circle cx="385" cy="200" r="7" fill="currentColor"/><circle cx="385" cy="200" r="7" fill="currentColor" transform="rotate(60 200 200)"/><circle cx="15" cy="200" r="7" fill="currentColor" transform="rotate(120 200 200)"/></svg>`;
   } else {
