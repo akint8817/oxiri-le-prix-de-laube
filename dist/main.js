@@ -3510,7 +3510,7 @@ function cityHeroHtml(o) {
     <div class="ch-orbit"><i></i><i></i><i></i></div>
     <div class="ch-in">
       <span class="ch-kicker">${esc(o.kicker)}</span>
-      <h1 class="ch-title${o.title.length > 16 ? ' long' : ''}" aria-label="${escAttr(o.title)}">${letters}</h1>
+      <h1 class="ch-title${o.title.length > 16 ? ' long' : ''}${o.title.length > 34 ? ' xl' : ''}" aria-label="${escAttr(o.title)}">${letters}</h1>
       <div class="ch-rule"><i></i></div>
       ${o.tagline ? `<p class="ch-tag">${esc(o.tagline)}</p>` : ''}
       <div class="ch-actions">${o.actions}</div>
@@ -6097,21 +6097,44 @@ function renderBranchDossierCard(p, squad, docCode, pCode, editing) {
       </div>` : ''}
     </div>`;
 }
-function renderSquadDossier(id) {
-    const squads = getAllSquads();
-    const idx = squads.findIndex(s => s.id === id);
-    const squad = squads[idx];
-    if (!squad) return renderNotFound();
-    const docCode = String(idx + 1).padStart(3, '0');
-    const editing = squadDossierEditId === id;
-    return `
-    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('halcyon')" style="cursor:pointer">Halcyon</span> / ${esc(squad.name)}</div>
-    ${editing ? `
+// Dossier complet d'un escadron ou d'un département : même habillage HUD que la page Hybrides (bandeau, plaque « Dossier »,
+// panneaux pleins, fond animé), avec une couleur et un motif par thème : « ops » (escadron : radar), « law » (justice : balance)
+// et « lab » (recherche : atome). Le texte du dossier, les projets et l'effectif restent éditables comme avant.
+const SQ_ACCENTS = { ops: '#ff7a45', law: '#5aa9ff', lab: '#36e0b4' };
+
+function sqThemeOf(s) {
+  const t = ((s.category || '') + ' ' + s.name + ' ' + (s.tag || '')).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+  if(/justice|ordre|police|tribunal/.test(t)) return 'law';
+  if(/recherche|scientifique|developpement|laboratoire|science/.test(t)) return 'lab';
+  return 'ops';
+}
+
+// Fond de page propre à chaque thème (motif géant très discret + réseau de points qui dérive).
+function sqBgHtml(theme, seed) {
+  let mark = '';
+  if(theme === 'law'){
+    mark = `<div class="sq-cols"></div><svg class="sq-mark" viewBox="0 0 400 400" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M200 40V340M130 360H270M160 340H240M70 110H330"/><circle cx="200" cy="58" r="12"/><path d="M90 110L40 220M90 110L140 220M310 110L260 220M310 110L360 220"/><path d="M30 220H150Q140 270 90 270Q40 270 30 220ZM250 220H370Q360 270 310 270Q260 270 250 220Z"/></svg>`;
+  } else if(theme === 'lab'){
+    mark = `<div class="sq-grid"></div><svg class="sq-mark" viewBox="0 0 400 400" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><ellipse cx="200" cy="200" rx="185" ry="68"/><ellipse cx="200" cy="200" rx="185" ry="68" transform="rotate(60 200 200)"/><ellipse cx="200" cy="200" rx="185" ry="68" transform="rotate(120 200 200)"/><circle cx="200" cy="200" r="18" fill="currentColor"/><circle cx="385" cy="200" r="7" fill="currentColor"/><circle cx="385" cy="200" r="7" fill="currentColor" transform="rotate(60 200 200)"/><circle cx="15" cy="200" r="7" fill="currentColor" transform="rotate(120 200 200)"/></svg>`;
+  } else {
+    let ticks = '';
+    for(let i = 0; i < 72; i++){
+      const a = i * Math.PI / 36, l = i % 6 === 0 ? 16 : 8;
+      ticks += `M${(200 + Math.cos(a) * 190).toFixed(1)} ${(200 + Math.sin(a) * 190).toFixed(1)}L${(200 + Math.cos(a) * (190 + l)).toFixed(1)} ${(200 + Math.sin(a) * (190 + l)).toFixed(1)}`;
+    }
+    mark = `<div class="sq-sweep"></div><svg class="sq-mark" viewBox="-20 -20 440 440" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="200" cy="200" r="190"/><circle cx="200" cy="200" r="140"/><circle cx="200" cy="200" r="90"/><circle cx="200" cy="200" r="40"/><path d="M200 10V390M10 200H390"/><path d="${ticks}"/></svg>`;
+  }
+  return `<div class="city-bg med sq-bg sq-${theme}" aria-hidden="true">${mark}${hyPlexSvg('sq-' + seed)}</div>`;
+}
+
+// Formulaire d'édition du dossier (nom, résumé, tag, catégorie, images, musique, texte).
+function sqEditPanelHtml(squad, id) {
+  return `
     <div class="write-form halcyon-edit-panel" style="max-width:640px;">
       <div class="write-row"><label>Nom</label><input id="sqdName" type="text" value="${escAttr(squad.name)}"></div>
       <div class="write-row"><label>Résumé (carte de la liste)</label><textarea id="sqdDesc" rows="3">${esc(squad.desc)}</textarea></div>
-      <div class="write-row"><label>Tag de la bannière</label><input id="sqdTag" type="text" value="${escAttr(squad.tag || '')}" placeholder="Ex : ORACLE — sinon le nom est utilisé"></div>
-      <div class="write-row"><label>Catégorie</label><input id="sqdCategory" type="text" value="${escAttr(squad.category || '')}" placeholder="Ex : Escadron d'élite"></div>
+      <div class="write-row"><label>Tag de la bannière</label><input id="sqdTag" type="text" value="${escAttr(squad.tag||'')}" placeholder="Ex : ORACLE — sinon le nom est utilisé"></div>
+      <div class="write-row"><label>Catégorie</label><input id="sqdCategory" type="text" value="${escAttr(squad.category||'')}" placeholder="Ex : Escadron d'élite"></div>
       <div class="write-row">
         <label>Image de bannière (optionnel)</label>
         <div class="write-images-list" id="sqdImagePreview">${squadImagePreviewHtml('image')}</div>
@@ -6122,7 +6145,7 @@ function renderSquadDossier(id) {
         <div class="write-images-list" id="sqdLogoPreview">${squadImagePreviewHtml('logo')}</div>
         <input id="sqdLogoFile" type="file" accept="image/*" onchange="handleSquadDossierImage(this,'logo')">
       </div>
-      <div class="write-row"><label>Musique de fond (URL)</label><input id="sqdMusic" type="url" value="${escAttr(squad.music || '')}" placeholder="Lien SoundCloud, fichier audio…"></div>
+      <div class="write-row"><label>Musique de fond (URL)</label><input id="sqdMusic" type="url" value="${escAttr(squad.music||'')}" placeholder="Lien SoundCloud, fichier audio…"></div>
       <div class="write-row">
         <label>Texte du dossier (un paragraphe par bloc de lignes)</label>
         <textarea id="sqdBody" rows="8">${esc((squad.body && squad.body.length ? squad.body : [squad.desc]).join('\n\n'))}</textarea>
@@ -6131,73 +6154,103 @@ function renderSquadDossier(id) {
       <div class="write-error" id="sqdError"></div>
       <span class="btn btn-primary" onclick="saveSquadDossier('${id}')">Enregistrer</span>
       <span class="btn btn-ghost" onclick="toggleSquadDossierEditMode('${id}')">Annuler</span>
-    </div>` : `
-    <div class="dossier-file">
-      <div class="dossier-file-top">
-        <div class="dossier-file-num">DOSSIER · ESCADRON — DOC-${docCode}</div>
-        <div class="dstamp-big dstamp-mid">${esc((squad.category || 'ESCADRON').toUpperCase())}</div>
-      </div>
-      <h1 class="dossier-file-title">${esc(squad.name)}</h1>
-      ${musicBarHtml(squad.id, squad.music)}
-      <div class="dossier-file-body">
-        <div class="dossier-file-main">
-          ${squad.body && squad.body.length ? renderRichBody(squad.body) : `<p>${esc(squad.desc)}</p>`}
-          <div class="dossier-file-end">FIN DE LA PRÉSENTATION</div>
+    </div>`;
+}
+
+function renderSquadDossier(id) {
+  const squads = getAllSquads();
+  const idx = squads.findIndex(s => s.id === id);
+  const squad = squads[idx];
+  if(!squad) return renderNotFound();
+  const docCode = String(idx + 1).padStart(3, '0');
+  const editing = squadDossierEditId === id;
+  const logged = isLoggedIn();
+  const theme = sqThemeOf(squad);
+  const projects = halcyonSquadProjectsCache.filter(p => p.groupId === id);
+  const members = new Set();
+  ENTRIES.forEach(e => { if(e.cat === 'personnages' && e.squad === id) members.add(e.id); });
+  halcyonSquadMembersCache.forEach(m => { if(m.groupId === id && findEntry(m.entryId)) members.add(m.entryId); });
+  const cat = squad.category || 'Escadron';
+  const facts = [['Dossier', 'DOC-' + docCode], ['Catégorie', cat], ['Effectif', String(members.size)], ['Projets', String(projects.length)]];
+  const actions = `<button type="button" class="city-btn" onclick="navigate('halcyon')">← Halcyon</button>
+    <button type="button" class="city-btn" onclick="scrollToCity('sq-effectif')">Effectif ↓</button>
+    ${logged && !editing ? `<button type="button" class="city-btn" onclick="toggleSquadDossierEditMode('${id}')">✎ Modifier</button>` : ''}`;
+  const music = squad.music ? `<div class="ch-music"><div class="ch-music-h"><span>Ambiance</span></div>${musicBarHtml(squad.id, squad.music)}</div>` : '';
+  const hero = cityHeroHtml({ kicker: 'Halcyon · ' + cat, title: squad.name, tagline: squad.desc, facts, img: squad.image || '', tape: '', plaque: 'Dossier', actions, music });
+  const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Présentation', g: 'i' }];
+  if(projects.length || editing) rail.push({ id: 'sq-projets', t: 'Projets', g: 'P' });
+  rail.push({ id: 'sq-effectif', t: 'Effectif', g: '◈' });
+  const side = (squad.image ? `<figure class="sq-media cv-rv"><img src="${squad.image}" alt=""></figure>` : '') + (squad.logo ? `<figure class="sq-media sq-logo cv-rv"><img src="${squad.logo}" alt=""></figure>` : '');
+  const intro = editing ? sqEditPanelHtml(squad, id) : `
+        <div class="sq-intro">
+          ${pnl('Présentation', 'DOC-' + docCode, `${squad.body && squad.body.length ? renderRichBody(squad.body) : `<p>${esc(squad.desc)}</p>`}<div class="sq-end">FIN DE LA PRÉSENTATION</div>`)}
+          ${side ? `<aside class="sq-side">${side}</aside>` : ''}
         </div>
-        <div class="dossier-file-side">
-          ${squad.image ? `<div class="dossier-file-media"><img src="${squad.image}" alt=""></div>` : `<div class="dossier-file-media dossier-file-noimg">IMAGE INDISPONIBLE</div>`}
-          ${squad.logo ? `<div class="dossier-file-media"><img src="${squad.logo}" alt=""></div>` : ''}
+        <div class="med-meta cv-rv">
+          <div class="med-cell"><small>Dossier</small><b>DOC-${docCode}</b></div>
+          <div class="med-cell"><small>Catégorie</small><b>${esc(cat)}</b></div>
+          <div class="med-cell"><small>Effectif</small><b>${members.size}</b></div>
+          <div class="med-cell"><small>Projets</small><b>${projects.length}</b></div>
+        </div>`;
+  const noAnim = (h) => h.replace(' cv-rv', '');
+  const projectsSec = (projects.length || editing) ? `
+      <section class="sq-sec" id="sq-projets">
+        ${noAnim(secHead('II', 'Projets', 'LES <em>PROJETS</em>'))}
+        <div class="tech-project-grid">
+          ${projects.map((p, i) => {
+            const pCode = String(i + 1).padStart(3, '0');
+            return p.type === 'branche'
+              ? renderBranchDossierCard(p, squad, docCode, pCode, editing)
+              : renderProjectDocCard(p, squad, docCode, pCode, editing);
+          }).join('')}
         </div>
-      </div>
+        ${editing ? `
+        <div class="write-form halcyon-edit-panel" style="max-width:480px;">
+          <div class="write-row"><label>Titre</label><input id="spjTitle-${id}" type="text" placeholder="Ex : Protocole Aube Grise"></div>
+          <div class="write-row"><label>Description</label><textarea id="spjDesc-${id}" rows="3" placeholder="Description courte…"></textarea></div>
+          <div class="write-row">
+            <label>Type</label>
+            <select id="spjType-${id}">
+              <option value="projet">Projet</option>
+              <option value="branche">Branche</option>
+              <option value="mission">Mission</option>
+            </select>
+            <div class="write-hint">« Projet » et « Mission » utilisent la même fiche d'équipement ; « Branche » s'affiche en mode dossier (papier froissé, photo scotchée, note en marge).</div>
+          </div>
+          <div class="write-row">
+            <label>Note annotée (optionnel, uniquement pour « Branche »)</label>
+            <textarea id="spjNote-${id}" rows="2" placeholder="Commentaire manuscrit affiché en marge du dossier…"></textarea>
+          </div>
+          <div class="write-row">
+            <label>Image (optionnel, 700 Ko max)</label>
+            <div class="write-images-list" id="spjImagePreview-${id}">${newSquadProjectImagePreviewHtml(id)}</div>
+            <input id="spjImageFile-${id}" type="file" accept="image/*" onchange="handleNewSquadProjectImage('${id}', this)">
+          </div>
+          <div class="write-error" id="spjError-${id}"></div>
+          <span class="btn btn-primary" onclick="addSquadProject('${id}')">+ Ajouter</span>
+        </div>` : ''}
+      </section>` : '';
+  return `
+    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('halcyon')" style="cursor:pointer">Halcyon</span> / ${esc(squad.name)}</div>
+    <div class="city med sq sq-${theme}${editing ? ' is-edit' : ''}" data-entry="${escAttr(id)}" style="--acc:${SQ_ACCENTS[theme]}">
+      ${sqBgHtml(theme, id)}
+      <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
+      ${hero}
+      <section class="city-sec" id="city-ville">
+        ${secHead('I', 'Présentation', 'LA <em>PRÉSENTATION</em>')}
+        ${intro}
+      </section>
     </div>
-    ${isLoggedIn() ? `<span class="btn btn-ghost halcyon-edit-toggle" onclick="toggleSquadDossierEditMode('${id}')">✎ Modifier</span>` : ''}
-    `}
-
-    ${(() => {
-        const projects = halcyonSquadProjectsCache.filter(p => p.groupId === id);
-        if (!projects.length && !editing) return '';
-        return `
-      <div class="section-title"><h2>Projets</h2></div>
-      <div class="tech-project-grid">
-        ${projects.map((p,i) => {
-          const pCode = String(i+1).padStart(3,'0');
-          return p.type === 'branche'
-            ? renderBranchDossierCard(p, squad, docCode, pCode, editing)
-            : renderProjectDocCard(p, squad, docCode, pCode, editing);
-        }).join('')}
-      </div>
-      ${editing ? `
-      <div class="write-form halcyon-edit-panel" style="max-width:480px;">
-        <div class="write-row"><label>Titre</label><input id="spjTitle-${id}" type="text" placeholder="Ex : Protocole Aube Grise"></div>
-        <div class="write-row"><label>Description</label><textarea id="spjDesc-${id}" rows="3" placeholder="Description courte…"></textarea></div>
-        <div class="write-row">
-          <label>Type</label>
-          <select id="spjType-${id}">
-            <option value="projet">Projet</option>
-            <option value="branche">Branche</option>
-            <option value="mission">Mission</option>
-          </select>
-          <div class="write-hint">« Projet » et « Mission » utilisent la même fiche d'équipement ; « Branche » s'affiche en mode dossier (papier froissé, photo scotchée, note en marge).</div>
-        </div>
-        <div class="write-row">
-          <label>Note annotée (optionnel, uniquement pour « Branche »)</label>
-          <textarea id="spjNote-${id}" rows="2" placeholder="Commentaire manuscrit affiché en marge du dossier…"></textarea>
-        </div>
-        <div class="write-row">
-          <label>Image (optionnel, 700 Ko max)</label>
-          <div class="write-images-list" id="spjImagePreview-${id}">${newSquadProjectImagePreviewHtml(id)}</div>
-          <input id="spjImageFile-${id}" type="file" accept="image/*" onchange="handleNewSquadProjectImage('${id}', this)">
-        </div>
-        <div class="write-error" id="spjError-${id}"></div>
-        <span class="btn btn-primary" onclick="addSquadProject('${id}')">+ Ajouter</span>
-      </div>` : ''}
-      `;
-    })()}
-
-    <div class="section-title"><h2>Effectif</h2></div>
-    ${renderSquadRoster(squad)}
+    <div class="sq-after sq-${theme}" style="--acc:${SQ_ACCENTS[theme]}">
+      ${projectsSec}
+      <section class="sq-sec" id="sq-effectif">
+        ${noAnim(secHead(projects.length || editing ? 'III' : 'II', 'Effectif', "L'<em>EFFECTIF</em>"))}
+        ${renderSquadRoster(squad)}
+      </section>
+    </div>
   `;
 }
+
 function renderSquads() {
     const squads = getAllSquads();
     return `
@@ -9470,6 +9523,7 @@ function render() {
         const oldSquadPlayer = document.getElementById(stablePlayerId);
         content.innerHTML = renderSquadDossier(squadId);
         initRosterStage(squadId);
+        initCityPage(isNavigation);
         const newSquadPlayer = document.getElementById(stablePlayerId);
         let squadPlayerPreserved = false;
         if (oldSquadPlayer && newSquadPlayer && oldSquadPlayer.dataset.kind === newSquadPlayer.dataset.kind) {

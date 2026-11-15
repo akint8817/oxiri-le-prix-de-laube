@@ -3449,6 +3449,42 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .hy-chips span{ padding:4px 10px; background:#14161a; border:1px solid rgba(255,255,255,0.18); font-size:13px; color:#e3e9ec; }
 .hy-chips small{ margin-right:6px; font-family:'IBM Plex Mono', monospace !important; font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:#8d969c; }
 .hy-go{ margin-top:auto; padding-top:8px; font-family:'IBM Plex Mono', monospace !important; font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:#f2e24a; }
+
+/* ---- Dossiers d'escadron et de département : habillage HUD (comme Hybrides) avec une couleur et un motif par thème ---- */
+.city.sq .sec-t em, .sq-after .sec-t em{ color: var(--acc); }
+.city.sq .ch-plaque{ border-top-color: var(--acc); }
+.city.sq .med-cell::before{ border-color: var(--acc); }
+.city.sq .pnl::before{ background: linear-gradient(180deg, var(--acc), transparent); }
+.city .ch-title.xl{ font-size: clamp(26px, 3.3vw, 58px); letter-spacing:.03em; }
+.city-bg.sq-bg{ background: radial-gradient(ellipse at 72% 18%, color-mix(in srgb, var(--acc) 11%, #0b0d10) 0%, #070809 62%, #050506 100%); }
+.sq-mark{ position:absolute; right:-4vw; top:50%; width:min(74vw, 820px); height:auto; transform:translateY(-50%); color: var(--acc); opacity:.085; pointer-events:none; }
+.sq-lab .sq-mark{ animation: sqSpin 140s linear infinite; }
+@keyframes sqSpin{ to{ transform: translateY(-50%) rotate(360deg); } }
+.sq-ops .sq-sweep{ position:absolute; right:-4vw; top:50%; width:min(74vw, 820px); aspect-ratio:1; transform:translateY(-50%); border-radius:50%; opacity:.5; pointer-events:none;
+  background: conic-gradient(from 0deg, transparent 0 296deg, color-mix(in srgb, var(--acc) 30%, transparent) 358deg, transparent 360deg); animation: sqSweep 10s linear infinite; }
+@keyframes sqSweep{ to{ transform: translateY(-50%) rotate(360deg); } }
+.sq-law .sq-cols{ position:absolute; inset:0; pointer-events:none; background: repeating-linear-gradient(90deg, rgba(255,255,255,0.035) 0 1px, transparent 1px 150px), repeating-linear-gradient(0deg, rgba(255,255,255,0.025) 0 1px, transparent 1px 150px); }
+.sq-lab .sq-grid{ position:absolute; inset:0; pointer-events:none; background-image: linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px), linear-gradient(rgba(255,255,255,0.025) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.025) 1px, transparent 1px); background-size: 120px 120px, 120px 120px, 24px 24px, 24px 24px; }
+@media (prefers-reduced-motion: reduce){ .sq-lab .sq-mark, .sq-ops .sq-sweep{ animation:none; } }
+
+.sq-intro{ display:grid; grid-template-columns: minmax(0, 1.7fr) minmax(240px, .9fr); gap:24px; margin-top:34px; align-items:start; }
+.sq-side{ display:grid; gap:24px; }
+.sq-media{ margin:0; padding:8px; background:#0b0c0e; border:1px solid rgba(255,255,255,0.16); }
+.sq-media img{ display:block; width:100%; height:auto; }
+.sq-logo{ padding:18px; text-align:center; }
+.sq-logo img{ max-width:70%; margin:0 auto; }
+.sq-end{ margin-top:18px; padding-top:12px; border-top:1px dashed rgba(255,255,255,0.18); font-family:'IBM Plex Mono', monospace !important; font-size:10px; letter-spacing:.3em; color:#8d969c; }
+@media (max-width:900px){ .sq-intro{ grid-template-columns: 1fr; } }
+
+.sq-after{ position:relative; z-index:1; padding: 0 4px; }
+.sq-sec{ padding: clamp(40px, 5vw, 72px) 0 6px; }
+.sq-sec .tech-project-grid{ margin-top:34px; }
+.sq-sec .roster-page{ margin-top:30px; }
+.sq-after .sec-h, .sq-after .sec-h *{ font-family:'Barlow', 'Helvetica Neue', Arial, sans-serif !important; }
+.sq-after .sec-t{ font-weight:700; letter-spacing:.03em; }
+.sq-after .sec-n{ font-weight:600; }
+.sq-after .sec-l{ padding:4px 12px; background: repeating-linear-gradient(135deg, rgba(255,255,255,0.14) 0 2px, transparent 2px 6px), rgba(255,255,255,0.05); color:#e9eef1; }
+.sq-after .sec-l::after{ background: linear-gradient(90deg, rgba(255,255,255,0.4), transparent); }
 @media (max-width:1000px){
   .fiche{ grid-template-columns:1fr; padding:20px; }
   .fiche-left{ flex-direction:row; flex-wrap:wrap; align-items:flex-start; }
@@ -4467,6 +4503,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=133"></script>
+<script src="dist/main.js?v=134"></script>
 </body>
 </html>
