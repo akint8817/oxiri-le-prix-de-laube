@@ -1228,7 +1228,7 @@ function initFirestoreSync(): void {
   }, (err: any) => console.error('Firestore (secretFiles) :', err));
 
   db.collection('cityPages').onSnapshot((snap: any) => {
-    const m: Record<string, { music?: string | null; musicTitle?: string | null; blocks?: PoiBlock[] | null; images?: string[] | null; imageCaps?: string[] | null; zones?: Record<string, HyZoneOv> | null; elements?: HyElement[] | null }> = {};
+    const m: Record<string, { music?: string | null; musicTitle?: string | null; blocks?: PoiBlock[] | null; images?: string[] | null; imageCaps?: string[] | null; zones?: Record<string, HyZoneOv> | null; elements?: HyElement[] | null; ars?: ArsDoc | null }> = {};
     snap.forEach((doc: any) => { m[doc.id] = doc.data(); });
     cityPagesCache = m;
     if(document.querySelector('.city')) render();
@@ -3740,7 +3740,7 @@ function scrollRoster(rosterId: string, dir: number): void {
 
 function renderHome(): string {
   const counts: Record<string, number> = Object.keys(CATS).reduce((acc: Record<string, number>, c) => {
-    acc[c] = ENTRIES.filter(e => e.cat === c).length + (c === 'objets' ? WEAPONS.length : 0);
+    acc[c] = ENTRIES.filter(e => e.cat === c).length + (c === 'objets' ? arsDocs().length : 0);
     return acc;
   }, {});
   const featured = ENTRIES.filter(e=>e.cat==='personnages').slice(-5);
@@ -3979,27 +3979,29 @@ function renderLieuxIndex(list: Entry[], c: CategoryDef): string {
     </div>`;
 }
 
-/* ----- Page « Objets & armes » : roue de sélection (armes et objets) + écran holographique qui s'anime à chaque choix ----- */
-interface ObItem { id: string; code: string; name: string; sub: string; image: string; info: string[][]; tags: string[][]; locked: boolean; route: string; kind: string; }
+/* ----- Page « Objets & armes » : roue de sélection (armes écrites depuis la page) + écran holographique qui s'anime à chaque choix ----- */
+interface ArsDoc { name?: string; sub?: string; image?: string; text?: string; info?: string[]; tags?: string[]; order?: number; }
+interface ArsRow { id: string; d: ArsDoc; }
+interface ObItem { id: string; code: string; name: string; sub: string; image: string; text: string; info: string[][]; tags: string[][]; kind: string; }
 let obSel = 0;
 let obKeyBound = false;
+let arsFormId = '';
+let arsFormImage = '';
+let arsPendingSel = '';
+
+// Les armes sont de petits documents « ars-… » de la collection cityPages (une arme par document : pas de limite commune de taille).
+function arsDocs(): ArsRow[] {
+  return Object.keys(cityPagesCache)
+    .filter(k => k.indexOf('ars-') === 0 && cityPagesCache[k] && cityPagesCache[k].ars && cityPagesCache[k].ars!.name)
+    .map(k => ({ id: k, d: cityPagesCache[k].ars as ArsDoc }))
+    .sort((a, b) => (a.d.order || 0) - (b.d.order || 0));
+}
 
 function obItems(): ObItem[] {
-  const out: ObItem[] = WEAPONS.map(w => {
-    const locked = !!w.restricted && !armesFinalUnlocked;
-    return {
-      id: w.id, code: w.dossier, name: w.name, sub: w.danger, image: locked ? '' : (w.image || ''),
-      info: locked ? [] : Object.entries(w.info).slice(0, 6),
-      tags: locked ? [['forbidden', 'ACCÈS INTERDIT']] : [[dangerClass(w.danger), w.danger], [statusClass(w.status), w.status]],
-      locked, route: 'arme-' + w.id, kind: 'weapon',
-    };
-  });
-  ENTRIES.filter(e => e.cat === 'objets').forEach((e, i) => {
-    const img = entryImgs(e)[0];
-    out.push({ id: e.id, code: 'OB-' + String(i + 1).padStart(2, '0'), name: e.name, sub: e.tagline, image: img ? encodeURI(img.url) : '', info: Object.entries(e.info || {}).slice(0, 6), tags: [], locked: false, route: 'entry-' + e.id, kind: 'entry' });
-  });
-  out.push({ id: 'corrompu', code: '???', name: '????', sub: 'Données corrompues', image: '', info: [], tags: [['unknown', 'DONNÉES CORROMPUES']], locked: false, route: 'archives-corrompues', kind: 'corrupt' });
-  return out;
+  return arsDocs().map((x, i) => ({
+    id: x.id, code: 'AR-' + String(i + 1).padStart(2, '0'), name: x.d.name || '', sub: x.d.sub || '', image: x.d.image || '', text: x.d.text || '',
+    info: parseStatLines(x.d.info || []).map(s => [s.label, s.value]), tags: (x.d.tags || []).map(t => ['mid', t]), kind: 'arsenal',
+  }));
 }
 
 function obFinder(x: number, y: number): string {
@@ -4021,23 +4023,25 @@ function obQr(seed: string): string {
 }
 
 function obInfoHtml(it: ObItem): string {
-  let rows: string[][] = it.info;
-  if(it.locked) rows = [['Accès', 'Dossier verrouillé : habilitation supérieure à OMEGA requise']];
-  else if(it.kind === 'corrupt') rows = [['État', 'Données corrompues : lecture impossible']];
-  else if(!rows.length) rows = [['Désignation', it.sub || it.name]];
-  return rows.map((r, i) => `<div class="ob-irow" style="--d:${i * 70}ms"><span class="ob-node"></span><div class="ob-itile${i === 0 ? ' hot' : ''}"><small>${esc(r[0])}</small><b>${esc(r[1])}</b></div></div>`).join('');
+  const rows = it.info.map((r, i) => `<div class="ob-irow" style="--d:${i * 70}ms"><span class="ob-node"></span><div class="ob-itile${i === 0 ? ' hot' : ''}"><small>${esc(r[0])}</small><b>${esc(r[1])}</b></div></div>`);
+  if(it.text){
+    const paras = it.text.split(/\n{2,}/).map(p => `<p>${esc(p).replace(/\n/g, '<br>')}</p>`).join('');
+    rows.push(`<div class="ob-irow" style="--d:${rows.length * 70}ms"><span class="ob-node"></span><div class="ob-itile wide"><small>Description</small><div class="ob-desc">${paras}</div></div></div>`);
+  }
+  if(!rows.length) rows.push(`<div class="ob-irow"><span class="ob-node"></span><div class="ob-itile hot"><small>Désignation</small><b>${esc(it.sub || it.name)}</b></div></div>`);
+  return rows.join('');
 }
 
 function obScreenHtml(it: ObItem): string {
-  const glyph = it.locked ? '🔒' : it.kind === 'corrupt' ? '?' : '✕';
-  const img = it.image ? `<img src="${encodeURI(it.image)}" alt="${escAttr(it.name)}">` : `<span class="ob-noimg">${glyph}</span>`;
+  const img = it.image ? `<img src="${encodeURI(it.image)}" alt="${escAttr(it.name)}">` : `<span class="ob-noimg">✕</span>`;
   const tags = it.tags.map(t => `<span class="ob-tag ${t[0]}">${esc(t[1])}</span>`).join('');
+  const acts = isLoggedIn() ? `<div class="ob-acts hy-d-acts ed-only"><button type="button" class="hy-edit" onclick="openArsEditor('${it.id}')">✎ Modifier</button><button type="button" class="hy-edit hy-del" onclick="deleteArs('${it.id}')">🗑 Supprimer</button></div>` : '';
   return `<div class="ob-wrap">
       <div class="ob-card" id="obCard">
         <div class="ob-card-in">
           <i class="ob-c c1"></i><i class="ob-c c2"></i><i class="ob-c c3"></i><i class="ob-c c4"></i>
           <div class="ob-qr">${obQr(it.id)}</div>
-          <div class="ob-vtext">DOSSIER ${esc(it.code)} // HALCYON</div>
+          <div class="ob-vtext">ARSENAL ${esc(it.code)} // HALCYON</div>
           <div class="ob-img">${img}<i class="ob-scan"></i></div>
           <div class="ob-cap"><b>${esc(it.name)}</b><span>${esc(it.sub)}</span></div>
           <svg class="ob-emblem" viewBox="0 0 40 40" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><circle cx="20" cy="20" r="13"/><circle cx="20" cy="20" r="3"/><path d="M20 3v8M20 29v8M3 20h8M29 20h8"/></svg>
@@ -4047,16 +4051,23 @@ function obScreenHtml(it: ObItem): string {
     </div>
     <div class="ob-floor" aria-hidden="true"><i></i><i></i><i></i></div>
     <div class="ob-tags">${tags}</div>
-    <button type="button" class="city-btn ob-open" onclick="navigate('${it.route}')">${it.locked ? 'Saisir le code d\'accès' : 'Ouvrir le dossier'} →</button>`;
+    ${acts}`;
 }
 
 function obConsoleHtml(): string {
   const items = obItems();
-  if(obSel >= items.length) obSel = 0;
-  const tiles = items.map((it, i) => `<div class="ob-tile-wrap${i === obSel ? ' on' : ''}" data-i="${i}" data-far="${Math.abs(i - obSel) > 2 ? 1 : 0}" style="--off:${i - obSel}"><button type="button" class="ob-tile${it.locked ? ' lock' : ''}" onclick="obSelect(${i})"><small>${it.locked ? '🔒 ' : ''}${esc(it.code)}</small><b>${esc(it.name)}</b></button></div>`).join('');
+  if(arsPendingSel){ const k = items.findIndex(x => x.id === arsPendingSel); if(k >= 0) obSel = k; arsPendingSel = ''; }
+  if(obSel >= items.length) obSel = Math.max(0, items.length - 1);
+  const logged = isLoggedIn();
+  const addBtn = logged ? `<div class="ob-addbar hy-d-acts ed-only"><button type="button" class="hy-edit" onclick="openArsEditor('')">+ Ajouter une arme</button></div>` : '';
+  const head = `<div class="hy-brackets" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
+    <div class="hy-topbar"><span class="hy-brand">ARSENAL <em>// ARCHIVES D'ÉQUIPEMENT</em></span><span class="hy-barcode">${hyBarcode('ob-top')}</span></div>`;
+  if(!items.length){
+    return `<div class="ob-console cv-rv">${head}<p class="ob-empty">Aucune arme pour le moment.${logged ? ' Active « Édition » en haut de la page, puis clique sur « + Ajouter une arme ».' : ''}</p>${addBtn}</div>`;
+  }
+  const tiles = items.map((it, i) => `<div class="ob-tile-wrap${i === obSel ? ' on' : ''}" data-i="${i}" data-far="${Math.abs(i - obSel) > 2 ? 1 : 0}" style="--off:${i - obSel}"><button type="button" class="ob-tile" onclick="obSelect(${i})"><small>${esc(it.code)}</small><b>${esc(it.name)}</b></button></div>`).join('');
   return `<div class="ob-console cv-rv">
-    <div class="hy-brackets" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-    <div class="hy-topbar"><span class="hy-brand">ARSENAL <em>// ARCHIVES D'ÉQUIPEMENT</em></span><span class="hy-barcode">${hyBarcode('ob-top')}</span></div>
+    ${head}
     <div class="ob-grid">
       <div class="ob-wheel" id="obWheel">
         <svg class="ob-rings" viewBox="0 0 800 800" fill="none" aria-hidden="true"><g class="r1"><circle cx="400" cy="400" r="390" stroke-dasharray="3 9"/><circle cx="400" cy="400" r="350" stroke-width="2"/></g><g class="r2"><circle cx="400" cy="400" r="250" stroke-dasharray="24 10 4 10"/><circle cx="400" cy="400" r="215"/></g><g class="r3"><circle cx="400" cy="400" r="130" stroke-dasharray="2 6"/></g></svg>
@@ -4066,6 +4077,7 @@ function obConsoleHtml(): string {
       <div class="ob-info" id="obInfo">${obInfoHtml(items[obSel])}</div>
       <div class="ob-screen-col" id="obScreen">${obScreenHtml(items[obSel])}</div>
     </div>
+    ${addBtn}
   </div>`;
 }
 
@@ -4136,31 +4148,104 @@ function obInit(): void {
   }
 }
 
+// Ajout (id vide) ou modification d'une arme, directement depuis la page.
+function openArsEditor(id: string): void {
+  if(!isLoggedIn()) return;
+  const cur = id ? arsDocs().find(x => x.id === id) : undefined;
+  const d: ArsDoc = cur ? cur.d : {};
+  nvCloseForm();
+  arsFormId = id;
+  arsFormImage = d.image || '';
+  const box = pageEditHost();
+  box.innerHTML = `
+    <button type="button" class="nv-card-x" onclick="closeArsEditor()">✕</button>
+    <div class="nv-ed-title">${cur ? 'Arme : ' + esc(d.name || '') : 'Nouvelle arme'}</div>
+    <label>Nom</label>
+    <input id="arsName" type="text" value="${escAttr(d.name || '')}" placeholder="ex : Lame du Crépuscule">
+    <label>Type ou sous-titre</label>
+    <input id="arsSub" type="text" value="${escAttr(d.sub || '')}" placeholder="ex : Épée légendaire">
+    <label>Image <em>(réduite automatiquement)</em></label>
+    <div class="ars-prev" id="arsPrev">${arsFormImage ? `<img src="${arsFormImage}" alt=""><button type="button" onclick="arsRemoveImage()">Retirer l'image</button>` : ''}</div>
+    <input id="arsFile" type="file" accept="image/*" onchange="arsPickImage(this)">
+    <label>Description</label>
+    <textarea id="arsText" rows="6" placeholder="Histoire, fonctionnement, particularités…">${esc(d.text || '')}</textarea>
+    <label>Caractéristiques <em>(une ligne par caractéristique : « Libellé : valeur »)</em></label>
+    <textarea id="arsInfo" rows="5" placeholder="Type : Épée&#10;Rareté : Légendaire&#10;Dégâts : 120&#10;Obtention : Quête finale">${esc((d.info || []).join('\n'))}</textarea>
+    <label>Étiquettes <em>(une par ligne, optionnel)</em></label>
+    <textarea id="arsTags" rows="2" placeholder="Légendaire&#10;Unique">${esc((d.tags || []).join('\n'))}</textarea>
+    <div class="nv-ed-actions">
+      <button type="button" class="primary" onclick="saveArs()">${cur ? 'Enregistrer' : 'Ajouter'}</button>
+      <button type="button" onclick="closeArsEditor()">Annuler</button>
+      ${cur ? `<button type="button" class="danger" onclick="deleteArs('${id}')">Supprimer</button>` : ''}
+    </div>`;
+  box.classList.add('open');
+}
+
+function closeArsEditor(): void { arsFormId = ''; arsFormImage = ''; nvCloseForm(); }
+
+function arsRefreshPreview(): void {
+  const el = document.getElementById('arsPrev');
+  if(el) el.innerHTML = arsFormImage ? `<img src="${arsFormImage}" alt=""><button type="button" onclick="arsRemoveImage()">Retirer l'image</button>` : '';
+}
+
+function arsRemoveImage(): void { arsFormImage = ''; arsRefreshPreview(); }
+
+function arsPickImage(input: HTMLInputElement): void {
+  const f = input.files && input.files[0];
+  input.value = '';
+  if(!f) return;
+  nvCompressImage(f).then(url => { arsFormImage = url; arsRefreshPreview(); }).catch(() => alert('Image illisible.'));
+}
+
+function saveArs(): void {
+  if(!isLoggedIn()) return;
+  const db = getFirestoreDb();
+  if(!db){ alert('Base de données indisponible : impossible d\'enregistrer.'); return; }
+  const v = (id: string): string => ((document.getElementById(id) as HTMLInputElement | null)?.value || '');
+  const name = v('arsName').trim();
+  if(!name){ alert('Donne un nom à l\'arme.'); return; }
+  const lines = (s: string): string[] => s.split('\n').map(x => x.trim()).filter(Boolean);
+  const docs = arsDocs();
+  const cur = arsFormId ? docs.find(x => x.id === arsFormId) : undefined;
+  const order = cur ? (cur.d.order || 0) : docs.reduce((m, x) => Math.max(m, x.d.order || 0), 0) + 1;
+  const id = arsFormId || 'ars-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+  const ars: ArsDoc = { name, sub: v('arsSub').trim(), image: arsFormImage, text: v('arsText').trim(), info: lines(v('arsInfo')), tags: lines(v('arsTags')), order };
+  arsPendingSel = id;
+  db.collection('cityPages').doc(id).set({ ars, updated: Date.now() })
+    .then(() => closeArsEditor())
+    .catch((err: any) => alert('Enregistrement impossible : ' + (err && err.message ? err.message : err)));
+}
+
+function deleteArs(id: string): void {
+  if(!isLoggedIn()) return;
+  const cur = arsDocs().find(x => x.id === id);
+  const db = getFirestoreDb();
+  if(!cur || !db) return;
+  if(!confirm('Supprimer l\'arme « ' + (cur.d.name || '') + ' » ? Cette action est définitive.')) return;
+  if(obSel > 0) obSel -= 1;
+  db.collection('cityPages').doc(id).delete()
+    .then(() => closeArsEditor())
+    .catch((err: any) => alert('Suppression impossible : ' + (err && err.message ? err.message : err)));
+}
+
 function renderObjetsPage(): string {
   const c = CATS.objets;
-  const nObjets = ENTRIES.filter(e => e.cat === 'objets').length;
+  const n = arsDocs().length;
   const logged = isLoggedIn();
-  const facts: [string, string][] = [['Armes', String(WEAPONS.length)], ['Objets', String(nObjets)]];
+  const facts: [string, string][] = [['Armes', String(n)]];
   const actions = `<button type="button" class="city-btn" onclick="scrollToCity('city-ville')">⌖ Parcourir l'arsenal</button>
-    <button type="button" class="city-btn" onclick="navigate('armes')">Archives des artefacts</button>
-    ${logged ? `<button type="button" class="city-btn" onclick="navigate('ecriture')">+ Écrire un objet</button>` : ''}`;
+    ${logged ? `<button type="button" class="city-btn city-edit-btn${cityEdit ? ' on' : ''}" id="cityEditBtn" data-label="✎ Édition" onclick="toggleCityEdit()">${cityEdit ? '✓ Terminer l\'édition' : '✎ Édition'}</button>` : ''}`;
   const hero = cityHeroHtml({ kicker: 'Archives · Arsenal', title: c.label, tagline: c.desc, facts, img: '', tape: '', plaque: 'Arsenal', actions, music: '' });
-  const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Arsenal', g: '+' }, { id: 'city-arch', t: 'Archives', g: 'i' }];
+  const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Arsenal', g: '+' }];
   return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / ${esc(c.label)}</div>
-    <div class="city med sq sq-arm" style="--acc:${SQ_ACCENTS.arm}">
+    <div class="city med sq sq-arm${cityEdit ? ' is-edit' : ''}" style="--acc:${SQ_ACCENTS.arm}">
       ${sqBgHtml('arm', 'objets')}
       <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
       ${hero}
       <section class="city-sec" id="city-ville">
-        ${secHead('I', 'Arsenal', 'L\'ARSENAL <em>OXIRIEN</em>', 'Fais tourner la roue (molette, flèches ou clic) pour parcourir les armes et les objets.')}
+        ${secHead('I', 'Arsenal', 'L\'<em>ARSENAL</em>', 'Fais tourner la roue (molette, flèches ou clic) pour parcourir les armes.')}
         ${obConsoleHtml()}
-      </section>
-      <section class="city-sec" id="city-arch">
-        ${secHead('II', 'Archives', 'MOT DES <em>ARCHIVES</em>')}
-        <div class="sq-intro" style="grid-template-columns:1fr">
-          ${pnl('Archives des Artefacts Oxiriens', 'OMEGA', `<div class="dossier-quote">« Il existe des armes capables de tuer un homme. Il existe des armes capables de détruire une ville. Et il existe des armes qui peuvent changer la définition même de ce qu'est un homme. »</div><p>Extrait des archives du Département des Reliques de Halcyon.</p><div class="pl-acts"><button type="button" class="city-btn" onclick="navigate('armes')">Accéder aux archives →</button></div>`)}
-        </div>
       </section>
     </div>`;
 }
@@ -4257,7 +4342,7 @@ function cityBgHtml(seed: string, med: boolean = false): string {
 }
 
 /* ----- Musique d'ambiance d'une page de ville / de lieu : lecteur (lecture, barre, volume) dans le bandeau ----- */
-let cityPagesCache: Record<string, { music?: string | null; musicTitle?: string | null; blocks?: PoiBlock[] | null; images?: string[] | null; imageCaps?: string[] | null; zones?: Record<string, HyZoneOv> | null; elements?: HyElement[] | null }> = {};
+let cityPagesCache: Record<string, { music?: string | null; musicTitle?: string | null; blocks?: PoiBlock[] | null; images?: string[] | null; imageCaps?: string[] | null; zones?: Record<string, HyZoneOv> | null; elements?: HyElement[] | null; ars?: ArsDoc | null }> = {};
 let musForm: { kind: 'city' | 'poi'; refId: string } | null = null;
 
 // Musique de la ville : celle posée depuis la page (collection cityPages) ou, à défaut, le champ « Musique » de la fiche.
@@ -5358,7 +5443,7 @@ function toggleCityEdit(): void {
   document.querySelectorAll('.city').forEach(el => el.classList.toggle('is-edit', cityEdit));
   document.querySelectorAll<HTMLElement>('.blk').forEach(el => { el.draggable = cityEdit; });
   const b = document.getElementById('cityEditBtn');
-  if(b){ b.classList.toggle('on', cityEdit); b.textContent = cityEdit ? '✓ Terminer l\'édition' : '✎ Mise en page'; }
+  if(b){ b.classList.toggle('on', cityEdit); b.textContent = cityEdit ? '✓ Terminer l\'édition' : (b.dataset.label || '✎ Mise en page'); }
 }
 
 function scrollToCity(id: string): void {

@@ -3568,7 +3568,17 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .ob-tag{ padding:3px 11px; font-family:'IBM Plex Mono', monospace !important; font-size:10.5px; letter-spacing:.18em; text-transform:uppercase; border:1px solid; background: rgba(0,0,0,0.35); }
 .ob-tag.crit, .ob-tag.forbidden{ color:#ff5a5a; border-color:#ff5a5a; } .ob-tag.high{ color:#ff9a4a; border-color:#ff9a4a; } .ob-tag.mid{ color:#f2e24a; border-color:#f2e24a; }
 .ob-tag.active{ color:#3ee08f; border-color:#3ee08f; } .ob-tag.lost, .ob-tag.vanished{ color:#b79bff; border-color:#b79bff; } .ob-tag.unknown{ color:#aab3b9; border-color:#aab3b9; }
-.ob-open{ margin-top:2px; }
+.ob-empty{ margin:30px 8px 14px; color:#9aa7ae; font-style:italic; }
+.ob-addbar{ margin-top:16px; padding:0 4px; }
+.ob-acts{ justify-content:center; margin-top:2px; }
+.ob-addbar .hy-edit, .ob-acts .hy-edit{ margin-top:0; }
+.ob-itile.wide{ clip-path:none; }
+.ob-desc{ max-height:210px; overflow:auto; scrollbar-width:thin; padding-right:6px; }
+.ob-desc p{ margin:0 0 8px; font-size:14.5px; line-height:1.6; color:#d6e6ee; }
+.ob-desc p:last-child{ margin-bottom:0; }
+.ars-prev{ display:flex; align-items:center; gap:12px; margin:6px 0 8px; }
+.ars-prev img{ max-width:150px; max-height:110px; display:block; border:1px solid rgba(255,255,255,0.2); }
+.ars-prev button{ cursor:pointer; background:transparent; border:1px dashed #ff4d4d; color:#ff4d4d; padding:5px 10px; font-size:12px; }
 
 @media (max-width:1280px){
   .ob-grid{ grid-template-columns: 390px 250px minmax(0, 1fr); }
@@ -4605,6 +4615,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=135"></script>
+<script src="dist/main.js?v=136"></script>
 </body>
 </html>
