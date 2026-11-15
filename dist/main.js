@@ -3389,13 +3389,28 @@ function secHead(n, label, titleHtml, desc = '') {
     return `<div class="sec-h cv-rv"><div class="sec-n">${n}</div><div class="sec-hb"><span class="sec-l">${esc(label)}</span><h2 class="sec-t">${titleHtml}</h2>${desc ? `<p class="sec-d">${esc(desc)}</p>` : ''}</div></div>`;
 }
 function cityBgHtml(seed) {
-    const r = tmSeeded(tmHash(seed));
-    let dots = '';
-    for (let i = 0; i < 16; i++) {
-        const s = 2 + r() * 2.5;
-        dots += `<i style="left:${(r() * 100).toFixed(1)}%;top:${(r() * 100).toFixed(1)}%;width:${s.toFixed(1)}px;height:${s.toFixed(1)}px;--dx:${Math.round((r() - 0.5) * 140)}px;animation-duration:${(16 + r() * 20).toFixed(1)}s;animation-delay:-${(r() * 30).toFixed(1)}s"></i>`;
+  const r = tmSeeded(tmHash(seed));
+  const pick = (a, b) => a + r() * (b - a);
+  const thin = [], mid = [], big = [];
+  const grid = (vertical) => {
+    for(let p = -500 + pick(0, 80); p < 2100; p += pick(64, 150)){
+      const bucket = r() < 0.2 ? mid : thin;
+      let q = -500 + pick(0, 200);
+      while(q < 1700){
+        const len = pick(150, 520);
+        const e = pick(-7, 7);
+        bucket.push(vertical
+          ? `M${p.toFixed(0)} ${q.toFixed(0)}L${(p + e).toFixed(0)} ${(q + len).toFixed(0)}`
+          : `M${q.toFixed(0)} ${p.toFixed(0)}L${(q + len).toFixed(0)} ${(p + e).toFixed(0)}`);
+        q += len + (r() < 0.35 ? pick(30, 90) : 0);
+      }
     }
-    return `<div class="city-bg" aria-hidden="true"><div class="cb-glow a"></div><div class="cb-glow b"></div><div class="cb-dots">${dots}</div></div>`;
+  };
+  grid(true); grid(false);
+  for(let i = 0; i < 3; i++){
+    big.push(`M-300 ${pick(100, 1000).toFixed(0)}C${pick(300, 600).toFixed(0)} ${pick(-200, 1300).toFixed(0)} ${pick(900, 1200).toFixed(0)} ${pick(-200, 1300).toFixed(0)} 1900 ${pick(100, 1000).toFixed(0)}`);
+  }
+  return `<div class="city-bg" aria-hidden="true"><svg class="cb-map" viewBox="0 0 1600 1100" preserveAspectRatio="xMidYMid slice"><g transform="rotate(-24 800 550)" fill="none" stroke-linecap="round"><path d="${thin.join('')}" stroke-width="3.5"/><path d="${mid.join('')}" stroke-width="7"/><path d="${big.join('')}" stroke-width="13"/></g></svg></div>`;
 }
 let cityPagesCache = {};
 let musForm = null;
