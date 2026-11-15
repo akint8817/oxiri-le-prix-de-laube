@@ -4022,30 +4022,15 @@ function secHead(n: string, label: string, titleHtml: string, desc: string = '')
 
 interface CityHero { kicker: string; title: string; tagline: string; facts: [string, string][]; img: string; tape: string; actions: string; music: string; }
 
-// Fond de page : plan de rues gris sur fond sombre rayé en diagonale (le plan dérive très lentement).
+// Fond animé de la page : relief topographique qui dérive, lueurs, particules et grain de film.
 function cityBgHtml(seed: string): string {
   const r = tmSeeded(tmHash(seed));
-  const pick = (a: number, b: number): number => a + r() * (b - a);
-  const thin: string[] = [], mid: string[] = [], big: string[] = [];
-  const grid = (vertical: boolean): void => {
-    for(let p = -500 + pick(0, 80); p < 2100; p += pick(64, 150)){
-      const bucket = r() < 0.2 ? mid : thin;
-      let q = -500 + pick(0, 200);
-      while(q < 1700){
-        const len = pick(150, 520);
-        const e = pick(-7, 7);
-        bucket.push(vertical
-          ? `M${p.toFixed(0)} ${q.toFixed(0)}L${(p + e).toFixed(0)} ${(q + len).toFixed(0)}`
-          : `M${q.toFixed(0)} ${p.toFixed(0)}L${(q + len).toFixed(0)} ${(p + e).toFixed(0)}`);
-        q += len + (r() < 0.35 ? pick(30, 90) : 0);
-      }
-    }
-  };
-  grid(true); grid(false);
-  for(let i = 0; i < 3; i++){
-    big.push(`M-300 ${pick(100, 1000).toFixed(0)}C${pick(300, 600).toFixed(0)} ${pick(-200, 1300).toFixed(0)} ${pick(900, 1200).toFixed(0)} ${pick(-200, 1300).toFixed(0)} 1900 ${pick(100, 1000).toFixed(0)}`);
+  let dots = '';
+  for(let i = 0; i < 16; i++){
+    const s = 2 + r() * 2.5;
+    dots += `<i style="left:${(r() * 100).toFixed(1)}%;top:${(r() * 100).toFixed(1)}%;width:${s.toFixed(1)}px;height:${s.toFixed(1)}px;--dx:${Math.round((r() - 0.5) * 140)}px;animation-duration:${(16 + r() * 20).toFixed(1)}s;animation-delay:-${(r() * 30).toFixed(1)}s"></i>`;
   }
-  return `<div class="city-bg" aria-hidden="true"><svg class="cb-map" viewBox="0 0 1600 1100" preserveAspectRatio="xMidYMid slice"><g transform="rotate(-24 800 550)" fill="none" stroke-linecap="round"><path d="${thin.join('')}" stroke-width="3.5"/><path d="${mid.join('')}" stroke-width="7"/><path d="${big.join('')}" stroke-width="13"/></g></svg></div>`;
+  return `<div class="city-bg" aria-hidden="true"><div class="cb-glow a"></div><div class="cb-glow b"></div><div class="cb-dots">${dots}</div></div>`;
 }
 
 /* ----- Musique d'ambiance d'une page de ville / de lieu : lecteur (lecture, barre, volume) dans le bandeau ----- */
