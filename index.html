@@ -3316,6 +3316,56 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .fiche-chapter-title{ background:#14161a; border:1px solid rgba(138,149,166,0.22); border-left:3px solid rgb(var(--fclr)); border-radius:3px; padding:12px 18px; }
 .fiche-text{ background:#101114; }
 .fiche-empty{ background:#14161a; border:1px solid rgba(138,149,166,0.22); border-radius:3px; padding:14px 18px; }
+
+/* ---- Catégorie « Hybrides » : habillage médical (dossiers cliniques, relevé de métadonnées, tracé vital) ---- */
+.stats-row{ grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+.city-bg.med{ background: radial-gradient(ellipse at 50% 0%, #11302f 0%, transparent 62%), linear-gradient(180deg, #091516 0%, #0b1b1c 55%, #08130f 100%); }
+.city-bg.med .cb-glow{ background: radial-gradient(circle, rgba(70,217,200,0.16), transparent 62%); }
+.cb-cross{ position:absolute; inset:0; opacity:.5; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Cpath d='M32 26v12M26 32h12' stroke='%2346d9c8' stroke-opacity='0.16' stroke-width='1.4' fill='none'/%3E%3C/svg%3E"); }
+.cb-ecg{ position:absolute; left:0; width:100%; height:120px; overflow:hidden; opacity:.5; }
+.cb-ecg.e1{ top:24%; } .cb-ecg.e2{ top:68%; opacity:.32; }
+.ecg{ display:block; width:200%; height:100%; fill:none; stroke:#46d9c8; stroke-width:1.6; vector-effect:non-scaling-stroke; animation: ecgRun 12s linear infinite; }
+.ecg path{ vector-effect:non-scaling-stroke; stroke-linejoin:round; stroke-linecap:round; }
+.cb-ecg.e2 .ecg{ animation-duration:19s; animation-direction:reverse; }
+@keyframes ecgRun{ to{ transform: translateX(-50%); } }
+@media (prefers-reduced-motion: reduce){ .ecg{ animation:none; } }
+.city.med .ch-grade{ background: linear-gradient(200deg, rgba(110,255,230,0.26), rgba(60,190,220,0.1) 45%, transparent 75%); }
+.city.med .pnl{ background: linear-gradient(165deg, #10201f, #0b1717); border-color: rgba(70,217,200,0.18); }
+.city.med .pnl .dossier-quote{ background:#132726; }
+.city.med .ch-plaque{ border-top-color:#46d9c8; }
+
+.med-meta{ display:grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap:12px; margin-top:34px; }
+.med-cell{ position:relative; padding:14px 18px 16px; background: linear-gradient(165deg, #10201f, #0b1717); border:1px solid rgba(70,217,200,0.2); border-left:3px solid #46d9c8; border-radius:3px; min-width:0; }
+.med-cell::after{ content:''; position:absolute; right:10px; top:10px; width:7px; height:7px; border-top:1px solid #46d9c8; border-right:1px solid #46d9c8; opacity:.6; }
+.med-cell small{ display:block; font-family:'IBM Plex Mono', monospace !important; font-size:10px; letter-spacing:.24em; text-transform:uppercase; color:#6fb9b0; margin-bottom:4px; }
+.med-cell b{ display:block; font-weight:600; font-size:20px; color:#eaf7f5; overflow-wrap:anywhere; line-height:1.25; }
+.med-id b{ font-family:'IBM Plex Mono', monospace !important; letter-spacing:.12em; color:#46d9c8; }
+.med-sig{ grid-column: span 2; overflow:hidden; }
+.med-sig .ecg{ height:46px; margin-top:6px; width:200%; opacity:.9; }
+@media (max-width:560px){ .med-sig{ grid-column: span 1; } }
+
+.hy-grid{ display:grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap:22px; margin-top:40px; }
+.hy-card{ position:relative; display:flex; flex-direction:column; cursor:pointer; overflow:hidden; background:#0d1a1a; border:1px solid rgba(70,217,200,0.22); border-radius:4px; transition: transform .35s ease, border-color .3s ease, box-shadow .35s ease; }
+.hy-card:hover{ transform: translateY(-6px); border-color:#46d9c8; box-shadow: 0 20px 40px rgba(0,0,0,0.5), 0 0 30px rgba(70,217,200,0.18); }
+.hy-top{ display:flex; align-items:center; gap:10px; padding:9px 14px; background:#e2f4f1; color:#0a2523; font-family:'IBM Plex Mono', monospace !important; font-size:10px; letter-spacing:.2em; text-transform:uppercase; }
+.hy-top b{ margin-left:auto; font-weight:600; letter-spacing:.14em; }
+.hy-cross{ position:relative; width:13px; height:13px; flex:none; }
+.hy-cross::before, .hy-cross::after{ content:''; position:absolute; background:#d6453d; border-radius:1px; }
+.hy-cross::before{ left:5px; top:0; width:3px; height:13px; }
+.hy-cross::after{ left:0; top:5px; width:13px; height:3px; }
+.hy-photo{ position:relative; aspect-ratio: 4/4.6; overflow:hidden; background: linear-gradient(160deg, #12302f, #08100f); }
+.hy-photo img{ width:100%; height:100%; object-fit:cover; object-position:top center; display:block; filter: saturate(.85) contrast(1.03); transition: transform .8s ease, filter .5s ease; }
+.hy-card:hover .hy-photo img{ transform: scale(1.06); filter: saturate(1.05); }
+.hy-photo::after{ content:''; position:absolute; inset:0; pointer-events:none; background: linear-gradient(180deg, rgba(70,217,200,0.1), transparent 30%, rgba(5,14,14,0.85) 100%); }
+.hy-noimg{ display:flex; width:100%; height:100%; align-items:center; justify-content:center; font-size:110px; font-weight:700; color:#46d9c8; opacity:.28; }
+.hy-ecg{ position:absolute !important; left:0; bottom:8px; width:200%; height:44px; z-index:2; opacity:.85; animation-duration:9s; }
+.hy-body{ padding:16px 18px 18px; display:flex; flex-direction:column; gap:8px; flex:1; }
+.hy-body h3{ margin:0; font-weight:700; font-size:22px; letter-spacing:.04em; text-transform:uppercase; color:#eaf7f5; }
+.hy-body p{ margin:0; color:#9fc9c3; font-size:15px; line-height:1.45; }
+.hy-chips{ display:flex; flex-wrap:wrap; gap:6px; }
+.hy-chips span{ padding:4px 10px; background:#132726; border:1px solid rgba(70,217,200,0.22); border-radius:999px; font-size:13px; color:#d8f1ed; }
+.hy-chips small{ margin-right:6px; font-family:'IBM Plex Mono', monospace !important; font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:#6fb9b0; }
+.hy-go{ margin-top:auto; padding-top:8px; font-family:'IBM Plex Mono', monospace !important; font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:#46d9c8; }
 @media (max-width:1000px){
   .fiche{ grid-template-columns:1fr; padding:20px; }
   .fiche-left{ flex-direction:row; flex-wrap:wrap; align-items:flex-start; }
@@ -4290,6 +4340,10 @@ footer.page-foot{
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/></svg>
         Personnages
       </a>
+      <a class="nav-link" data-route="cat-hybrides" onclick="navigate('cat-hybrides')">
+        <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h4l2-5 3 10 2-5h7"/><path d="M12 21c-6-4-9-7.5-9-11a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 1.6-.6 3.2-1.8 4.8"/></svg>
+        Hybrides
+      </a>
       <a class="nav-link" data-route="cat-objets" onclick="navigate('cat-objets')">
         <svg class="nav-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/></svg>
         Objets &amp; armes
@@ -4330,6 +4384,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=117"></script>
+<script src="dist/main.js?v=118"></script>
 </body>
 </html>

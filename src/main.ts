@@ -3,7 +3,7 @@
    Chaque entrée: id, catégorie, nom, court résumé, image-couleur (accent), infos, description.
 */
 
-type CategoryId = 'personnages' | 'objets' | 'lieux' | 'bestiaire';
+type CategoryId = 'personnages' | 'hybrides' | 'objets' | 'lieux' | 'bestiaire';
 type Rarity = 'rare' | 'common';
 
 interface Entry {
@@ -515,6 +515,7 @@ let armesFinalUnlocked = false;
 
 const CATS: Record<CategoryId, CategoryDef> = {
   personnages: { label:'Personnages', desc:"Alliés, ennemis, marchands et figures rencontrées au fil de l'aventure." },
+  hybrides: { label:'Hybrides', desc:"Dossiers médicaux des hybrides : rang, gène d'Oxiri, observations et suivi." },
   objets: { label:'Objets & armes', desc:"Équipements, armes, consommables et reliques trouvables dans le jeu." },
   lieux: { label:'Lieux', desc:"Régions, villages et zones explorables de la carte." },
   bestiaire: { label:'Bestiaire', desc:"Créatures et ennemis, du plus commun au plus redoutable." },
@@ -522,6 +523,7 @@ const CATS: Record<CategoryId, CategoryDef> = {
 
 const ICONS: Record<CategoryId, string> = {
   personnages: '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>',
+  hybrides: '<path d="M3 12h4l2-5 3 10 2-5h7"/><path d="M12 21c-6-4-9-7.5-9-11a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 1.6-.6 3.2-1.8 4.8"/>',
   objets: '<path d="M12 2l3 7h7l-5.5 4.5L18 21l-6-4-6 4 1.5-7.5L2 9h7z"/>',
   lieux: '<path d="M1 6l7-3 8 3 7-3v15l-7 3-8-3-7 3z"/><line x1="8" y1="3" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="21"/>',
   bestiaire: '<path d="M4 12c0-4 3-7 8-7s8 3 8 7-3 7-8 7-8-3-8-7z"/><circle cx="9" cy="11" r="1"/><circle cx="15" cy="11" r="1"/>',
@@ -3973,6 +3975,7 @@ function renderCategory(cat: string): string {
   const list = ENTRIES.filter(e => e.cat === cat);
   const c = (CATS as Record<string, CategoryDef>)[cat];
   if(cat === 'lieux') return renderLieuxIndex(list, c);
+  if(cat === 'hybrides') return renderHybridesIndex(list, c);
   return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / ${c.label}</div>
     <div class="cat-header">
@@ -4042,10 +4045,11 @@ function secHead(n: string, label: string, titleHtml: string, desc: string = '')
   return `<div class="sec-h cv-rv"><div class="sec-n">${n}</div><div class="sec-hb"><span class="sec-l">${esc(label)}</span><h2 class="sec-t">${titleHtml}</h2>${desc ? `<p class="sec-d">${esc(desc)}</p>` : ''}</div></div>`;
 }
 
-interface CityHero { kicker: string; title: string; tagline: string; facts: [string, string][]; img: string; tape: string; actions: string; music: string; }
+interface CityHero { kicker: string; title: string; tagline: string; facts: [string, string][]; img: string; tape: string; actions: string; music: string; plaque?: string; }
 
 // Fond animé de la page : relief topographique qui dérive, lueurs, particules et grain de film.
-function cityBgHtml(seed: string): string {
+function cityBgHtml(seed: string, med: boolean = false): string {
+  if(med) return `<div class="city-bg med" aria-hidden="true"><div class="cb-glow a"></div><div class="cb-glow b"></div><div class="cb-cross"></div><div class="cb-ecg e1">${ecgSvg('')}</div><div class="cb-ecg e2">${ecgSvg('')}</div></div>`;
   const r = tmSeeded(tmHash(seed));
   let dots = '';
   for(let i = 0; i < 16; i++){
@@ -4137,7 +4141,7 @@ function cityHeroHtml(o: CityHero): string {
       <div class="ch-actions">${o.actions}</div>
     </div>
     <aside class="ch-plaque">
-      <div class="ch-plaque-h"><span>Dossier</span><i></i></div>
+      <div class="ch-plaque-h"><span>${esc(o.plaque || 'Dossier')}</span><i></i></div>
       ${o.facts.map(([k, v]) => `<div class="ch-fact"><small>${esc(k)}</small><b>${esc(v)}</b></div>`).join('')}
       ${o.music}
     </aside>
@@ -4268,6 +4272,116 @@ function renderLieuPage(e: Entry): string {
         <div class="blk-grid" id="blkGrid" data-ref="${escAttr(ref)}">${tg.blocks.map(b => blockHtml(ref, tg, b)).join('') || '<p class="city-empty">Aucune information pour le moment.' + (logged ? ' Active « Mise en page » pour ajouter des blocs.' : '') + '</p>'}</div>
         ${logged ? `<div class="blk-add ed-only"><button type="button" onclick="openBlockEditor('${escAttr(ref)}', null, 'text')">+ Bloc de texte</button><button type="button" onclick="openBlockEditor('${escAttr(ref)}', null, 'image')">+ Bloc d'image</button></div>` : ''}
       </section>${placeSec}
+    </div>`;
+}
+
+/* ----- Catégorie « Hybrides » : dossiers médicaux. Mêmes possibilités d'édition que les lieux (mise en page libre en blocs,
+   images titrées, musique d'ambiance) avec un habillage clinique : relevé de métadonnées, tracé vital, croix médicales. ----- */
+const MED_ACCENT = '#46d9c8';
+const ECG_BEAT = 'M0 40H90l8-9 8 9h26l8 9 10-38 12 62 9-33h28l9-10 12 10H400';
+
+function ecgSvg(cls: string): string {
+  return `<svg class="ecg ${cls}" viewBox="0 0 800 80" preserveAspectRatio="none" aria-hidden="true"><path d="${ECG_BEAT}"/><path transform="translate(400 0)" d="${ECG_BEAT}"/></svg>`;
+}
+
+function hybridCode(list: Entry[], e: Entry): string {
+  const i = list.findIndex(x => x.id === e.id);
+  return 'HY-' + String((i < 0 ? 0 : i) + 1).padStart(3, '0');
+}
+
+// Métadonnées d'un dossier : rang, gène, faction, puis tous les autres champs de la fiche (spécificité, statistiques…).
+function hybridMeta(e: Entry): { k: string; v: string }[] {
+  const out: { k: string; v: string }[] = [];
+  const rang = e.info['Rang'] || e.info['Rang hybride'];
+  const gene = e.info["Gène d'Oxiri lié"];
+  const f = e.faction ? FACTIONS.find(x => x.id === e.faction) : undefined;
+  const fac = f ? f.name : e.factionLabel;
+  if(rang) out.push({ k: 'Rang', v: rang });
+  if(gene) out.push({ k: "Gène d'Oxiri", v: gene });
+  if(fac) out.push({ k: 'Faction', v: fac });
+  Object.keys(e.info).forEach(k => {
+    if(k === 'Rang' || k === 'Rang hybride' || k === "Gène d'Oxiri lié" || !e.info[k]) return;
+    out.push({ k, v: e.info[k] });
+  });
+  parseStatLines(e.stats || []).forEach(s => out.push({ k: s.label, v: s.value }));
+  return out;
+}
+
+// Page « Hybrides » : registre de dossiers médicaux.
+function renderHybridesIndex(list: Entry[], c: CategoryDef): string {
+  const logged = isLoggedIn();
+  const first = list.map(e => entryImgs(e)[0]).find(Boolean);
+  const genes = new Set(list.map(e => e.info["Gène d'Oxiri lié"]).filter(Boolean));
+  const cards = list.map(e => {
+    const img = entryImgs(e)[0];
+    const meta = hybridMeta(e).slice(0, 2);
+    return `<div class="hy-card cv-rv" onclick="navigate('entry-${e.id}')">
+      <div class="hy-top"><span class="hy-cross"></span><span>Dossier médical</span><b>${hybridCode(list, e)}</b></div>
+      <div class="hy-photo">${img ? `<img src="${encodeURI(img.url)}" alt="">` : `<span class="hy-noimg">${esc(e.name.charAt(0).toUpperCase())}</span>`}${ecgSvg('hy-ecg')}</div>
+      <div class="hy-body">
+        <h3>${esc(e.name)}</h3>
+        ${e.tagline ? `<p>${esc(e.tagline)}</p>` : ''}
+        ${meta.length ? `<div class="hy-chips">${meta.map(m => `<span><small>${esc(m.k)}</small>${esc(m.v)}</span>`).join('')}</div>` : ''}
+        <span class="hy-go">Ouvrir le dossier →</span>
+      </div>
+    </div>`;
+  }).join('');
+  const hero = cityHeroHtml({
+    kicker: 'Registre médical', title: c.label, tagline: c.desc, img: first ? encodeURI(first.url) : '', tape: '', music: '', plaque: 'Registre',
+    facts: [['Dossiers', String(list.length)], ['Gènes recensés', String(genes.size)]],
+    actions: logged ? `<button type="button" class="city-btn" onclick="navigate('ecriture')">+ Écrire un dossier</button>` : `<button type="button" class="city-btn" onclick="navigate('demande-fiche')">Demander une fiche</button>`,
+  });
+  return `
+    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / ${c.label}</div>
+    <div class="city med hy-index" style="--acc:${MED_ACCENT}">
+      ${cityBgHtml('hybrides-index', true)}
+      ${hero}
+      <section class="city-sec lx-sec">
+        ${secHead('I', 'Registre', 'TOUS LES <em>DOSSIERS</em>', 'Clique sur un dossier pour l\'ouvrir.')}
+        <div class="hy-grid">${cards || '<p class="city-empty">Aucun dossier pour l\'instant.' + (logged ? ' Crée une fiche dans « Écriture » en choisissant la catégorie Hybrides.' : '') + '</p>'}</div>
+      </section>
+    </div>`;
+}
+
+// Page d'un dossier d'hybride : même édition que la page d'un lieu (mise en page libre, images, musique).
+function renderHybridePage(e: Entry): string {
+  const c = CATS[e.cat];
+  const list = ENTRIES.filter(x => x.cat === 'hybrides');
+  const code = hybridCode(list, e);
+  const images = entryImgs(e);
+  const logged = isLoggedIn();
+  const ref = 'city:' + e.id;
+  const tg = blkTarget(ref) as BlkTarget;
+  const meta = hybridMeta(e);
+  const facts: [string, string][] = [['Dossier', code]];
+  meta.slice(0, 3).forEach(m => facts.push([m.k, m.v]));
+  const actions = `${entryOwnerActionsHtml(e)}
+    ${logged ? `<button type="button" class="city-btn" onclick="openMusicEditor('city','${escAttr(e.id)}')">♪ Musique</button>` : ''}
+    ${logged ? `<button type="button" class="city-btn city-edit-btn${cityEdit ? ' on' : ''}" id="cityEditBtn" onclick="toggleCityEdit()">${cityEdit ? '✓ Terminer l\'édition' : '✎ Mise en page'}</button>` : ''}`;
+  const hero = cityHeroHtml({
+    kicker: `${c.label} · Dossier médical`, title: e.name, tagline: e.tagline, facts, img: images[0] ? encodeURI(images[0].url) : '', tape: '', plaque: 'Dossier médical', actions,
+    music: cityMusicHtml(e.id, cityMusicOf(e), (cityPagesCache[e.id] && cityPagesCache[e.id].musicTitle) || '', 'city', e.id),
+  });
+  const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Identification', g: '+' }, { id: 'city-obs', t: 'Observations', g: 'i' }];
+  return `
+    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('cat-${e.cat}')" style="cursor:pointer">${c.label}</span> / ${esc(e.name)}</div>
+    <div class="city med${cityEdit ? ' is-edit' : ''}" data-entry="${escAttr(e.id)}" style="--acc:${MED_ACCENT}">
+      ${cityBgHtml(e.id, true)}
+      <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
+      ${hero}
+      <section class="city-sec" id="city-ville">
+        ${secHead('I', 'Identification', `RELEVÉ DE <em>${esc(e.name.toUpperCase())}</em>`, 'Métadonnées du dossier.')}
+        <div class="med-meta cv-rv">
+          <div class="med-cell med-id"><small>Dossier</small><b>${code}</b></div>
+          ${meta.map(m => `<div class="med-cell"><small>${esc(m.k)}</small><b>${esc(m.v)}</b></div>`).join('')}
+          <div class="med-cell med-sig"><small>Signal vital</small>${ecgSvg('')}</div>
+        </div>
+      </section>
+      <section class="city-sec" id="city-obs">
+        ${secHead('II', 'Observations', 'NOTES <em>CLINIQUES</em>')}
+        <div class="blk-grid" id="blkGrid" data-ref="${escAttr(ref)}">${tg.blocks.map(b => blockHtml(ref, tg, b)).join('') || '<p class="city-empty">Aucune observation pour le moment.' + (logged ? ' Active « Mise en page » pour ajouter des blocs.' : '') + '</p>'}</div>
+        ${logged ? `<div class="blk-add ed-only"><button type="button" onclick="openBlockEditor('${escAttr(ref)}', null, 'text')">+ Bloc de texte</button><button type="button" onclick="openBlockEditor('${escAttr(ref)}', null, 'image')">+ Bloc d'image</button></div>` : ''}
+      </section>
     </div>`;
 }
 
@@ -4721,6 +4835,7 @@ function renderEntry(id: string): string {
   if(!e) return renderNotFound();
   if(e.cat === 'personnages') return renderPersonnageEntry(e);
   if(e.cat === 'lieux') return renderLieuPage(e);
+  if(e.cat === 'hybrides') return renderHybridePage(e);
   const c = CATS[e.cat];
   return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('cat-${e.cat}')" style="cursor:pointer">${c.label}</span> / ${esc(e.name)}</div>
