@@ -4572,11 +4572,6 @@ function hyBarcode(seed: string): string {
   return `<svg viewBox="0 0 120 14" preserveAspectRatio="none" aria-hidden="true">${out}</svg>`;
 }
 
-function hyNowStr(): string {
-  const d = new Date();
-  return [d.getHours(), d.getMinutes(), d.getSeconds()].map(n => String(n).padStart(2, '0')).join(':');
-}
-window.setInterval(() => { const el = document.getElementById('hyClock'); if(el) el.textContent = hyNowStr(); }, 1000);
 
 // Panneau de détail d'un élément : titre, statut, anneau de niveau, texte, indicateurs.
 function hyDetailHtml(z: HyZone, i: number): string {
@@ -4603,7 +4598,6 @@ function hyConsoleHtml(e: Entry): string {
   const idx = zones.findIndex(z => z.id === hyZoneSel);
   const tiles = zones.map((z, i) => `<button type="button" class="hy-tile st-${z.status || 'n'}${z.id === hyZoneSel ? ' on' : ''}" data-zone="${z.id}" onclick="hySelectZone('${z.id}')"><small>${String(i + 1).padStart(2, '0')}</small><b>${esc(z.name)}</b><i></i></button>`).join('');
   const gz = zones.find(q => q.id === 'gene') as HyZone;
-  const d = new Date();
   return `<div class="hy-console cv-rv" data-entry="${escAttr(e.id)}">
     <div class="hy-brackets" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
     <div class="hy-topbar"><span class="hy-brand">ARCHIVES MÉDICALES <em>// HYBRIDATION</em></span><span class="hy-barcode">${hyBarcode('hy-top')}</span></div>
@@ -4612,7 +4606,6 @@ function hyConsoleHtml(e: Entry): string {
       <div class="hy-stage hy-dna">
         <canvas aria-label="Double hélice d'ADN en rotation"></canvas>
         <button type="button" class="hy-gene st-${gz.status || 'n'}${gz.id === hyZoneSel ? ' on' : ''}" data-zone="gene" onclick="hySelectZone('gene')" aria-label="${escAttr(gz.name)}"><span>${esc(gz.name)}</span></button>
-        <div class="hy-time" aria-hidden="true"><b id="hyClock">${hyNowStr()}</b><small>${esc(d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }))}</small></div>
       </div>
       <aside class="hy-right"><div class="hy-tab"><span>Détail</span><i></i></div><div class="hy-detail" id="hyDetail">${hyDetailHtml(zones[idx], idx)}</div></aside>
     </div>
