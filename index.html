@@ -3305,6 +3305,17 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .fiche-text-body .locked-archive, .fiche-text-body .dossier-quote, .fiche-text-body .dossier-list-block{ break-inside:avoid; }
 .fiche-empty{ color:var(--text-dim); font-style:italic; font-size:13.5px; }
 .fiche-history-btn{ display:inline-block; margin-top:16px; }
+
+/* ---- Fiches de personnage : tout ce qui porte du texte est une zone pleine (le fond de données ne passe plus derrière) ---- */
+.fiche-head{ background:#14161a; border:1px solid rgba(138,149,166,0.22); border-bottom:1px solid rgba(var(--fclr),0.45); border-radius:3px; padding:16px 22px 18px; }
+.fiche-tabs{ background:#14161a; border:1px solid rgba(138,149,166,0.22); border-radius:3px; padding:8px; }
+.fiche-tab.active{ background:#23262c; }
+.fiche-stat{ background:#202328; }
+.fiche-panel .entry-quote{ background:#14161a; border:1px solid rgba(138,149,166,0.22); border-left:3px solid rgb(var(--fclr)); border-radius:3px; padding:14px 18px; max-width:none; }
+.fiche-panel .entry-linked-wrap{ background:#14161a; border:1px solid rgba(138,149,166,0.22); border-radius:3px; padding:12px 16px 14px; }
+.fiche-chapter-title{ background:#14161a; border:1px solid rgba(138,149,166,0.22); border-left:3px solid rgb(var(--fclr)); border-radius:3px; padding:12px 18px; }
+.fiche-text{ background:#101114; }
+.fiche-empty{ background:#14161a; border:1px solid rgba(138,149,166,0.22); border-radius:3px; padding:14px 18px; }
 @media (max-width:1000px){
   .fiche{ grid-template-columns:1fr; padding:20px; }
   .fiche-left{ flex-direction:row; flex-wrap:wrap; align-items:flex-start; }
@@ -4319,6 +4330,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=116"></script>
+<script src="dist/main.js?v=117"></script>
 </body>
 </html>

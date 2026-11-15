@@ -5183,8 +5183,7 @@ function renderPersonnageEntry(e: Entry): string {
                   </div>
                   ${e.quote ? `<p class="entry-quote">${esc(e.quote)}</p>` : ''}
                   ${entryLinkedCharactersHtml(e)}
-                  ${ficheTextBoxHtml(intro)}
-                  <span class="btn btn-ghost fiche-history-btn" onclick="openStoryBook('${e.id}')">📖 Histoire</span>`)}
+                  ${ficheTextBoxHtml(intro)}`)}
                 ${chapters.map((ch, i) => panel('ch-' + i, `
                   <h2 class="fiche-chapter-title">${esc(ch.title)}</h2>
                   ${ficheTextBoxHtml(ch.lines) || `<p class="fiche-empty">Ce chapitre est vide pour l'instant.</p>`}`)).join('')}
