@@ -4712,6 +4712,7 @@ let hyZoneSel = 'gene';
 let hyZoneForm: { id: string; entryId: string } | null = null;
 let hyDnaRaf = 0;
 let hySprite: HTMLCanvasElement | null = null;
+let hySpriteC: HTMLCanvasElement | null = null;
 let hyDnaZones: HyZone[] = [];
 let hyMode = 'n';
 const HY_ZONES_C: HyElement[] = [
@@ -4739,20 +4740,20 @@ function hyHex(cx: number, cy: number, r: number, rot: number): number[][] {
 }
 
 // Sprite d'un nœud lumineux : halo + polyèdre à facettes (comme les nœuds de l'hélice de référence).
-function hyMakeSprite(): HTMLCanvasElement {
+function hyMakeSprite(red: boolean = false): HTMLCanvasElement {
   const s = document.createElement('canvas');
   s.width = 96; s.height = 96;
   const g = s.getContext('2d') as CanvasRenderingContext2D;
   const gr = g.createRadialGradient(48, 48, 2, 48, 48, 46);
-  gr.addColorStop(0, 'rgba(215,255,255,0.6)'); gr.addColorStop(0.35, 'rgba(120,230,240,0.24)'); gr.addColorStop(1, 'rgba(80,200,220,0)');
+  gr.addColorStop(0, red ? 'rgba(255,205,200,0.6)' : 'rgba(215,255,255,0.6)'); gr.addColorStop(0.35, red ? 'rgba(255,60,70,0.3)' : 'rgba(120,230,240,0.24)'); gr.addColorStop(1, red ? 'rgba(255,40,50,0)' : 'rgba(80,200,220,0)');
   g.fillStyle = gr; g.fillRect(0, 0, 96, 96);
   const pts = hyHex(48, 48, 20, Math.PI / 6);
   g.beginPath();
   pts.forEach((p, i) => { if(i) g.lineTo(p[0], p[1]); else g.moveTo(p[0], p[1]); });
   g.closePath();
-  g.fillStyle = 'rgba(228,251,255,0.8)'; g.fill();
+  g.fillStyle = red ? 'rgba(255,226,222,0.82)' : 'rgba(228,251,255,0.8)'; g.fill();
   g.strokeStyle = 'rgba(255,255,255,0.95)'; g.lineWidth = 1.4; g.stroke();
-  g.strokeStyle = 'rgba(110,190,210,0.9)'; g.lineWidth = 1;
+  g.strokeStyle = red ? 'rgba(205,70,80,0.9)' : 'rgba(110,190,210,0.9)'; g.lineWidth = 1;
   g.beginPath();
   [0, 2, 4].forEach(i => { g.moveTo(48, 48); g.lineTo(pts[i][0], pts[i][1]); });
   g.moveTo(pts[1][0], pts[1][1]); g.lineTo(pts[3][0], pts[3][1]); g.lineTo(pts[5][0], pts[5][1]);
@@ -4767,21 +4768,21 @@ const HY_FIL = (() => {
   return Array.from({ length: 26 }, (_v, i) => ({ c: cols[i % cols.length], w: 0.5 + r() * 1.3, u: r() * 2 - 1, a: 2 + r() * 8, f: 0.05 + r() * 0.16, s: (r() - 0.5) * 4, ph: r() * 6.28, k: 0.018 + r() * 0.03 }));
 })();
 
-function hyFilaments(g: CanvasRenderingContext2D, pts: number[][], zs: number[], front: boolean, t: number, ph: number): void {
+function hyFilaments(g: CanvasRenderingContext2D, pts: number[][], zs: number[], front: boolean, t: number, ph: number, brk: number = 0): void {
   const hw = front ? 21 : 15;
   const alpha = front ? 0.8 : 0.34;
   HY_FIL.forEach((ln, li) => {
     g.beginPath();
     let pen = false;
     for(let i = 0; i < pts.length; i++){
-      const ok = front ? zs[i] >= 0 : zs[i] < 0;
+      const ok = (front ? zs[i] >= 0 : zs[i] < 0) && !(brk && hyGap(pts[i][1], t, brk));
       if(!ok){ pen = false; continue; }
       const y = pts[i][1];
       const x = pts[i][0] + ln.u * hw * Math.cos(y * ln.k + ln.ph + ph * 1.7 + t * 0.9) + ln.a * Math.sin(y * ln.f + ln.ph + t * ln.s);
       const yy = y + ln.a * 0.5 * Math.cos(y * ln.f * 1.7 + t * ln.s + li);
       if(!pen){ g.moveTo(x, yy); pen = true; } else g.lineTo(x, yy);
     }
-    g.strokeStyle = `rgba(${ln.c},${(alpha * (0.55 + ln.w * 0.4)).toFixed(2)})`;
+    g.strokeStyle = `rgba(${brk ? hyCorruptCol(ln.c) : ln.c},${(alpha * (0.55 + ln.w * 0.4)).toFixed(2)})`;
     g.lineWidth = ln.w * (front ? 1.2 : 0.9);
     g.stroke();
   });
@@ -4803,133 +4804,114 @@ function hyRing(g: CanvasRenderingContext2D, x: number, y: number, rad: number, 
   g.setLineDash([]);
 }
 
-// ----- ADN corrompu : brins noirs et luisants, fendus et effilochés ; demi-barreaux aux pointes rouges qui ne se touchent pas -----
+// ----- ADN corrompu : la même hélice que l'ADN normal, brûlée vers le rouge, fendue, avec des demi-barreaux à pointes incandescentes et des artefacts de corruption -----
 function hyHash(n: number): number {
   const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
   return s - Math.floor(s);
 }
 
-function hyStrokeRuns(g: CanvasRenderingContext2D, runs: number[][][], dx: number, dy: number, w: number, color: string): void {
-  g.beginPath();
-  runs.forEach(r => { r.forEach((p, i) => { if(i) g.lineTo(p[0] + dx, p[1] + dy); else g.moveTo(p[0] + dx, p[1] + dy); }); });
-  g.strokeStyle = color; g.lineWidth = w; g.lineJoin = 'round'; g.lineCap = 'round';
-  g.stroke();
-}
-
+// Zones où un brin est rompu (animées lentement).
 function hyGap(y: number, t: number, seed: number): boolean {
-  return Math.sin(y * 0.021 + seed * 3.1) + Math.sin(y * 0.057 + seed * 1.7 + t * 0.15) > 1.5;
+  return Math.sin(y * 0.021 + seed * 3.1) + Math.sin(y * 0.057 + seed * 1.7 + t * 0.15) > 1.45;
 }
 
-function hyCorruptStrand(g: CanvasRenderingContext2D, pts: number[][], zs: number[], front: boolean, t: number, seed: number): void {
-  const runs: number[][][] = [];
-  const ends: number[][] = [];
-  let cur: number[][] = [];
-  for(let i = 0; i < pts.length; i++){
-    const ok = (front ? zs[i] >= 0 : zs[i] < 0) && !hyGap(pts[i][1], t, seed);
-    if(ok) cur.push(pts[i]);
-    else if(cur.length){ runs.push(cur); ends.push(cur[cur.length - 1]); cur = []; }
-  }
-  if(cur.length) runs.push(cur);
-  const w = front ? 12 : 8;
-  hyStrokeRuns(g, runs, 0, 0, w, front ? '#0c0d10' : 'rgba(14,15,18,0.9)');
-  hyStrokeRuns(g, runs, -2, -2, w * 0.3, front ? 'rgba(185,192,204,0.7)' : 'rgba(130,136,148,0.38)');
-  if(front) hyStrokeRuns(g, runs, 2.4, 2.2, 1, 'rgba(255,255,255,0.14)');
-  // pointes brisées aux extrémités des fissures
-  ends.forEach(p => {
-    for(let j = 0; j < 4; j++){
-      const a = hyHash(p[1] + j * 7 + seed) * 6.2832, l = 6 + hyHash(p[1] * 3 + j) * 20;
-      g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(p[0] + Math.cos(a) * l, p[1] + Math.sin(a) * l);
-      g.strokeStyle = '#0c0d10'; g.lineWidth = 2.6 - j * 0.45; g.stroke();
-    }
-    g.fillStyle = 'rgba(255,70,80,0.9)'; g.beginPath(); g.arc(p[0], p[1], 1.7, 0, 6.2832); g.fill();
-  });
-  // filaments effilochés et billes sombres
-  for(let i = 5; i < pts.length; i += 11){
-    if((front ? zs[i] < 0 : zs[i] >= 0) || hyGap(pts[i][1], t, seed)) continue;
-    const p = pts[i], h = hyHash(i + seed * 19);
-    if(h > 0.45){
-      const l = 16 + h * 30, s = h > 0.7 ? 1 : -1;
-      g.beginPath(); g.moveTo(p[0], p[1]);
-      g.quadraticCurveTo(p[0] + s * l * 0.6, p[1] + Math.sin(t * 1.3 + i) * 6 - 6, p[0] + s * l, p[1] + 12 + Math.sin(t + i) * 5);
-      g.strokeStyle = front ? 'rgba(10,10,12,0.95)' : 'rgba(10,10,12,0.6)'; g.lineWidth = 1.5; g.stroke();
-    } else {
-      const r = 3 + h * 9;
-      const gr = g.createRadialGradient(p[0] - r * 0.35, p[1] - r * 0.35, 0.5, p[0], p[1], r);
-      gr.addColorStop(0, 'rgba(170,176,188,0.9)'); gr.addColorStop(0.4, '#26282e'); gr.addColorStop(1, '#08080a');
-      g.fillStyle = gr; g.beginPath(); g.arc(p[0], p[1], r, 0, 6.2832); g.fill();
-    }
-  }
+// Les fils turquoise virent au rouge ; les fils orange restent.
+function hyCorruptCol(c: string): string {
+  return c === '60,205,195' ? '255,72,82' : c === '90,225,215' ? '255,112,92' : c === '255,246,215' ? '255,205,195' : c;
 }
 
 function hyDnaDrawCorrupt(g: CanvasRenderingContext2D, S: HyDnaCtx, t: number): void {
   const W = S.W, H = S.H;
+  if(!hySpriteC) hySpriteC = hyMakeSprite(true);
+  const sprite = hySpriteC;
   g.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
   g.clearRect(0, 0, W, H);
-  // fond : brume sombre + lueur rouge au centre
+  // fond : lueur rouge sombre
   const bg = g.createRadialGradient(W / 2, H * 0.46, 10, W / 2, H * 0.46, Math.max(W, H) * 0.7);
-  bg.addColorStop(0, 'rgba(150,22,34,0.36)'); bg.addColorStop(0.45, 'rgba(42,42,48,0.32)'); bg.addColorStop(1, 'rgba(8,8,10,0)');
+  bg.addColorStop(0, 'rgba(120,18,30,0.5)'); bg.addColorStop(1, 'rgba(8,6,8,0)');
   g.fillStyle = bg; g.fillRect(0, 0, W, H);
-  // débris sombres qui dérivent
+  g.strokeStyle = 'rgba(255,255,255,0.05)'; g.lineWidth = 1;
+  for(let i = 0; i < 6; i++){ const y = H * (0.12 + i * 0.16); g.beginPath(); g.moveTo(0, y); g.quadraticCurveTo(W / 2, y - 40 + i * 12, W, y + 10); g.stroke(); }
+  // bulles brisées : arcs rouges incomplets et petits fragments carrés
   S.bubbles.forEach((b, k) => {
-    const x = (b.x + Math.sin(t * 0.25 + b.ph) * 0.03) * W;
-    const y = ((((b.y - t * b.v * 0.7) % 1) + 1) % 1) * H;
-    const r = 3 + b.r * 0.45;
-    g.beginPath();
-    for(let j = 0; j < 5; j++){
-      const a = j * 1.2566 + t * 0.2 + k, rr = r * (0.55 + hyHash(k * 5 + j) * 0.7);
-      if(j) g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); else g.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
-    }
-    g.closePath(); g.fillStyle = 'rgba(10,10,13,0.92)'; g.fill();
-    if(k % 3 === 0){ g.strokeStyle = 'rgba(255,60,70,0.28)'; g.lineWidth = 1; g.stroke(); }
+    const x = (b.x + Math.sin(t * 0.3 + b.ph) * 0.02) * W;
+    const y = ((((b.y - t * b.v) % 1) + 1) % 1) * H;
+    const a0 = hyHash(k) * 6.2832 + t * 0.3;
+    g.beginPath(); g.arc(x, y, b.r, a0, a0 + 4.1); g.strokeStyle = 'rgba(255,95,95,0.38)'; g.lineWidth = 1; g.stroke();
+    if(k % 4 === 0){ g.fillStyle = 'rgba(255,90,90,0.4)'; g.fillRect(x + b.r * 0.9, y - b.r * 0.4, 4, 4); }
   });
-  // géométrie : hélice irrégulière et lente
-  const cx0 = W / 2, R = Math.min(W * 0.22, 156), pitch = Math.max(300, H * 0.5), top = -30, bottom = H + 30, rot = t * 0.32;
+  // géométrie : l'hélice normale, avec des irrégularités
+  const cx0 = W / 2, R = Math.min(W * 0.22, 156), pitch = Math.max(300, H * 0.5), top = -30, bottom = H + 30, rot = t * 0.42;
   const tilt = (y: number): number => (y - H / 2) * 0.06;
-  const jit = (y: number): number => Math.sin(y * 0.031 + t * 0.5) * 5 + Math.sin(y * 0.093 - t * 0.9) * 2.5;
+  const jit = (y: number): number => Math.sin(y * 0.031 + t * 0.6) * 4 + Math.sin(y * 0.093 - t) * 2;
   const n = Math.ceil((bottom - top) / 5);
   const pa: number[][] = [];
   const pb: number[][] = [];
   const za: number[] = [];
   const zb: number[] = [];
   for(let i = 0; i <= n; i++){
-    const y = top + i * 5, th = y / pitch * 6.2832 + rot, sw = 1 + 0.12 * Math.sin(y * 0.019 + t * 0.3);
+    const y = top + i * 5, th = y / pitch * 6.2832 + rot, sw = 1 + 0.1 * Math.sin(y * 0.021 + t * 0.4);
     pa.push([cx0 + tilt(y) + R * sw * Math.cos(th) + jit(y), y]); pb.push([cx0 + tilt(y) - R * sw * Math.cos(th) - jit(y + 40), y]);
     za.push(Math.sin(th)); zb.push(-Math.sin(th));
   }
-  hyCorruptStrand(g, pa, za, false, t, 1);
-  hyCorruptStrand(g, pb, zb, false, t, 2);
-  // demi-barreaux : deux pointes rouges face à face qui ne se rejoignent jamais
-  const step = pitch / 9;
-  for(let y = -step * 0.5, k = 0; y < bottom; y += step, k++){
+  const step = pitch / 10;
+  const rungs: number[][] = [];
+  for(let y = -step * 0.5; y < bottom; y += step){
     const th = y / pitch * 6.2832 + rot;
-    const xa = cx0 + tilt(y) + R * Math.cos(th) + jit(y), xb = cx0 + tilt(y) - R * Math.cos(th) - jit(y + 40);
-    const f = 0.3 + 0.06 * Math.sin(k * 1.7 + t * 0.6);
-    const ax = xa + (xb - xa) * f, bx = xb - (xb - xa) * f;
+    rungs.push([y, cx0 + tilt(y) + R * Math.cos(th) + jit(y), cx0 + tilt(y) - R * Math.cos(th) - jit(y + 40), Math.sin(th)]);
+  }
+  const strandNodes = (front: boolean): void => {
+    for(let i = 4; i < pa.length; i += 7){
+      const h = ((i * 7919) % 100) / 100;
+      if(hyGap(pa[i][1], t, 1) && h > 0.4) continue;
+      const size = 34 + 44 * h;
+      if((za[i] >= 0) === front) hyNode(g, sprite, pa[i][0], pa[i][1], za[i], size);
+      if((zb[i] >= 0) === front) hyNode(g, sprite, pb[i][0], pb[i][1], zb[i], size * 0.9);
+    }
+  };
+  hyFilaments(g, pa, za, false, t, 0, 1);
+  hyFilaments(g, pb, zb, false, t, 1, 2);
+  strandNodes(false);
+  rungs.forEach(q => { if(q[3] < 0) hyNode(g, sprite, q[1], q[0], q[3], 80); else hyNode(g, sprite, q[2], q[0], -q[3], 80); });
+  // demi-barreaux : chaque barreau est coupé au centre, ses deux moitiés finissent en pointes rouges qui ne se touchent pas
+  const cols = ['236,168,60', '255,72,82', '255,222,150', '240,110,60'];
+  rungs.forEach((q, k) => {
+    const f = 0.37 + 0.05 * Math.sin(k * 1.7 + t * 0.6);
+    const ax = q[1] + (q[2] - q[1]) * f, bx = q[2] - (q[2] - q[1]) * f;
     const drift = k % 5 === 2 ? Math.sin(t * 0.9 + k) * 9 : 0;
-    [[xa, ax, y, y], [xb, bx, y, y + drift]].forEach(s => {
-      g.beginPath(); g.moveTo(s[0], s[2]); g.lineTo(s[1], s[3]); g.strokeStyle = '#0d0e11'; g.lineWidth = 4.8; g.lineCap = 'round'; g.stroke();
-      g.beginPath(); g.moveTo(s[0], s[2] - 1.2); g.lineTo(s[1], s[3] - 1.2); g.strokeStyle = 'rgba(175,183,196,0.7)'; g.lineWidth = 1.3; g.stroke();
-    });
+    for(let j = 0; j < 8; j++){
+      const o = j - 3.5, sag = o * 4 * Math.sin(t * 1.2 + k + j);
+      const col = `rgba(${cols[(j + k) % 4]},${j % 3 === 0 ? 0.78 : 0.48})`;
+      g.beginPath(); g.moveTo(q[1], q[0] + o * 2.4); g.quadraticCurveTo((q[1] + ax) / 2, q[0] + sag, ax, q[0] + o * 0.7);
+      g.strokeStyle = col; g.lineWidth = j % 3 === 0 ? 1.3 : 0.7; g.stroke();
+      g.beginPath(); g.moveTo(q[2], q[0] - o * 2.4); g.quadraticCurveTo((q[2] + bx) / 2, q[0] + sag + drift * 0.5, bx, q[0] + drift + o * 0.7);
+      g.stroke();
+    }
     g.globalCompositeOperation = 'lighter';
-    [[ax, y], [bx, y + drift]].forEach(p => {
-      const rad = 19 + 5 * Math.sin(t * 3 + k * 2);
+    [[ax, q[0]], [bx, q[0] + drift]].forEach(p => {
+      const rad = 17 + 5 * Math.sin(t * 3 + k * 2);
       const gl = g.createRadialGradient(p[0], p[1], 0.5, p[0], p[1], rad);
-      gl.addColorStop(0, 'rgba(255,120,120,0.95)'); gl.addColorStop(0.3, 'rgba(255,40,55,0.5)'); gl.addColorStop(1, 'rgba(255,20,40,0)');
+      gl.addColorStop(0, 'rgba(255,150,140,0.95)'); gl.addColorStop(0.3, 'rgba(255,45,60,0.5)'); gl.addColorStop(1, 'rgba(255,20,40,0)');
       g.fillStyle = gl; g.beginPath(); g.arc(p[0], p[1], rad, 0, 6.2832); g.fill();
     });
     g.globalCompositeOperation = 'source-over';
-    g.fillStyle = '#ffd0d0';
-    [[ax, y], [bx, y + drift]].forEach(p => { g.beginPath(); g.arc(p[0], p[1], 2.3, 0, 6.2832); g.fill(); });
-    // étincelle instable entre les deux pointes
+    g.fillStyle = '#ffd6d0';
+    [[ax, q[0]], [bx, q[0] + drift]].forEach(p => { g.beginPath(); g.arc(p[0], p[1], 2.2, 0, 6.2832); g.fill(); });
     if(hyHash(k * 13 + Math.floor(t * 9)) > 0.9){
-      g.beginPath(); g.moveTo(ax, y);
-      for(let j = 1; j < 5; j++) g.lineTo(ax + (bx - ax) * j / 5, y + drift * j / 5 + (hyHash(k + j + Math.floor(t * 9)) - 0.5) * 12);
-      g.lineTo(bx, y + drift);
-      g.strokeStyle = 'rgba(255,100,110,0.85)'; g.lineWidth = 1.2; g.stroke();
+      g.beginPath(); g.moveTo(ax, q[0]);
+      for(let j = 1; j < 5; j++) g.lineTo(ax + (bx - ax) * j / 5, q[0] + drift * j / 5 + (hyHash(k + j + Math.floor(t * 9)) - 0.5) * 12);
+      g.lineTo(bx, q[0] + drift);
+      g.strokeStyle = 'rgba(255,110,110,0.9)'; g.lineWidth = 1.2; g.stroke();
     }
-  }
-  hyCorruptStrand(g, pa, za, true, t, 1);
-  hyCorruptStrand(g, pb, zb, true, t, 2);
+  });
+  hyFilaments(g, pa, za, true, t, 0, 1);
+  hyFilaments(g, pb, zb, true, t, 1, 2);
+  strandNodes(true);
+  rungs.forEach((q, k) => {
+    const fx = q[3] >= 0 ? q[1] : q[2], fz = q[3] >= 0 ? q[3] : -q[3];
+    hyNode(g, sprite, fx, q[0], fz, 80);
+    if(k % 3 === 0){ hyRing(g, fx, q[0], 28 + 10 * fz, 0.55, false, 0); if(k % 6 === 0) hyRing(g, fx, q[0], 44 + 12 * fz, 0.4, true, -t * 10); }
+  });
   // lueur rouge aux croisements, plus forte près du centre
   const gy0 = H * 0.46, pulse = 1 + 0.15 * Math.sin(t * 2.6);
   g.globalCompositeOperation = 'lighter';
@@ -4938,10 +4920,17 @@ function hyDnaDrawCorrupt(g: CanvasRenderingContext2D, S: HyDnaCtx, t: number): 
     if(yc < -80 || yc > H + 80) continue;
     const w = Math.exp(-Math.pow((yc - gy0) / (pitch * 0.28), 2));
     if(w < 0.03) continue;
-    const xc = cx0 + tilt(yc), rad = (46 + 60 * w) * pulse;
+    const xc = cx0 + tilt(yc), rad = (50 + 64 * w) * pulse;
     const gl = g.createRadialGradient(xc, yc, 2, xc, yc, rad);
-    gl.addColorStop(0, `rgba(255,110,110,${(0.9 * w).toFixed(2)})`); gl.addColorStop(0.3, `rgba(255,35,50,${(0.5 * w).toFixed(2)})`); gl.addColorStop(1, 'rgba(255,20,40,0)');
+    gl.addColorStop(0, `rgba(255,140,130,${(0.95 * w).toFixed(2)})`); gl.addColorStop(0.28, `rgba(255,45,60,${(0.55 * w).toFixed(2)})`); gl.addColorStop(1, 'rgba(255,20,40,0)');
     g.fillStyle = gl; g.beginPath(); g.arc(xc, yc, rad, 0, 6.2832); g.fill();
+    if(w > 0.2){
+      g.strokeStyle = `rgba(255,150,140,${(0.3 * w).toFixed(2)})`; g.lineWidth = 1;
+      for(let i = 0; i < 12; i++){
+        const a = i * 0.5236 + t * 0.2, l1 = 24, l2 = 56 + 30 * Math.sin(t * 1.4 + i * 1.7);
+        g.beginPath(); g.moveTo(xc + Math.cos(a) * l1, yc + Math.sin(a) * l1); g.lineTo(xc + Math.cos(a) * l2, yc + Math.sin(a) * l2); g.stroke();
+      }
+    }
   }
   g.globalCompositeOperation = 'source-over';
   // repères : cœur sélectionnable et traits de liaison, en rouge
@@ -4951,7 +4940,7 @@ function hyDnaDrawCorrupt(g: CanvasRenderingContext2D, S: HyDnaCtx, t: number): 
     const on = c.id === hyZoneSel;
     const z = hyDnaZones.find(q => q.id === c.id);
     const gx = cx0 + tilt(c.y);
-    g.strokeStyle = on ? (z && z.status ? HY_STATUS[z.status].color : '#ff3b4a') : 'rgba(255,255,255,0.6)'; g.lineWidth = on ? 1.8 : 1.1;
+    g.strokeStyle = on ? (z && z.status ? HY_STATUS[z.status].color : '#ff3b4a') : 'rgba(255,255,255,0.7)'; g.lineWidth = on ? 1.8 : 1.1;
     g.beginPath(); g.arc(gx, c.y, 32, 0, 6.2832); g.stroke();
     g.setLineDash([5, 6]); g.lineDashOffset = t * 14;
     g.beginPath(); g.arc(gx, c.y, 46, 0, 6.2832); g.stroke();
@@ -4961,7 +4950,7 @@ function hyDnaDrawCorrupt(g: CanvasRenderingContext2D, S: HyDnaCtx, t: number): 
   S.cards.forEach(c => {
     const on = c.id === hyZoneSel;
     const z = hyDnaZones.find(q => q.id === c.id);
-    const col = on ? (z && z.status ? HY_STATUS[z.status].color : '#ff3b4a') : 'rgba(255,255,255,0.5)';
+    const col = on ? (z && z.status ? HY_STATUS[z.status].color : '#ff3b4a') : 'rgba(255,255,255,0.55)';
     const ex = cx0 + tilt(c.y) + (c.left ? -R * 0.3 : R * 0.3);
     g.strokeStyle = col; g.lineWidth = on ? 1.6 : 1;
     g.beginPath(); g.moveTo(c.x, c.y); g.lineTo(ex, c.y); g.stroke();
@@ -4973,17 +4962,30 @@ function hyDnaDrawCorrupt(g: CanvasRenderingContext2D, S: HyDnaCtx, t: number): 
     [-1, 1].forEach(sd => { g.beginPath(); g.moveTo(cx0 + tilt(0) + sd * (R + 34), 0); g.lineTo(cx0 + tilt(H) + sd * (R + 34), H); g.stroke(); });
     g.setLineDash([]);
   }
-  // glitch : de temps en temps, des bandes horizontales de l'image se décalent
-  const gk = Math.floor(t * 5);
-  if(hyHash(gk) > 0.8){
-    const c = g.canvas;
-    g.setTransform(1, 0, 0, 1, 0, 0);
-    for(let b = 0; b < 3; b++){
-      const y = Math.floor(hyHash(gk + b * 5) * c.height * 0.9), h = Math.floor((0.03 + hyHash(gk + b * 11) * 0.07) * c.height), dx = Math.floor((hyHash(gk + b * 17) - 0.5) * 50 * S.dpr);
-      g.drawImage(c, 0, y, c.width, h, dx, y, c.width, h);
-    }
-    g.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
+  // corruption : teinte rouge sur ce qui est dessiné
+  g.globalCompositeOperation = 'source-atop';
+  g.fillStyle = 'rgba(255,30,45,0.12)';
+  g.fillRect(0, 0, W, H);
+  g.globalCompositeOperation = 'source-over';
+  // corruption : blocs numériques parasites autour de l'hélice
+  const bk = Math.floor(t * 10);
+  for(let i = 0; i < 8; i++){
+    if(hyHash(bk * 7 + i) > 0.55) continue;
+    const bx = cx0 + (hyHash(bk + i * 5) - 0.5) * R * 3.6, by = hyHash(bk * 13 + i * 3) * H;
+    const bw = 3 + hyHash(bk * 3 + i) * 18, bh = 2 + hyHash(bk * 5 + i) * 5;
+    g.fillStyle = i % 3 === 0 ? 'rgba(255,255,255,0.55)' : i % 3 === 1 ? 'rgba(255,50,65,0.7)' : 'rgba(60,200,255,0.5)';
+    g.fillRect(bx, by, bw, bh);
   }
+  // corruption : tranches de l'image décalées (en permanence deux, parfois davantage)
+  const c = g.canvas;
+  const gk = Math.floor(t * 1.4), burst = hyHash(Math.floor(t * 5)) > 0.8;
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  for(let b = 0; b < (burst ? 4 : 2); b++){
+    const bandSeed = burst ? Math.floor(t * 5) + b * 5 : gk + b * 31;
+    const y = Math.floor(hyHash(bandSeed) * c.height * 0.9), h = Math.floor((0.02 + hyHash(bandSeed + 11) * (burst ? 0.07 : 0.035)) * c.height), dx = Math.floor((hyHash(bandSeed + 17) - 0.5) * (burst ? 60 : 36) * S.dpr);
+    g.drawImage(c, 0, y, c.width, h, dx, y, c.width, h);
+  }
+  g.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
 }
 
 // Bascule entre l'ADN normal et l'ADN corrompu, avec un glitch sur toute la page.
