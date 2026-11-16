@@ -4068,11 +4068,19 @@ let hyZoneForm = null;
 let hyDnaRaf = 0;
 let hySprite = null;
 let hyDnaZones = [];
+let hyMode = 'n';
+const HY_ZONES_C = [
+  { id: 'c-gene', name: "Gène d'Oxiri corrompu", sub: 'Cœur instable', side: 'c', y: 46, status: 'r' },
+  { id: 'c-helice', name: 'Hélice dégradée', sub: 'Structure brisée', side: 'h', y: 50, status: 'r' },
+];
+function hyField() { return hyMode === 'c' ? 'elementsC' : 'elements'; }
 
 function hyZonesOf(entryId) {
   const d = cityPagesCache[entryId];
-  const ov = (d && d.zones) || {};
-  const src = d && Array.isArray(d.elements) ? d.elements : HY_ZONES.map(z => { const o = ov[z.id] || {}; return { ...z, ...o, name: o.name || z.name }; });
+  const corrupt = hyMode === 'c';
+  const ov = (!corrupt && d && d.zones) || {};
+  const custom = corrupt ? (d && Array.isArray(d.elementsC) ? d.elementsC : null) : (d && Array.isArray(d.elements) ? d.elements : null);
+  const src = custom ? custom : (corrupt ? HY_ZONES_C : HY_ZONES).map(z => { const o = ov[z.id || ''] || {}; return { ...z, ...o, name: o.name || z.name }; });
   return src.map((o, i) => ({
     id: o.id || 'el-' + i, name: o.name || 'Élément', sub: typeof o.sub === 'string' ? o.sub : '', text: o.text || '', status: o.status || '',
     level: typeof o.level === 'number' ? o.level : null, stats: Array.isArray(o.stats) ? o.stats : [],
@@ -4150,7 +4158,216 @@ function hyRing(g, x, y, rad, a, dash, off) {
   g.setLineDash([]);
 }
 
+// ----- ADN corrompu : brins noirs et luisants, fendus et effilochés ; demi-barreaux aux pointes rouges qui ne se touchent pas -----
+function hyHash(n) {
+  const s = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+function hyStrokeRuns(g, runs, dx, dy, w, color) {
+  g.beginPath();
+  runs.forEach(r => { r.forEach((p, i) => { if(i) g.lineTo(p[0] + dx, p[1] + dy); else g.moveTo(p[0] + dx, p[1] + dy); }); });
+  g.strokeStyle = color; g.lineWidth = w; g.lineJoin = 'round'; g.lineCap = 'round';
+  g.stroke();
+}
+
+function hyGap(y, t, seed) {
+  return Math.sin(y * 0.021 + seed * 3.1) + Math.sin(y * 0.057 + seed * 1.7 + t * 0.15) > 1.5;
+}
+
+function hyCorruptStrand(g, pts, zs, front, t, seed) {
+  const runs = [];
+  const ends = [];
+  let cur = [];
+  for(let i = 0; i < pts.length; i++){
+    const ok = (front ? zs[i] >= 0 : zs[i] < 0) && !hyGap(pts[i][1], t, seed);
+    if(ok) cur.push(pts[i]);
+    else if(cur.length){ runs.push(cur); ends.push(cur[cur.length - 1]); cur = []; }
+  }
+  if(cur.length) runs.push(cur);
+  const w = front ? 12 : 8;
+  hyStrokeRuns(g, runs, 0, 0, w, front ? '#0c0d10' : 'rgba(14,15,18,0.9)');
+  hyStrokeRuns(g, runs, -2, -2, w * 0.3, front ? 'rgba(185,192,204,0.7)' : 'rgba(130,136,148,0.38)');
+  if(front) hyStrokeRuns(g, runs, 2.4, 2.2, 1, 'rgba(255,255,255,0.14)');
+  // pointes brisées aux extrémités des fissures
+  ends.forEach(p => {
+    for(let j = 0; j < 4; j++){
+      const a = hyHash(p[1] + j * 7 + seed) * 6.2832, l = 6 + hyHash(p[1] * 3 + j) * 20;
+      g.beginPath(); g.moveTo(p[0], p[1]); g.lineTo(p[0] + Math.cos(a) * l, p[1] + Math.sin(a) * l);
+      g.strokeStyle = '#0c0d10'; g.lineWidth = 2.6 - j * 0.45; g.stroke();
+    }
+    g.fillStyle = 'rgba(255,70,80,0.9)'; g.beginPath(); g.arc(p[0], p[1], 1.7, 0, 6.2832); g.fill();
+  });
+  // filaments effilochés et billes sombres
+  for(let i = 5; i < pts.length; i += 11){
+    if((front ? zs[i] < 0 : zs[i] >= 0) || hyGap(pts[i][1], t, seed)) continue;
+    const p = pts[i], h = hyHash(i + seed * 19);
+    if(h > 0.45){
+      const l = 16 + h * 30, s = h > 0.7 ? 1 : -1;
+      g.beginPath(); g.moveTo(p[0], p[1]);
+      g.quadraticCurveTo(p[0] + s * l * 0.6, p[1] + Math.sin(t * 1.3 + i) * 6 - 6, p[0] + s * l, p[1] + 12 + Math.sin(t + i) * 5);
+      g.strokeStyle = front ? 'rgba(10,10,12,0.95)' : 'rgba(10,10,12,0.6)'; g.lineWidth = 1.5; g.stroke();
+    } else {
+      const r = 3 + h * 9;
+      const gr = g.createRadialGradient(p[0] - r * 0.35, p[1] - r * 0.35, 0.5, p[0], p[1], r);
+      gr.addColorStop(0, 'rgba(170,176,188,0.9)'); gr.addColorStop(0.4, '#26282e'); gr.addColorStop(1, '#08080a');
+      g.fillStyle = gr; g.beginPath(); g.arc(p[0], p[1], r, 0, 6.2832); g.fill();
+    }
+  }
+}
+
+function hyDnaDrawCorrupt(g, S, t) {
+  const W = S.W, H = S.H;
+  g.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
+  g.clearRect(0, 0, W, H);
+  // fond : brume sombre + lueur rouge au centre
+  const bg = g.createRadialGradient(W / 2, H * 0.46, 10, W / 2, H * 0.46, Math.max(W, H) * 0.7);
+  bg.addColorStop(0, 'rgba(150,22,34,0.36)'); bg.addColorStop(0.45, 'rgba(42,42,48,0.32)'); bg.addColorStop(1, 'rgba(8,8,10,0)');
+  g.fillStyle = bg; g.fillRect(0, 0, W, H);
+  // débris sombres qui dérivent
+  S.bubbles.forEach((b, k) => {
+    const x = (b.x + Math.sin(t * 0.25 + b.ph) * 0.03) * W;
+    const y = ((((b.y - t * b.v * 0.7) % 1) + 1) % 1) * H;
+    const r = 3 + b.r * 0.45;
+    g.beginPath();
+    for(let j = 0; j < 5; j++){
+      const a = j * 1.2566 + t * 0.2 + k, rr = r * (0.55 + hyHash(k * 5 + j) * 0.7);
+      if(j) g.lineTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr); else g.moveTo(x + Math.cos(a) * rr, y + Math.sin(a) * rr);
+    }
+    g.closePath(); g.fillStyle = 'rgba(10,10,13,0.92)'; g.fill();
+    if(k % 3 === 0){ g.strokeStyle = 'rgba(255,60,70,0.28)'; g.lineWidth = 1; g.stroke(); }
+  });
+  // géométrie : hélice irrégulière et lente
+  const cx0 = W / 2, R = Math.min(W * 0.22, 156), pitch = Math.max(300, H * 0.5), top = -30, bottom = H + 30, rot = t * 0.32;
+  const tilt = (y) => (y - H / 2) * 0.06;
+  const jit = (y) => Math.sin(y * 0.031 + t * 0.5) * 5 + Math.sin(y * 0.093 - t * 0.9) * 2.5;
+  const n = Math.ceil((bottom - top) / 5);
+  const pa = [];
+  const pb = [];
+  const za = [];
+  const zb = [];
+  for(let i = 0; i <= n; i++){
+    const y = top + i * 5, th = y / pitch * 6.2832 + rot, sw = 1 + 0.12 * Math.sin(y * 0.019 + t * 0.3);
+    pa.push([cx0 + tilt(y) + R * sw * Math.cos(th) + jit(y), y]); pb.push([cx0 + tilt(y) - R * sw * Math.cos(th) - jit(y + 40), y]);
+    za.push(Math.sin(th)); zb.push(-Math.sin(th));
+  }
+  hyCorruptStrand(g, pa, za, false, t, 1);
+  hyCorruptStrand(g, pb, zb, false, t, 2);
+  // demi-barreaux : deux pointes rouges face à face qui ne se rejoignent jamais
+  const step = pitch / 9;
+  for(let y = -step * 0.5, k = 0; y < bottom; y += step, k++){
+    const th = y / pitch * 6.2832 + rot;
+    const xa = cx0 + tilt(y) + R * Math.cos(th) + jit(y), xb = cx0 + tilt(y) - R * Math.cos(th) - jit(y + 40);
+    const f = 0.3 + 0.06 * Math.sin(k * 1.7 + t * 0.6);
+    const ax = xa + (xb - xa) * f, bx = xb - (xb - xa) * f;
+    const drift = k % 5 === 2 ? Math.sin(t * 0.9 + k) * 9 : 0;
+    [[xa, ax, y, y], [xb, bx, y, y + drift]].forEach(s => {
+      g.beginPath(); g.moveTo(s[0], s[2]); g.lineTo(s[1], s[3]); g.strokeStyle = '#0d0e11'; g.lineWidth = 4.8; g.lineCap = 'round'; g.stroke();
+      g.beginPath(); g.moveTo(s[0], s[2] - 1.2); g.lineTo(s[1], s[3] - 1.2); g.strokeStyle = 'rgba(175,183,196,0.7)'; g.lineWidth = 1.3; g.stroke();
+    });
+    g.globalCompositeOperation = 'lighter';
+    [[ax, y], [bx, y + drift]].forEach(p => {
+      const rad = 19 + 5 * Math.sin(t * 3 + k * 2);
+      const gl = g.createRadialGradient(p[0], p[1], 0.5, p[0], p[1], rad);
+      gl.addColorStop(0, 'rgba(255,120,120,0.95)'); gl.addColorStop(0.3, 'rgba(255,40,55,0.5)'); gl.addColorStop(1, 'rgba(255,20,40,0)');
+      g.fillStyle = gl; g.beginPath(); g.arc(p[0], p[1], rad, 0, 6.2832); g.fill();
+    });
+    g.globalCompositeOperation = 'source-over';
+    g.fillStyle = '#ffd0d0';
+    [[ax, y], [bx, y + drift]].forEach(p => { g.beginPath(); g.arc(p[0], p[1], 2.3, 0, 6.2832); g.fill(); });
+    // étincelle instable entre les deux pointes
+    if(hyHash(k * 13 + Math.floor(t * 9)) > 0.9){
+      g.beginPath(); g.moveTo(ax, y);
+      for(let j = 1; j < 5; j++) g.lineTo(ax + (bx - ax) * j / 5, y + drift * j / 5 + (hyHash(k + j + Math.floor(t * 9)) - 0.5) * 12);
+      g.lineTo(bx, y + drift);
+      g.strokeStyle = 'rgba(255,100,110,0.85)'; g.lineWidth = 1.2; g.stroke();
+    }
+  }
+  hyCorruptStrand(g, pa, za, true, t, 1);
+  hyCorruptStrand(g, pb, zb, true, t, 2);
+  // lueur rouge aux croisements, plus forte près du centre
+  const gy0 = H * 0.46, pulse = 1 + 0.15 * Math.sin(t * 2.6);
+  g.globalCompositeOperation = 'lighter';
+  for(let k = -8; k < 16; k++){
+    const yc = (Math.PI / 2 + k * Math.PI - rot) * pitch / 6.2832;
+    if(yc < -80 || yc > H + 80) continue;
+    const w = Math.exp(-Math.pow((yc - gy0) / (pitch * 0.28), 2));
+    if(w < 0.03) continue;
+    const xc = cx0 + tilt(yc), rad = (46 + 60 * w) * pulse;
+    const gl = g.createRadialGradient(xc, yc, 2, xc, yc, rad);
+    gl.addColorStop(0, `rgba(255,110,110,${(0.9 * w).toFixed(2)})`); gl.addColorStop(0.3, `rgba(255,35,50,${(0.5 * w).toFixed(2)})`); gl.addColorStop(1, 'rgba(255,20,40,0)');
+    g.fillStyle = gl; g.beginPath(); g.arc(xc, yc, rad, 0, 6.2832); g.fill();
+  }
+  g.globalCompositeOperation = 'source-over';
+  // repères : cœur sélectionnable et traits de liaison, en rouge
+  const sel = hyDnaZones.find(z => z.id === hyZoneSel);
+  const selCol = sel ? (sel.status ? HY_STATUS[sel.status].color : '#ff3b4a') : '#ff3b4a';
+  S.cores.forEach(c => {
+    const on = c.id === hyZoneSel;
+    const z = hyDnaZones.find(q => q.id === c.id);
+    const gx = cx0 + tilt(c.y);
+    g.strokeStyle = on ? (z && z.status ? HY_STATUS[z.status].color : '#ff3b4a') : 'rgba(255,255,255,0.6)'; g.lineWidth = on ? 1.8 : 1.1;
+    g.beginPath(); g.arc(gx, c.y, 32, 0, 6.2832); g.stroke();
+    g.setLineDash([5, 6]); g.lineDashOffset = t * 14;
+    g.beginPath(); g.arc(gx, c.y, 46, 0, 6.2832); g.stroke();
+    g.setLineDash([]);
+    g.beginPath(); g.arc(gx, c.y, 62, -t * 0.7, -t * 0.7 + 1.6); g.stroke();
+  });
+  S.cards.forEach(c => {
+    const on = c.id === hyZoneSel;
+    const z = hyDnaZones.find(q => q.id === c.id);
+    const col = on ? (z && z.status ? HY_STATUS[z.status].color : '#ff3b4a') : 'rgba(255,255,255,0.5)';
+    const ex = cx0 + tilt(c.y) + (c.left ? -R * 0.3 : R * 0.3);
+    g.strokeStyle = col; g.lineWidth = on ? 1.6 : 1;
+    g.beginPath(); g.moveTo(c.x, c.y); g.lineTo(ex, c.y); g.stroke();
+    g.beginPath(); g.arc(ex, c.y, 10, 0, 6.2832); g.stroke();
+    g.fillStyle = col; g.beginPath(); g.arc(ex, c.y, 3, 0, 6.2832); g.fill();
+  });
+  if(hyZoneSel === 'c-helice' || hyZoneSel === 'helice'){
+    g.strokeStyle = selCol; g.lineWidth = 1.2; g.setLineDash([7, 7]); g.lineDashOffset = t * 18;
+    [-1, 1].forEach(sd => { g.beginPath(); g.moveTo(cx0 + tilt(0) + sd * (R + 34), 0); g.lineTo(cx0 + tilt(H) + sd * (R + 34), H); g.stroke(); });
+    g.setLineDash([]);
+  }
+  // glitch : de temps en temps, des bandes horizontales de l'image se décalent
+  const gk = Math.floor(t * 5);
+  if(hyHash(gk) > 0.8){
+    const c = g.canvas;
+    g.setTransform(1, 0, 0, 1, 0, 0);
+    for(let b = 0; b < 3; b++){
+      const y = Math.floor(hyHash(gk + b * 5) * c.height * 0.9), h = Math.floor((0.03 + hyHash(gk + b * 11) * 0.07) * c.height), dx = Math.floor((hyHash(gk + b * 17) - 0.5) * 50 * S.dpr);
+      g.drawImage(c, 0, y, c.width, h, dx, y, c.width, h);
+    }
+    g.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
+  }
+}
+
+// Bascule entre l'ADN normal et l'ADN corrompu, avec un glitch sur toute la page.
+function hySetMode(m) {
+  if(m === hyMode) return;
+  if(!document.querySelector('.hy-console') || document.querySelector('.hy-glitch-ov')){ hyMode = m; hyZoneSel = ''; render(); return; }
+  const ov = document.createElement('div');
+  ov.className = 'hy-glitch-ov';
+  let bars = '';
+  for(let i = 0; i < 9; i++) bars += `<i style="top:${Math.round(Math.random() * 92)}%;height:${(2 + Math.random() * 9).toFixed(1)}%;animation-delay:${Math.round(Math.random() * 280)}ms"></i>`;
+  ov.innerHTML = bars;
+  document.body.appendChild(ov);
+  const con = document.querySelector('.hy-console');
+  if(con) con.classList.add('glitching');
+  window.setTimeout(() => {
+    hyMode = m; hyZoneSel = '';
+    render();
+    const c2 = document.querySelector('.hy-console');
+    if(c2) c2.classList.add('glitching');
+  }, 340);
+  window.setTimeout(() => {
+    ov.remove();
+    const c3 = document.querySelector('.hy-console');
+    if(c3) c3.classList.remove('glitching');
+  }, 860);
+}
+
 function hyDnaDraw(g, S, t) {
+  if(hyMode === 'c'){ hyDnaDrawCorrupt(g, S, t); return; }
   const W = S.W, H = S.H;
   g.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
   g.clearRect(0, 0, W, H);
@@ -4361,7 +4578,7 @@ function hyConsoleHtml(e) {
   if(!zones.some(z => z.id === hyZoneSel)) hyZoneSel = zones.length ? zones[0].id : '';
   const idx = zones.findIndex(z => z.id === hyZoneSel);
   const logged = isLoggedIn();
-  const custom = !!(cityPagesCache[e.id] && Array.isArray(cityPagesCache[e.id].elements));
+  const custom = !!(cityPagesCache[e.id] && Array.isArray(cityPagesCache[e.id][hyMode === 'c' ? 'elementsC' : 'elements']));
   const tiles = zones.map((z, i) => `<button type="button" class="hy-tile st-${z.status || 'n'}${z.id === hyZoneSel ? ' on' : ''}" data-zone="${z.id}" onclick="hySelectZone('${z.id}')"><small>${String(i + 1).padStart(2, '0')}</small><b>${esc(z.name)}</b><i></i></button>`).join('');
   const marks = zones.map(z => {
     const on = z.id === hyZoneSel ? ' on' : '';
@@ -4372,9 +4589,9 @@ function hyConsoleHtml(e) {
   const detail = idx >= 0 ? hyDetailHtml(zones[idx], idx)
     : `<p class="hy-empty">Aucun élément pour le moment.</p>${logged ? `<div class="hy-d-acts ed-only"><button type="button" class="hy-edit" onclick="openZoneEditor('')">+ Ajouter un élément</button></div>` : ''}`;
   const acts = logged ? `<div class="hy-left-acts ed-only"><button type="button" class="hy-edit" onclick="openZoneEditor('')">+ Ajouter un élément</button>${custom ? `<button type="button" class="hy-edit hy-reset" onclick="resetElements()">↺ Éléments d'origine</button>` : ''}</div>` : '';
-  return `<div class="hy-console cv-rv" data-entry="${escAttr(e.id)}">
+  return `<div class="hy-console cv-rv${hyMode === 'c' ? ' corrupt' : ''}" data-entry="${escAttr(e.id)}">
     <div class="hy-brackets" aria-hidden="true"><i></i><i></i><i></i><i></i></div>
-    <div class="hy-topbar"><span class="hy-brand">ARCHIVES MÉDICALES <em>// HYBRIDATION</em></span><span class="hy-barcode">${hyBarcode('hy-top')}</span></div>
+    <div class="hy-topbar"><span class="hy-brand">ARCHIVES MÉDICALES <em>// ${hyMode === 'c' ? 'HYBRIDATION CORROMPUE' : 'HYBRIDATION'}</em></span><div class="hy-modes" role="group" aria-label="Type d'ADN"><button type="button" class="${hyMode !== 'c' ? 'on' : ''}" onclick="hySetMode('n')">ADN normal</button><button type="button" class="c${hyMode === 'c' ? ' on' : ''}" onclick="hySetMode('c')">ADN corrompu</button></div><span class="hy-barcode">${hyBarcode('hy-top')}</span></div>
     <div class="hy-cols">
       <aside class="hy-left"><div class="hy-tab"><span>Éléments</span><i></i></div><div class="hy-tiles">${tiles}</div>${acts}</aside>
       <div class="hy-stage hy-dna">
@@ -4415,7 +4632,7 @@ function openZoneEditor(id) {
   const sides = [['c', 'Au cœur de l\'hélice (point lumineux)'], ['l', 'À gauche (étiquette reliée à l\'hélice)'], ['r', 'À droite (étiquette reliée à l\'hélice)'], ['h', 'Aucun repère (liste uniquement)']];
   box.innerHTML = `
     <button type="button" class="nv-card-x" onclick="closeZoneEditor()">✕</button>
-    <div class="nv-ed-title">${found ? 'Élément : ' + esc(z.name) : 'Nouvel élément'}</div>
+    <div class="nv-ed-title">${found ? 'Élément : ' + esc(z.name) : 'Nouvel élément'}${hyMode === 'c' ? ' (ADN corrompu)' : ''}</div>
     <label>Nom</label>
     <input id="hzName" type="text" value="${escAttr(z.name)}" placeholder="ex : Gène d'Oxiri">
     <label>Sous-titre</label>
@@ -4461,7 +4678,7 @@ function saveZone() {
   const i = list.findIndex(x => x.id === f.id);
   if(f.id && i >= 0) list[i] = el; else list.push(el);
   hyZoneSel = el.id || '';
-  writeCityPatch(f.entryId, { elements: list })
+  writeCityPatch(f.entryId, { [hyField()]: list })
     .then(() => closeZoneEditor())
     .catch((err) => alert('Enregistrement impossible : ' + (err && err.message ? err.message : err)));
 }
@@ -4475,7 +4692,7 @@ function deleteZone(id) {
   if(!confirm('Supprimer l\'élément « ' + z.name + ' » ? Cette action est définitive.')) return;
   const list = all.filter(x => x.id !== id).map(hyToEl);
   if(hyZoneSel === id) hyZoneSel = list.length ? (list[0].id || '') : '';
-  writeCityPatch(entryId, { elements: list })
+  writeCityPatch(entryId, { [hyField()]: list })
     .then(() => closeZoneEditor())
     .catch((err) => alert('Suppression impossible : ' + (err && err.message ? err.message : err)));
 }
@@ -4483,8 +4700,8 @@ function deleteZone(id) {
 function resetElements() {
   if(!isLoggedIn()) return;
   if(!confirm('Rétablir les éléments d\'origine ? Tes ajouts et modifications seront perdus.')) return;
-  hyZoneSel = 'gene';
-  writeCityPatch(hyEntryId(), { elements: null, zones: null })
+  hyZoneSel = '';
+  writeCityPatch(hyEntryId(), hyMode === 'c' ? { elementsC: null } : { elements: null, zones: null })
     .catch((err) => alert('Impossible de rétablir : ' + (err && err.message ? err.message : err)));
 }
 
@@ -4552,7 +4769,7 @@ function renderHybridesPage(e) {
       <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
       ${hero}
       <section class="city-sec" id="city-ville">
-        ${secHead('I', 'Génétique', 'L\'ADN <em>HYBRIDÉ</em>', 'Clique sur un élément du schéma pour lire ce qui le concerne.')}
+        ${hyMode === 'c' ? secHead('I', 'Génétique', 'L\'ADN <em>CORROMPU</em>', 'Données instables : clique sur un fragment pour lire ce qui le concerne.') : secHead('I', 'Génétique', 'L\'ADN <em>HYBRIDÉ</em>', 'Clique sur un élément du schéma pour lire ce qui le concerne.')}
         ${hyConsoleHtml(e)}
       </section>
       <section class="city-sec" id="city-rel">

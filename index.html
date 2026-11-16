@@ -3352,14 +3352,14 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 
 /* console du schéma corporel */
 .hy-console{ position:relative; margin-top:34px; padding:16px 18px 18px; background: linear-gradient(180deg, #0a0b0d, #060708); border:1px solid rgba(255,255,255,0.16); }
-.hy-brackets i{ position:absolute; width:18px; height:18px; border:2px solid #f2e24a; pointer-events:none; }
+.hy-brackets i{ position:absolute; width:18px; height:18px; border:2px solid var(--hy-acc,#f2e24a); pointer-events:none; }
 .hy-brackets i:nth-child(1){ left:-2px; top:-2px; border-right:0; border-bottom:0; }
 .hy-brackets i:nth-child(2){ right:-2px; top:-2px; border-left:0; border-bottom:0; }
 .hy-brackets i:nth-child(3){ left:-2px; bottom:-2px; border-right:0; border-top:0; }
 .hy-brackets i:nth-child(4){ right:-2px; bottom:-2px; border-left:0; border-top:0; }
 .hy-topbar{ display:flex; align-items:center; justify-content:space-between; gap:16px; padding-bottom:12px; margin-bottom:14px; border-bottom:1px solid rgba(255,255,255,0.14); }
 .hy-brand{ font-family:'IBM Plex Mono', monospace !important; font-size:11px; letter-spacing:.3em; color:#e9eef1; }
-.hy-brand em{ font-style:normal; color:#f2e24a; }
+.hy-brand em{ font-style:normal; color:var(--hy-acc,#f2e24a); }
 .hy-barcode{ width:120px; height:14px; opacity:.8; }
 .hy-barcode svg{ width:100%; height:100%; fill:#e9eef1; display:block; }
 .hy-cols{ display:grid; grid-template-columns: 210px minmax(0,1fr) 340px; gap:20px; align-items:start; }
@@ -3383,22 +3383,22 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .hy-gene span{ position:absolute; left:50%; top:100%; transform:translateX(-50%); margin-top:26px; white-space:nowrap; padding:3px 10px; font-family:'IBM Plex Mono', monospace !important; font-size:10.5px; letter-spacing:.18em; text-transform:uppercase; color:#0a0b0d; background:#f1f4f6; }
 .hy-gene.on span{ background:var(--hs); }
 
-.hy-detail{ padding:16px 18px 18px; background:#0b0c0e; border:1px solid rgba(255,255,255,0.16); border-top:2px solid var(--hs, #f2e24a); min-height:420px; }
+.hy-detail{ padding:16px 18px 18px; background:#0b0c0e; border:1px solid rgba(255,255,255,0.16); border-top:2px solid var(--hs, var(--hy-acc,#f2e24a)); min-height:420px; }
 .hy-detail.pop{ animation: hyPop .35s ease; }
 @keyframes hyPop{ from{ opacity:.2; transform: translateX(10px); } to{ opacity:1; transform:none; } }
 .hy-d-head{ display:flex; align-items:center; justify-content:space-between; font-family:'IBM Plex Mono', monospace !important; font-size:10.5px; letter-spacing:.24em; color:#8d969c; }
 .hy-d-head em{ font-style:normal; padding:2px 9px; border:1px solid var(--hs); color:var(--hs); }
 .hy-d-title{ margin:10px 0 2px; font-weight:700; font-size:clamp(24px, 2.2vw, 34px); letter-spacing:.04em; text-transform:uppercase; color:#f3f6f8; line-height:1.1; }
 .hy-d-sub{ margin:0 0 12px; color:#aab3b9; font-size:15px; }
-.hy-d-text{ margin-top:12px; padding:14px 16px; background:#101215; border:1px solid rgba(255,255,255,0.1); border-left:3px solid #f2e24a; }
+.hy-d-text{ margin-top:12px; padding:14px 16px; background:#101215; border:1px solid rgba(255,255,255,0.1); border-left:3px solid var(--hy-acc,#f2e24a); }
 .hy-d-text p{ margin:0 0 10px; color:#d6dde1; font-size:15.5px; line-height:1.7; }
 .hy-d-text p:last-child{ margin-bottom:0; }
-.hy-d-text h3, .hy-d-text h4{ margin:12px 0 6px; font-size:15px; letter-spacing:.08em; text-transform:uppercase; color:#f2e24a; }
+.hy-d-text h3, .hy-d-text h4{ margin:12px 0 6px; font-size:15px; letter-spacing:.08em; text-transform:uppercase; color:var(--hy-acc,#f2e24a); }
 .hy-empty{ color:#7d868c !important; font-style:italic; }
 .hy-ring{ display:flex; align-items:center; gap:14px; margin:12px 0 4px; }
 .hy-ring svg{ width:92px; height:92px; flex:none; }
 .hy-ring .bg{ fill:none; stroke:rgba(255,255,255,0.14); stroke-width:5; }
-.hy-ring .fg{ fill:none; stroke:var(--hs, #f2e24a); stroke-width:5; stroke-linecap:butt; }
+.hy-ring .fg{ fill:none; stroke:var(--hs, var(--hy-acc,#f2e24a)); stroke-width:5; stroke-linecap:butt; }
 .hy-ring text{ fill:#f3f6f8; font-size:24px; font-weight:600; font-family:'Barlow', sans-serif; }
 .hy-ring tspan{ font-size:11px; fill:#8d969c; }
 .hy-ring small{ font-family:'IBM Plex Mono', monospace !important; font-size:10px; letter-spacing:.22em; text-transform:uppercase; color:#8d969c; }
@@ -3407,12 +3407,12 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .hy-stat span{ text-transform:uppercase; letter-spacing:.06em; font-size:12.5px; }
 .hy-stat b{ font-weight:600; color:#f3f6f8; }
 .hy-stat i{ grid-column:1 / -1; display:block; height:3px; background:rgba(255,255,255,0.14); position:relative; }
-.hy-stat i::after{ content:''; position:absolute; left:0; top:0; bottom:0; width:var(--v); background:#f2e24a; }
-.hy-edit{ margin-top:16px; padding:8px 14px; cursor:pointer; background:transparent; border:1px dashed #f2e24a; color:#f2e24a; font-family:'IBM Plex Mono', monospace !important; font-size:11px; letter-spacing:.1em; text-transform:uppercase; }
-.hy-edit:hover{ background:#f2e24a; color:#0a0b0d; }
+.hy-stat i::after{ content:''; position:absolute; left:0; top:0; bottom:0; width:var(--v); background:var(--hy-acc,#f2e24a); }
+.hy-edit{ margin-top:16px; padding:8px 14px; cursor:pointer; background:transparent; border:1px dashed var(--hy-acc,#f2e24a); color:var(--hy-acc,#f2e24a); font-family:'IBM Plex Mono', monospace !important; font-size:11px; letter-spacing:.1em; text-transform:uppercase; }
+.hy-edit:hover{ background:var(--hy-acc,#f2e24a); color:#0a0b0d; }
 .hy-mark{ position:absolute; z-index:3; transform:translateY(-50%); max-width:42%; padding:6px 14px; cursor:pointer; border:0; background:#f1f4f6; color:#0a0b0d; --hs:#e8eef2; font-family:'IBM Plex Mono', monospace !important; font-size:11px; font-weight:600; letter-spacing:.14em; text-transform:uppercase; text-align:left; transition: background .2s ease; }
 .hy-mark:hover{ background:#fff; }
-.hy-mark.st-n.on{ --hs:#f2e24a; }
+.hy-mark.st-n.on{ --hs:var(--hy-acc,#f2e24a); }
 .hy-mark.on{ background:var(--hs); }
 .hy-left-acts, .hy-d-acts{ margin-top:12px; flex-wrap:wrap; gap:8px; }
 .hy-left-acts .hy-edit, .hy-d-acts .hy-edit{ margin-top:0; }
@@ -3449,6 +3449,43 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .hy-chips span{ padding:4px 10px; background:#14161a; border:1px solid rgba(255,255,255,0.18); font-size:13px; color:#e3e9ec; }
 .hy-chips small{ margin-right:6px; font-family:'IBM Plex Mono', monospace !important; font-size:9px; letter-spacing:.18em; text-transform:uppercase; color:#8d969c; }
 .hy-go{ margin-top:auto; padding-top:8px; font-family:'IBM Plex Mono', monospace !important; font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; color:#f2e24a; }
+
+/* ---- ADN corrompu : interrupteur, thème rouge de la console et glitch de page ---- */
+.hy-modes{ display:flex; }
+.hy-modes button{ cursor:pointer; padding:6px 14px; background:transparent; color:#aeb7bd; border:1px solid rgba(255,255,255,0.25); font-family:'IBM Plex Mono', monospace !important; font-size:10.5px; letter-spacing:.2em; text-transform:uppercase; transition: background .2s ease, color .2s ease, border-color .2s ease; }
+.hy-modes button + button{ border-left:0; }
+.hy-modes button.on{ background:#e9eef1; color:#0a0b0d; border-color:#e9eef1; }
+.hy-modes button.c.on{ background:#ff2a3d; color:#fff; border-color:#ff2a3d; }
+.hy-modes button:hover:not(.on){ color:#fff; border-color:rgba(255,255,255,0.7); }
+.hy-console.corrupt{ --hy-acc:#ff2a3d; border-color: rgba(255,42,61,0.35); }
+.hy-console.corrupt .hy-tile.st-n, .hy-console.corrupt .hy-mark.st-n, .hy-console.corrupt .hy-gene.st-n{ --hs:#ff5a66; }
+.hy-console.corrupt .hy-stage{ background: radial-gradient(ellipse at 50% 46%, #1d0a0e 0%, #09090b 72%); border-color: rgba(255,42,61,0.25); }
+.hy-console.corrupt .hy-brand em{ animation: hyTxt 3.2s steps(1) infinite; }
+.hy-console.corrupt .hy-d-title{ text-shadow: 2px 0 rgba(255,42,61,0.65), -2px 0 rgba(70,200,255,0.4); }
+.hy-console.corrupt .hy-tab span{ background: repeating-linear-gradient(135deg, rgba(255,42,61,0.3) 0 2px, transparent 2px 6px), rgba(255,255,255,0.05); }
+@keyframes hyTxt{ 0%, 92%, 100%{ transform:none; opacity:1; } 93%{ transform: translateX(3px) skewX(-8deg); opacity:.6; } 95%{ transform: translateX(-3px); opacity:.9; } }
+.hy-console.glitching{ animation: hyConGlitch .85s steps(2) both; }
+@keyframes hyConGlitch{
+  0%{ transform:none; filter:none; clip-path:none; }
+  12%{ transform: translate(-8px, 2px) skewX(2deg); filter: hue-rotate(35deg) contrast(1.4); }
+  24%{ transform: translate(11px, -3px); clip-path: inset(8% 0 55% 0); }
+  36%{ transform: translate(-14px, 3px); clip-path:none; filter: invert(.18) saturate(2.2); }
+  48%{ transform: translate(9px, 0) skewX(-4deg); clip-path: inset(50% 0 10% 0); }
+  62%{ transform: translate(-6px, -2px); clip-path:none; filter: hue-rotate(-50deg); }
+  78%{ transform: translate(4px, 1px); filter:none; }
+  100%{ transform:none; filter:none; clip-path:none; }
+}
+.hy-glitch-ov{ position:fixed; inset:0; z-index:9999; pointer-events:none; overflow:hidden; animation: hyOvBase .85s steps(1) both; }
+@keyframes hyOvBase{
+  0%{ backdrop-filter:none; } 10%{ backdrop-filter: contrast(1.5) hue-rotate(40deg); } 30%{ backdrop-filter: invert(.25) saturate(2); }
+  55%{ backdrop-filter: contrast(1.3) hue-rotate(-40deg); } 80%{ backdrop-filter: saturate(1.5); } 100%{ backdrop-filter:none; }
+}
+.hy-glitch-ov i{ position:absolute; left:0; right:0; background: rgba(255,42,61,0.18); backdrop-filter: invert(1) hue-rotate(160deg); opacity:0; animation: hyBar .5s steps(2) both; }
+.hy-glitch-ov i:nth-child(3n){ background: rgba(60,200,255,0.16); backdrop-filter: hue-rotate(90deg) contrast(2); }
+.hy-glitch-ov i:nth-child(3n+1){ backdrop-filter: blur(3px) saturate(3); }
+@keyframes hyBar{ 0%{ opacity:0; transform: translateX(0); } 30%{ opacity:1; transform: translateX(-30px); } 60%{ opacity:1; transform: translateX(40px); } 100%{ opacity:0; transform: translateX(0); } }
+@media (prefers-reduced-motion: reduce){ .hy-console.glitching, .hy-glitch-ov, .hy-glitch-ov i, .hy-console.corrupt .hy-brand em{ animation:none; } }
+@media (max-width:640px){ .hy-topbar{ flex-wrap:wrap; } .hy-modes{ order:3; width:100%; } .hy-modes button{ flex:1; } }
 
 /* ---- Dossiers d'escadron et de département : habillage HUD (comme Hybrides) avec une couleur et un motif par thème ---- */
 .city.sq .sec-t em, .sq-after .sec-t em{ color: var(--acc); }
@@ -4620,6 +4657,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=138"></script>
+<script src="dist/main.js?v=140"></script>
 </body>
 </html>
