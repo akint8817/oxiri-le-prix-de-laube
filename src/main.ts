@@ -4817,7 +4817,8 @@ function hyGap(y: number, t: number, seed: number): boolean {
 
 // Les fils turquoise virent au rouge ; les fils orange restent.
 function hyCorruptCol(c: string): string {
-  return c === '60,205,195' ? '255,72,82' : c === '90,225,215' ? '255,112,92' : c === '255,246,215' ? '255,205,195' : c;
+  const m: Record<string, string> = { '236,168,60': '104,48,178', '255,205,110': '136,84,214', '60,205,195': '58,24,104', '255,246,215': '170,140,224', '240,140,50': '78,32,142', '90,225,215': '34,16,62' };
+  return m[c] || c;
 }
 
 function hyDnaDrawCorrupt(g: CanvasRenderingContext2D, S: HyDnaCtx, t: number): void {
@@ -4828,7 +4829,7 @@ function hyDnaDrawCorrupt(g: CanvasRenderingContext2D, S: HyDnaCtx, t: number): 
   g.clearRect(0, 0, W, H);
   // fond : lueur rouge sombre
   const bg = g.createRadialGradient(W / 2, H * 0.46, 10, W / 2, H * 0.46, Math.max(W, H) * 0.7);
-  bg.addColorStop(0, 'rgba(120,18,30,0.5)'); bg.addColorStop(1, 'rgba(8,6,8,0)');
+  bg.addColorStop(0, 'rgba(120,24,70,0.5)'); bg.addColorStop(0.5, 'rgba(46,20,92,0.32)'); bg.addColorStop(1, 'rgba(8,6,12,0)');
   g.fillStyle = bg; g.fillRect(0, 0, W, H);
   g.strokeStyle = 'rgba(255,255,255,0.05)'; g.lineWidth = 1;
   for(let i = 0; i < 6; i++){ const y = H * (0.12 + i * 0.16); g.beginPath(); g.moveTo(0, y); g.quadraticCurveTo(W / 2, y - 40 + i * 12, W, y + 10); g.stroke(); }
@@ -4837,7 +4838,7 @@ function hyDnaDrawCorrupt(g: CanvasRenderingContext2D, S: HyDnaCtx, t: number): 
     const x = (b.x + Math.sin(t * 0.3 + b.ph) * 0.02) * W;
     const y = ((((b.y - t * b.v) % 1) + 1) % 1) * H;
     const a0 = hyHash(k) * 6.2832 + t * 0.3;
-    g.beginPath(); g.arc(x, y, b.r, a0, a0 + 4.1); g.strokeStyle = 'rgba(255,95,95,0.38)'; g.lineWidth = 1; g.stroke();
+    g.beginPath(); g.arc(x, y, b.r, a0, a0 + 4.1); g.strokeStyle = 'rgba(176,128,255,0.38)'; g.lineWidth = 1; g.stroke();
     if(k % 4 === 0){ g.fillStyle = 'rgba(255,90,90,0.4)'; g.fillRect(x + b.r * 0.9, y - b.r * 0.4, 4, 4); }
   });
   // géométrie : l'hélice normale, avec des irrégularités
@@ -4874,7 +4875,7 @@ function hyDnaDrawCorrupt(g: CanvasRenderingContext2D, S: HyDnaCtx, t: number): 
   strandNodes(false);
   rungs.forEach(q => { if(q[3] < 0) hyNode(g, sprite, q[1], q[0], q[3], 80); else hyNode(g, sprite, q[2], q[0], -q[3], 80); });
   // demi-barreaux : chaque barreau est coupé au centre, ses deux moitiés finissent en pointes rouges qui ne se touchent pas
-  const cols = ['236,168,60', '255,72,82', '255,222,150', '240,110,60'];
+  const cols = ['118,60,196', '255,72,82', '160,120,226', '88,40,156'];
   rungs.forEach((q, k) => {
     const f = 0.37 + 0.05 * Math.sin(k * 1.7 + t * 0.6);
     const ax = q[1] + (q[2] - q[1]) * f, bx = q[2] - (q[2] - q[1]) * f;
@@ -4962,11 +4963,6 @@ function hyDnaDrawCorrupt(g: CanvasRenderingContext2D, S: HyDnaCtx, t: number): 
     [-1, 1].forEach(sd => { g.beginPath(); g.moveTo(cx0 + tilt(0) + sd * (R + 34), 0); g.lineTo(cx0 + tilt(H) + sd * (R + 34), H); g.stroke(); });
     g.setLineDash([]);
   }
-  // corruption : teinte rouge sur ce qui est dessiné
-  g.globalCompositeOperation = 'source-atop';
-  g.fillStyle = 'rgba(255,30,45,0.12)';
-  g.fillRect(0, 0, W, H);
-  g.globalCompositeOperation = 'source-over';
   // corruption : blocs numériques parasites autour de l'hélice
   const bk = Math.floor(t * 10);
   for(let i = 0; i < 8; i++){
@@ -4988,23 +4984,42 @@ function hyDnaDrawCorrupt(g: CanvasRenderingContext2D, S: HyDnaCtx, t: number): 
   g.setTransform(S.dpr, 0, 0, S.dpr, 0, 0);
 }
 
+function hyHeadingHtml(): string {
+  return hyMode === 'c'
+    ? secHead('I', 'Génétique', 'L\'ADN <em>CORROMPU</em>', 'Données instables : clique sur un fragment pour lire ce qui le concerne.')
+    : secHead('I', 'Génétique', 'L\'ADN <em>HYBRIDÉ</em>', 'Clique sur un élément du schéma pour lire ce qui le concerne.');
+}
+
 // Bascule entre l'ADN normal et l'ADN corrompu, avec un glitch sur toute la page.
+// Seule la console est remplacée (pas toute la page) : la musique d'ambiance du bandeau n'est donc pas coupée.
 function hySetMode(m: string): void {
   if(m === hyMode) return;
-  if(!document.querySelector('.hy-console') || document.querySelector('.hy-glitch-ov')){ hyMode = m; hyZoneSel = ''; render(); return; }
+  const old = document.querySelector<HTMLElement>('.hy-console');
+  const eid = old ? (old.dataset.entry || 'hybrides') : '';
+  if(!old || !findEntry(eid) || document.querySelector('.hy-glitch-ov')){ hyMode = m; hyZoneSel = ''; render(); return; }
   const ov = document.createElement('div');
   ov.className = 'hy-glitch-ov';
   let bars = '';
   for(let i = 0; i < 9; i++) bars += `<i style="top:${Math.round(Math.random() * 92)}%;height:${(2 + Math.random() * 9).toFixed(1)}%;animation-delay:${Math.round(Math.random() * 280)}ms"></i>`;
   ov.innerHTML = bars;
   document.body.appendChild(ov);
-  const con = document.querySelector('.hy-console');
-  if(con) con.classList.add('glitching');
+  old.classList.add('glitching');
   window.setTimeout(() => {
     hyMode = m; hyZoneSel = '';
-    render();
-    const c2 = document.querySelector('.hy-console');
-    if(c2) c2.classList.add('glitching');
+    const e = findEntry(eid);
+    const cur = document.querySelector<HTMLElement>('.hy-console');
+    if(e && cur){
+      cur.outerHTML = hyConsoleHtml(e);
+      const nc = document.querySelector<HTMLElement>('.hy-console');
+      if(nc){ nc.classList.add('in'); nc.classList.add('glitching'); }
+    }
+    const head = document.querySelector<HTMLElement>('#city-ville .sec-h');
+    if(head){
+      head.outerHTML = hyHeadingHtml();
+      const nh = document.querySelector<HTMLElement>('#city-ville .sec-h');
+      if(nh) nh.classList.add('in');
+    }
+    hyInitDna();
   }, 340);
   window.setTimeout(() => {
     ov.remove();
@@ -5416,7 +5431,7 @@ function renderHybridesPage(e: Entry): string {
       <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
       ${hero}
       <section class="city-sec" id="city-ville">
-        ${hyMode === 'c' ? secHead('I', 'Génétique', 'L\'ADN <em>CORROMPU</em>', 'Données instables : clique sur un fragment pour lire ce qui le concerne.') : secHead('I', 'Génétique', 'L\'ADN <em>HYBRIDÉ</em>', 'Clique sur un élément du schéma pour lire ce qui le concerne.')}
+        ${hyHeadingHtml()}
         ${hyConsoleHtml(e)}
       </section>
       <section class="city-sec" id="city-rel">
