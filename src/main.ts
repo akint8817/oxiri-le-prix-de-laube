@@ -613,7 +613,7 @@ function unlockArchive(blockId: string): void {
       // l'ouverture ("Ouvrir le dossier") ; si l'archive révèle plus de
       // texte qu'avant, il faut agrandir cette hauteur pour ne pas couper
       // le texte qui vient d'apparaître.
-      const chronoBody = block.closest('.chrono-body') as HTMLElement | null;
+      const chronoBody = block.closest('.chrono-body, .tl-body') as HTMLElement | null;
       if(chronoBody && chronoBody.style.maxHeight && chronoBody.style.maxHeight !== '0px'){
         chronoBody.style.maxHeight = chronoBody.scrollHeight + 'px';
       }
@@ -6651,56 +6651,90 @@ function chronoBodyHtml(body: ChronoBodyItem[]): string {
   return out.join('');
 }
 
+// Page « Chronologie » : même habillage HUD que les autres pages (bandeau, plaque « Archives », panneaux pleins, fond animé),
+// en teinte ambre avec un cadran d'horloge qui tourne et une règle graduée en arrière-plan. La frise est un axe gradué central,
+// avec des nœuds en losange et des fiches pleines de part et d'autre.
 function renderChronologie(): string {
-  const legend = Object.keys(CHRONO_TAGS).map(chronoTagHtml).join('');
   const loggedIn = isLoggedIn();
-  const rows = getAllChronoEvents().map((ev, i) => {
-    const side = i % 2 === 0 ? 'chrono-left' : 'chrono-right';
+  const evs = getAllChronoEvents();
+  const tagKeys = Object.keys(CHRONO_TAGS);
+  const legend = tagKeys.map(chronoTagHtml).join('');
+  const rows = evs.map((ev, i) => {
+    const side = i % 2 === 0 ? 'tl-l' : 'tl-r';
     const actions = loggedIn ? `
-        <div class="chrono-actions">
+        <div class="tl-actions">
           <span class="btn btn-ghost" onclick="editChronoEvent('${ev.id}')">Modifier</span>
           <span class="btn btn-ghost" onclick="if(confirm('Supprimer définitivement cet événement de la chronologie ?')){ deleteChronoEvent('${ev.id}'); }">Supprimer</span>
         </div>` : '';
     return `
-    <div class="chrono-row ${side}">
-      <div class="chrono-dot"></div>
-      <div class="chrono-card">
-        <div class="chrono-card-head">
-          <span class="chrono-numeral">${esc(ev.numeral)}</span>
-          <span class="chrono-date">${esc(ev.date)}</span>
+    <div class="tl-row ${side} cv-rv">
+      <div class="tl-node"><i></i></div>
+      <article class="tl-card">
+        <div class="tl-head">
+          <span class="tl-num">${esc(ev.numeral)}</span>
+          <span class="tl-date">${esc(ev.date)}</span>
+          <span class="tl-code">EV-${String(i + 1).padStart(3, '0')}</span>
         </div>
         <div class="chrono-tags">${ev.tags.map(chronoTagHtml).join('')}</div>
-        <h3 class="chrono-card-title">${esc(ev.title)}</h3>
-        <div class="chrono-body" id="chronoBody-${ev.id}">${chronoBodyHtml(ev.body)}</div>
-        <button type="button" class="chrono-toggle" onclick="toggleChronoCard(this)">Ouvrir le dossier ›</button>
+        <h3 class="tl-title">${esc(ev.title)}</h3>
+        <div class="tl-body" id="chronoBody-${ev.id}">${chronoBodyHtml(ev.body)}</div>
+        <button type="button" class="tl-toggle" onclick="toggleChronoCard(this)">Ouvrir le dossier ›</button>
         ${actions}
-      </div>
+      </article>
     </div>`;
   }).join('');
 
+  const facts: [string, string][] = [
+    ['Événements', String(evs.length)],
+    ['Début des archives', evs.length ? evs[0].date : '—'],
+    ['Dernière entrée', evs.length ? evs[evs.length - 1].date : '—'],
+    ['Thèmes', String(tagKeys.length)],
+  ];
+  const actions = `<button type="button" class="city-btn" onclick="scrollToCity('tl-frise')">La frise ↓</button>
+    <button type="button" class="city-btn" onclick="scrollToCity('city-ville')">Légende ↓</button>
+    ${loggedIn ? `<button type="button" class="city-btn" onclick="navigate('ecriture'); setTimeout(()=>document.getElementById('chronoWriteForm')?.scrollIntoView({behavior:'smooth', block:'start'}), 60);">+ Ajouter un événement</button>` : ''}`;
+  const hero = cityHeroHtml({
+    kicker: 'Archives temporelles · Oxiri',
+    title: 'Chronologie du monde',
+    tagline: "L'histoire n'est jamais écrite par ceux qui l'ont vécue. Elle est écrite par ceux qui ont survécu.",
+    facts, img: '', tape: '', plaque: 'Archives', actions, music: '',
+  });
+  const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Légende', g: 'i' }, { id: 'tl-frise', t: 'La frise', g: 'II' }];
   return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / Chronologie</div>
-    <div class="chrono-page">
-      <div class="chrono-epigraph">
-        <p>« L'histoire n'est jamais écrite par ceux qui l'ont vécue. Elle est écrite par ceux qui ont survécu. »</p>
-        <span>— Fragment retrouvé dans les ruines de l'ancienne capitale</span>
-      </div>
-      <h1 class="chrono-title">OXIRI — Frise chronologique du monde</h1>
-      ${loggedIn ? `<div style="margin-bottom:16px;"><span class="btn btn-primary" onclick="navigate('ecriture'); setTimeout(()=>document.getElementById('chronoWriteForm')?.scrollIntoView({behavior:'smooth', block:'start'}), 60);">+ Ajouter un événement</span></div>` : ''}
-      <div class="chrono-legend">${legend}</div>
-      <div class="chrono-timeline">
-        <div class="chrono-line"></div>
-        ${rows}
-      </div>
+    <div class="city med sq sq-chrono" style="--acc:${SQ_ACCENTS.chrono}">
+      ${sqBgHtml('chrono', 'chrono')}
+      <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
+      ${hero}
+      <section class="city-sec" id="city-ville">
+        ${secHead('I', 'Repères', 'LA <em>LÉGENDE</em>', 'Clique sur un thème pour lire sa définition.')}
+        <div class="tl-intro">
+          ${pnl('Thèmes', tagKeys.length + ' repères', `<div class="chrono-legend">${legend}</div>`)}
+          <figure class="tl-epi cv-rv">
+            <span class="tl-epi-q">«</span>
+            <blockquote>L'histoire n'est jamais écrite par ceux qui l'ont vécue. Elle est écrite par ceux qui ont survécu.</blockquote>
+            <figcaption>Fragment retrouvé dans les ruines de l'ancienne capitale</figcaption>
+          </figure>
+        </div>
+      </section>
+      <section class="city-sec" id="tl-frise">
+        ${secHead('II', 'Archives', 'LA <em>FRISE</em>', evs.length ? evs.length + ' événement' + (evs.length > 1 ? 's' : '') + ' consigné' + (evs.length > 1 ? 's' : '') + ', du plus ancien au plus récent.' : '')}
+        <div class="tl">
+          <div class="tl-cap tl-cap-top"><span>◆ Début des archives</span></div>
+          <div class="tl-line"></div>
+          ${rows || '<p class="tl-empty">Aucun événement consigné pour le moment.</p>'}
+          <div class="tl-cap tl-cap-end"><span>Fin des archives · à suivre ◆</span></div>
+        </div>
+      </section>
     </div>
     <div class="chrono-tag-popover" id="chronoTagPopover"></div>
   `;
 }
 
 function toggleChronoCard(btn: HTMLElement): void {
-  const card = btn.closest('.chrono-card') as HTMLElement | null;
+  const card = btn.closest('.tl-card') as HTMLElement | null;
   if(!card) return;
-  const body = card.querySelector('.chrono-body') as HTMLElement | null;
+  const body = card.querySelector('.tl-body') as HTMLElement | null;
   if(!body) return;
   const expanded = card.classList.toggle('expanded');
   if(expanded){
@@ -6743,25 +6777,6 @@ document.addEventListener('click', (ev)=>{
   }
 });
 
-function initChronoAnimations(): void {
-  const line = document.querySelector<HTMLElement>('.chrono-line');
-  const rows = document.querySelectorAll<HTMLElement>('.chrono-row');
-  const stagger = 70;
-  if(line){
-    line.style.transition = 'none';
-    line.style.transform = 'translateX(-50%) scaleY(0)';
-    void line.offsetHeight;
-    line.style.transition = `transform ${Math.max(0.7, (rows.length*stagger)/1000)}s cubic-bezier(.2,.8,.2,1)`;
-  }
-  rows.forEach((row, i)=>{ row.style.transitionDelay = (i*stagger)+'ms'; });
-  requestAnimationFrame(()=>{
-    requestAnimationFrame(()=>{
-      if(line) line.style.transform = 'translateX(-50%) scaleY(1)';
-      rows.forEach(row=>row.classList.add('in-view'));
-    });
-  });
-}
-
 function playChronoBoot(): void {
   const content = document.getElementById('content');
   if(!content) return;
@@ -6800,7 +6815,7 @@ function playChronoBoot(): void {
         if(document.getElementById('chronoBootLog') !== logEl) return;
         const c = document.getElementById('content');
         if(c){ c.innerHTML = renderChronologie(); c.scrollTop = 0; }
-        initChronoAnimations();
+        initCityPage(true);
       }, 380);
     }
   }
@@ -7505,7 +7520,7 @@ function renderBranchDossierCard(p: SquadProject, squad: Squad, docCode: string,
 // Dossier complet d'un escadron ou d'un département : même habillage HUD que la page Hybrides (bandeau, plaque « Dossier »,
 // panneaux pleins, fond animé), avec une couleur et un motif par thème : « ops » (escadron : radar), « law » (justice : balance)
 // et « lab » (recherche : atome). Le texte du dossier, les projets et l'effectif restent éditables comme avant.
-const SQ_ACCENTS: Record<string, string> = { ops: '#ff7a45', law: '#5aa9ff', lab: '#36e0b4', arm: '#35c6ff' };
+const SQ_ACCENTS: Record<string, string> = { ops: '#ff7a45', law: '#5aa9ff', lab: '#36e0b4', arm: '#35c6ff', chrono: '#e8b04a', org: '#a98bff' };
 
 function sqThemeOf(s: Squad): string {
   const t = ((s.category || '') + ' ' + s.name + ' ' + (s.tag || '')).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -7519,6 +7534,15 @@ function sqBgHtml(theme: string, seed: string, img: string = ''): string {
   let mark = '';
   if(theme === 'none'){
     mark = '';
+  } else if(theme === 'chrono'){
+    let ticks = '';
+    for(let i = 0; i < 60; i++){
+      const a = i * Math.PI / 30, l = i % 5 === 0 ? 18 : 8;
+      ticks += `M${(200 + Math.cos(a) * 190).toFixed(1)} ${(200 + Math.sin(a) * 190).toFixed(1)}L${(200 + Math.cos(a) * (190 + l)).toFixed(1)} ${(200 + Math.sin(a) * (190 + l)).toFixed(1)}`;
+    }
+    mark = `<div class="sq-ruler"></div><div class="sq-sweep"></div><svg class="sq-mark sq-dial" viewBox="-30 -30 460 460" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="200" cy="200" r="190"/><circle cx="200" cy="200" r="166" stroke-dasharray="3 9"/><circle cx="200" cy="200" r="104"/><path d="M200 200V66M200 200L292 248"/><circle cx="200" cy="200" r="8" fill="currentColor"/><path d="${ticks}"/></svg>`;
+  } else if(theme === 'org'){
+    mark = `<div class="sq-dots"></div><svg class="sq-mark sq-net" viewBox="0 0 400 340" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M200 78V120H70V154M200 120V154M200 120H330V154M70 186V230H30V274M70 230H110V274M200 186V274M330 186V230H290V274M330 230H370V274"/><circle class="n" cx="200" cy="60" r="18"/><circle cx="200" cy="60" r="6" fill="currentColor"/><circle class="n" cx="70" cy="170" r="16"/><circle class="n" cx="200" cy="170" r="16"/><circle class="n" cx="330" cy="170" r="16"/><circle class="n" cx="30" cy="290" r="11"/><circle class="n" cx="110" cy="290" r="11"/><circle class="n" cx="200" cy="290" r="11"/><circle class="n" cx="290" cy="290" r="11"/><circle class="n" cx="370" cy="290" r="11"/></svg>`;
   } else if(theme === 'law'){
     mark = `<div class="sq-cols"></div><svg class="sq-mark" viewBox="0 0 400 400" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M200 40V340M130 360H270M160 340H240M70 110H330"/><circle cx="200" cy="58" r="12"/><path d="M90 110L40 220M90 110L140 220M310 110L260 220M310 110L360 220"/><path d="M30 220H150Q140 270 90 270Q40 270 30 220ZM250 220H370Q360 270 310 270Q260 270 250 220Z"/></svg>`;
   } else if(theme === 'arm'){
@@ -7703,60 +7727,85 @@ function renderSquads(): string {
   `;
 }
 
-// Liste de toutes les organisations (Halcyon + celles créées depuis
-// l'espace d'écriture) sous forme de cartes-dossier, même style que les
-// escadrons. Cliquer sur la carte de Halcyon ouvre sa page dédiée existante
-// (renderHalcyonPage) ; les autres ouvrent un dossier générique (voir
-// renderOrganisationDossier).
+// Liste de toutes les organisations (Halcyon + celles créées depuis l'espace d'écriture), même habillage HUD que les autres pages :
+// bandeau, plaque « Registre », fond violet en réseau (organigramme) et cartes-dossier pleines. Cliquer sur la carte de Halcyon ouvre
+// sa page dédiée (renderHalcyonPage) ; les autres ouvrent un dossier générique (voir renderOrganisationDossier).
+function orgMembersCount(id: string): number {
+  return ENTRIES.filter(e => e.cat === 'personnages' && e.faction === id).length;
+}
+
 function renderOrganisationsList(): string {
   const orgs = getAllOrganisations();
+  const logged = isLoggedIn();
+  const members = orgs.reduce((n, o) => n + orgMembersCount(o.id), 0);
+  const cats = new Set();
+  orgs.forEach(o => { if(o.category) cats.add(o.category); });
+  const facts: [string, string][] = [['Organisations', String(orgs.length)], ['Catégories', String(cats.size)], ['Membres recensés', String(members)]];
+  const actions = `<button type="button" class="city-btn" onclick="scrollToCity('city-ville')">Le registre ↓</button>
+    ${logged ? `<button type="button" class="city-btn" onclick="navigate('ecriture')">+ Créer une organisation</button>` : ''}`;
+  const hero = cityHeroHtml({
+    kicker: 'Registre des pouvoirs · Oxiri', title: 'Organisations',
+    tagline: 'Les grandes organisations qui façonnent le monde.',
+    facts, img: '', tape: '', plaque: 'Registre', actions, music: '',
+  });
+  const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Le registre', g: 'i' }];
+  const cards = orgs.map((o, i) => {
+    const tag = (o.tag || o.name).toUpperCase();
+    const targetRoute = o.id === 'halcyon' ? 'halcyon' : 'organisation-' + o.id;
+    const n = orgMembersCount(o.id);
+    return `
+      <div class="og-card cv-rv" onclick="navigate('${targetRoute}')">
+        <div class="og-ban"${o.image ? ` style="background-image:url('${escAttr(o.image)}')"` : ''}>
+          <span class="og-tag">${esc(tag)}</span>
+          <span class="og-code">ORG-${String(i + 1).padStart(3, '0')}</span>
+        </div>
+        <div class="og-body">
+          <div class="og-head">
+            <div class="og-id">
+              <h3>${esc(o.name)}</h3>
+              ${o.category ? `<span class="og-cat">${esc(o.category)}</span>` : ''}
+            </div>
+            <div class="og-logo">${o.logo ? `<img src="${escAttr(o.logo)}" alt="">` : esc(o.name.charAt(0))}</div>
+          </div>
+          <p class="og-desc">${esc(o.desc)}</p>
+          <div class="og-foot"><span>${n > 0 ? n + ' membre' + (n > 1 ? 's' : '') + ' recensé' + (n > 1 ? 's' : '') : 'Dossier ouvert'}</span><b>Consulter le dossier →</b></div>
+        </div>
+      </div>`;
+  }).join('');
   return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / Organisations</div>
-    <h1 style="font-size:26px; margin-bottom:6px;">Organisations</h1>
-    <p style="color:var(--text-dim); font-size:13px; margin-bottom:22px;">
-      Les grandes organisations qui façonnent le monde.
-      ${isLoggedIn() ? `Une nouvelle organisation se crée depuis l'<span onclick="navigate('ecriture')" style="cursor:pointer; text-decoration:underline;">espace d'écriture</span>.` : ''}
-    </p>
-    <div class="squad-grid">
-      ${orgs.map(o=>{
-        const tag = (o.tag || o.name).toUpperCase();
-        const targetRoute = o.id === 'halcyon' ? 'halcyon' : 'organisation-' + o.id;
-        return `
-        <div class="squad-dossier-card" onclick="navigate('${targetRoute}')">
-          <div class="squad-dossier-banner"${o.image ? ` style="background-image:url('${o.image}')"` : ''}>
-            <span class="squad-dossier-tag">${esc(tag)}</span>
-          </div>
-          <div class="squad-dossier-card-body">
-            <div class="squad-dossier-card-head">
-              <div>
-                <div class="squad-dossier-card-name">${esc(o.name)}</div>
-                ${o.category ? `<div class="squad-dossier-card-category">${esc(o.category.toUpperCase())}</div>` : ''}
-              </div>
-              <div class="squad-dossier-card-logo">${o.logo ? `<img src="${o.logo}" alt="">` : esc(o.name.charAt(0))}</div>
-            </div>
-            <p class="squad-dossier-card-desc">${esc(o.desc)}</p>
-            <span class="squad-dossier-card-link">Consulter le dossier →</span>
-          </div>
-        </div>`;
-      }).join('')}
+    <div class="city med sq sq-org" style="--acc:${SQ_ACCENTS.org}">
+      ${sqBgHtml('org', 'org')}
+      <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
+      ${hero}
+      <section class="city-sec" id="city-ville">
+        ${secHead('I', 'Registre', 'LES <em>ORGANISATIONS</em>', logged ? "Une nouvelle organisation se crée depuis l'espace d'écriture." : 'Clique sur un dossier pour le consulter.')}
+        <div class="og-grid">${cards}</div>
+      </section>
     </div>
   `;
 }
 
-// Dossier complet d'une organisation créée depuis le site (voir
-// renderOrganisationsList) — Halcyon n'utilise pas cette page, elle a la
-// sienne (renderHalcyonPage), mais sa carte dans la liste partage le même
-// modèle de données (voir getAllOrganisations).
+// Dossier complet d'une organisation créée depuis le site (Halcyon a sa propre page, renderHalcyonPage). Même habillage HUD que
+// les dossiers d'escadron : bandeau avec plaque « Dossier » et musique d'ambiance, panneau de présentation plein, médias en marge.
 function renderOrganisationDossier(id: string): string {
   const orgs = getAllOrganisations();
   const idx = orgs.findIndex(o => o.id === id);
   const org = orgs[idx];
   if(!org) return renderNotFound();
-  const docCode = String(idx+1).padStart(3,'0');
+  const docCode = String(idx + 1).padStart(3, '0');
   const editing = orgDossierEditId === id;
-  return `
-    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('organisations')" style="cursor:pointer">Organisations</span> / ${esc(org.name)}</div>
-    ${editing ? `
+  const logged = isLoggedIn();
+  const cat = org.category || 'Organisation';
+  const n = orgMembersCount(id);
+  const facts: [string, string][] = [['Dossier', 'ORG-' + docCode], ['Catégorie', cat], ['Membres recensés', String(n)]];
+  const actions = `<button type="button" class="city-btn" onclick="navigate('organisations')">← Organisations</button>
+    ${logged && !editing ? `<button type="button" class="city-btn" onclick="toggleOrgDossierEditMode('${id}')">✎ Modifier</button>` : ''}`;
+  const music = org.music ? `<div class="ch-music"><div class="ch-music-h"><span>Ambiance</span></div>${musicBarHtml(org.id, org.music)}</div>` : '';
+  const hero = cityHeroHtml({ kicker: 'Organisations · ' + cat, title: org.name, tagline: org.desc, facts, img: org.image || '', tape: '', plaque: 'Dossier', actions, music });
+  const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Présentation', g: 'i' }];
+  const side = (org.image ? `<figure class="sq-media cv-rv"><img src="${escAttr(org.image)}" alt=""></figure>` : '') + (org.logo ? `<figure class="sq-media sq-logo cv-rv"><img src="${escAttr(org.logo)}" alt=""></figure>` : '');
+  const form = `
     <div class="write-form halcyon-edit-panel" style="max-width:640px;">
       <div class="write-row"><label>Nom</label><input id="orgdName" type="text" value="${escAttr(org.name)}"></div>
       <div class="write-row"><label>Résumé (carte de la liste)</label><textarea id="orgdDesc" rows="3">${esc(org.desc)}</textarea></div>
@@ -7781,27 +7830,28 @@ function renderOrganisationDossier(id: string): string {
       <div class="write-error" id="orgdError"></div>
       <span class="btn btn-primary" onclick="saveOrganisationDossier('${id}')">Enregistrer</span>
       <span class="btn btn-ghost" onclick="toggleOrgDossierEditMode('${id}')">Annuler</span>
-    </div>` : `
-    <div class="dossier-file">
-      <div class="dossier-file-top">
-        <div class="dossier-file-num">DOSSIER · ORGANISATION — DOC-${docCode}</div>
-        <div class="dstamp-big dstamp-mid">${esc((org.category || 'ORGANISATION').toUpperCase())}</div>
-      </div>
-      <h1 class="dossier-file-title">${esc(org.name)}</h1>
-      ${musicBarHtml(org.id, org.music)}
-      <div class="dossier-file-body">
-        <div class="dossier-file-main">
-          ${org.body && org.body.length ? renderRichBody(org.body) : `<p>${esc(org.desc)}</p>`}
-          <div class="dossier-file-end">FIN DE LA PRÉSENTATION</div>
+    </div>`;
+  const intro = editing ? form : `
+        <div class="sq-intro">
+          ${pnl('Présentation', 'ORG-' + docCode, `${org.body && org.body.length ? renderRichBody(org.body) : `<p>${esc(org.desc)}</p>`}<div class="sq-end">FIN DE LA PRÉSENTATION</div>`)}
+          ${side ? `<aside class="sq-side">${side}</aside>` : ''}
         </div>
-        <div class="dossier-file-side">
-          ${org.image ? `<div class="dossier-file-media"><img src="${org.image}" alt=""></div>` : `<div class="dossier-file-media dossier-file-noimg">IMAGE INDISPONIBLE</div>`}
-          ${org.logo ? `<div class="dossier-file-media"><img src="${org.logo}" alt=""></div>` : ''}
-        </div>
-      </div>
+        <div class="med-meta cv-rv">
+          <div class="med-cell"><small>Dossier</small><b>ORG-${docCode}</b></div>
+          <div class="med-cell"><small>Catégorie</small><b>${esc(cat)}</b></div>
+          <div class="med-cell"><small>Membres recensés</small><b>${n}</b></div>
+        </div>`;
+  return `
+    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('organisations')" style="cursor:pointer">Organisations</span> / ${esc(org.name)}</div>
+    <div class="city med sq sq-org${editing ? ' is-edit' : ''}" data-entry="${escAttr(id)}" style="--acc:${SQ_ACCENTS.org}">
+      ${sqBgHtml('org', id)}
+      <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
+      ${hero}
+      <section class="city-sec" id="city-ville">
+        ${secHead('I', 'Présentation', 'LA <em>PRÉSENTATION</em>')}
+        ${intro}
+      </section>
     </div>
-    ${isLoggedIn() ? `<span class="btn btn-ghost halcyon-edit-toggle" onclick="toggleOrgDossierEditMode('${id}')">✎ Modifier</span>` : ''}
-    `}
   `;
 }
 
@@ -10735,6 +10785,7 @@ function render(): void {
     openNovelanceOverlay();
   } else if(route === 'organisations'){
     content.innerHTML = renderOrganisationsList();
+    initCityPage(isNavigation);
   } else if(route.startsWith('organisation-')){
     // Même logique de préservation du lecteur de musique que pour un
     // dossier d'escadron (voir plus bas, route 'escadron-').
@@ -10742,6 +10793,7 @@ function render(): void {
     const stablePlayerId = 'em-' + orgId;
     const oldOrgPlayer = document.getElementById(stablePlayerId);
     content.innerHTML = renderOrganisationDossier(orgId);
+    initCityPage(isNavigation);
     const newOrgPlayer = document.getElementById(stablePlayerId);
     let orgPlayerPreserved = false;
     if(oldOrgPlayer && newOrgPlayer && oldOrgPlayer.dataset.kind === newOrgPlayer.dataset.kind){
