@@ -3732,8 +3732,8 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .og-desc{ margin:0; font-size:15.5px; line-height:1.65; color:#c4cad0; display:-webkit-box; -webkit-line-clamp:4; line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
 .og-foot{ margin-top:auto; padding-top:12px; border-top:1px dashed rgba(255,255,255,0.18); display:flex; justify-content:space-between; gap:10px; flex-wrap:wrap; font-family:'IBM Plex Mono', monospace !important; font-size:10px; letter-spacing:.16em; text-transform:uppercase; color:#8d969c; }
 .og-foot b{ font-weight:600; color: var(--acc); }
-.city.sq-org .ch-shade{ background: linear-gradient(90deg, rgba(5,6,8,0.82) 0%, rgba(5,6,8,0.4) 55%, rgba(5,6,8,0.1) 100%), linear-gradient(0deg, rgba(5,6,8,0.8) 0%, transparent 65%); }
-.city.sq-org .ch-bg img{ filter: brightness(.72) saturate(.9); }
+.city.sq-org .ch-shade, .city.sq-chrono .ch-shade{ background: linear-gradient(90deg, rgba(5,6,8,0.82) 0%, rgba(5,6,8,0.4) 55%, rgba(5,6,8,0.1) 100%), linear-gradient(0deg, rgba(5,6,8,0.8) 0%, transparent 65%); }
+.city.sq-org .ch-bg img, .city.sq-chrono .ch-bg img{ filter: brightness(.72) saturate(.9); }
 .ap-colors{ display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin:6px 0 10px; }
 .ap-sw{ width:28px; height:28px; border-radius:50%; border:2px solid rgba(255,255,255,0.3); cursor:pointer; padding:0; }
 .ap-sw.on{ border-color:#fff; box-shadow: 0 0 0 2px #000, 0 0 0 4px #fff; }
@@ -4774,6 +4774,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=144"></script>
+<script src="dist/main.js?v=145"></script>
 </body>
 </html>

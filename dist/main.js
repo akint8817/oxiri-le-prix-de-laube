@@ -3612,8 +3612,28 @@ function openPageLightbox(docId, i) {
 // Apparence de la page : surtitre, titre, accroche, image de fond, couleur et motif d'arrière-plan.
 let apImage = '';
 let apAccent = '';
+let apDoc = 'arsenal';
+
+// Valeurs par défaut de l'apparence de chaque page modifiable (surtitre, titre, accroche, motif, couleur).
+function apDefaults(docId) {
+  if(docId === 'chronologie') return { kicker: 'Archives temporelles · Oxiri', title: 'Chronologie du monde', tagline: "L'histoire n'est jamais écrite par ceux qui l'ont vécue. Elle est écrite par ceux qui ont survécu.", motif: 'chrono', color: SQ_ACCENTS.chrono };
+  if(docId === 'organisations') return { kicker: 'Registre des pouvoirs · Oxiri', title: 'Organisations', tagline: 'Les grandes organisations qui façonnent le monde.', motif: 'org', color: SQ_ACCENTS.org };
+  return { kicker: 'Archives · Arsenal', title: CATS.objets.label, tagline: CATS.objets.desc, motif: 'arm', color: SQ_ACCENTS.arm };
+}
+
+// Apparence effective d'une page : réglages enregistrés, sinon valeurs par défaut.
+function apOf(docId) {
+  const d = cityPagesCache[docId];
+  const df = apDefaults(docId);
+  return {
+    kicker: (d && d.kicker) || df.kicker, title: (d && d.title) || df.title, tagline: (d && d.tagline) || df.tagline,
+    img: (d && d.heroImg) || '',
+    accent: d && d.accent && /^#[0-9a-fA-F]{6}$/.test(d.accent) ? d.accent : df.color,
+    motif: (d && d.motif) || df.motif,
+  };
+}
 const AP_COLORS = ['#35c6ff', '#ff7a45', '#36e0b4', '#5aa9ff', '#b79bff', '#ff4d6d', '#f2e24a', '#e8eef2'];
-const AP_MOTIFS = [['arm', 'Grille hexagonale (par défaut)'], ['ops', 'Radar'], ['lab', 'Atome et papier millimétré'], ['law', 'Balance et colonnes'], ['none', 'Aucun motif']];
+const AP_MOTIFS = [['arm', 'Grille hexagonale (par défaut)'], ['ops', 'Radar'], ['lab', 'Atome et papier millimétré'], ['law', 'Balance et colonnes'], ['chrono', 'Cadran et règle graduée'], ['org', 'Organigramme'], ['none', 'Aucun motif']];
 
 function apRefresh() {
   const el = document.getElementById('apPrev');
@@ -3633,23 +3653,27 @@ function apPickImage(input) {
   nvCompressImage(f).then(url => { apImage = url; apRefresh(); }).catch(() => alert('Image illisible.'));
 }
 
-function openArsPageEditor() {
+function openArsPageEditor() { openPageAppearance('arsenal'); }
+
+function openPageAppearance(docId) {
   if(!isLoggedIn()) return;
-  const d = cityPagesCache['arsenal'];
+  const df = apDefaults(docId);
+  apDoc = docId;
+  const d = cityPagesCache[docId];
   nvCloseForm();
   apImage = (d && d.heroImg) || '';
   apAccent = (d && d.accent) || '';
-  const motif = (d && d.motif) || 'arm';
+  const motif = (d && d.motif) || df.motif;
   const box = pageEditHost();
   box.innerHTML = `
     <button type="button" class="nv-card-x" onclick="closeArsEditor()">✕</button>
     <div class="nv-ed-title">Apparence de la page</div>
     <label>Surtitre <em>(petit texte au-dessus du titre)</em></label>
-    <input id="apKicker" type="text" value="${escAttr((d && d.kicker) || 'Archives · Arsenal')}">
+    <input id="apKicker" type="text" value="${escAttr((d && d.kicker) || df.kicker)}">
     <label>Titre</label>
-    <input id="apTitle" type="text" value="${escAttr((d && d.title) || CATS.objets.label)}">
+    <input id="apTitle" type="text" value="${escAttr((d && d.title) || df.title)}">
     <label>Accroche <em>(la phrase sous le titre)</em></label>
-    <textarea id="apTag" rows="3">${esc((d && d.tagline) || CATS.objets.desc)}</textarea>
+    <textarea id="apTag" rows="3">${esc((d && d.tagline) || df.tagline)}</textarea>
     <label>Image de fond <em>(bandeau et fond discret de la page, réduite automatiquement)</em></label>
     <div class="ars-prev" id="apPrev">${apImage ? `<img src="${apImage}" alt=""><button type="button" onclick="apRemoveImage()">Retirer l'image</button>` : ''}</div>
     <input id="apFile" type="file" accept="image/*" onchange="apPickImage(this)">
@@ -3658,18 +3682,18 @@ function openArsPageEditor() {
     <label>Motif d'arrière-plan</label>
     <select id="apMotif">${AP_MOTIFS.map(m => `<option value="${m[0]}"${m[0] === motif ? ' selected' : ''}>${esc(m[1])}</option>`).join('')}</select>
     <div class="nv-ed-actions">
-      <button type="button" class="primary" onclick="saveArsPage()">Enregistrer</button>
+      <button type="button" class="primary" onclick="savePageAppearance()">Enregistrer</button>
       <button type="button" onclick="closeArsEditor()">Annuler</button>
-      <button type="button" class="danger" onclick="saveArsPage(true)">Rétablir</button>
+      <button type="button" class="danger" onclick="savePageAppearance(true)">Rétablir</button>
     </div>`;
   box.classList.add('open');
 }
 
-function saveArsPage(reset) {
+function savePageAppearance(reset) {
   if(!isLoggedIn()) return;
   const v = (id) => ((document.getElementById(id))?.value || '').trim();
   if(!reset){
-    const d = cityPagesCache['arsenal'];
+    const d = cityPagesCache[apDoc];
     const used = ((d && d.images) || []).reduce((a, s) => a + s.length * 0.75, 0) + apImage.length * 0.75;
     if(used > 850 * 1024){ alert('Pas assez de place sur cette page : retire une image des blocs ou prends une image plus légère.'); return; }
   }
@@ -3677,7 +3701,7 @@ function saveArsPage(reset) {
   const data = reset
     ? { title: null, tagline: null, kicker: null, heroImg: null, accent: null, motif: null }
     : { title: v('apTitle') || null, tagline: v('apTag') || null, kicker: v('apKicker') || null, heroImg: apImage || null, accent, motif: v('apMotif') || null };
-  writeCityPatch('arsenal', data)
+  writeCityPatch(apDoc, data)
     .then(() => closeArsEditor())
     .catch((err) => alert('Enregistrement impossible : ' + (err && err.message ? err.message : err)));
 }
@@ -5931,6 +5955,7 @@ function chronoBodyHtml(body) {
 // avec des nœuds en losange et des fiches pleines de part et d'autre.
 function renderChronologie() {
   const loggedIn = isLoggedIn();
+  const ap = apOf('chronologie');
   const evs = getAllChronoEvents();
   const tagKeys = Object.keys(CHRONO_TAGS);
   const legend = tagKeys.map(chronoTagHtml).join('');
@@ -5967,18 +5992,17 @@ function renderChronologie() {
   ];
   const actions = `<button type="button" class="city-btn" onclick="scrollToCity('tl-frise')">La frise ↓</button>
     <button type="button" class="city-btn" onclick="scrollToCity('city-ville')">Légende ↓</button>
+    ${loggedIn ? `<button type="button" class="city-btn" onclick="openPageAppearance('chronologie')">Modifier</button>` : ''}
     ${loggedIn ? `<button type="button" class="city-btn" onclick="navigate('ecriture'); setTimeout(()=>document.getElementById('chronoWriteForm')?.scrollIntoView({behavior:'smooth', block:'start'}), 60);">+ Ajouter un événement</button>` : ''}`;
   const hero = cityHeroHtml({
-    kicker: 'Archives temporelles · Oxiri',
-    title: 'Chronologie du monde',
-    tagline: "L'histoire n'est jamais écrite par ceux qui l'ont vécue. Elle est écrite par ceux qui ont survécu.",
-    facts, img: '', tape: '', plaque: 'Archives', actions, music: '',
+    kicker: ap.kicker, title: ap.title, tagline: ap.tagline,
+    facts, img: ap.img, tape: '', plaque: 'Archives', actions, music: '',
   });
   const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Légende', g: 'i' }, { id: 'tl-frise', t: 'La frise', g: 'II' }];
   return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / Chronologie</div>
-    <div class="city med sq sq-chrono" style="--acc:${SQ_ACCENTS.chrono}">
-      ${sqBgHtml('chrono', 'chrono')}
+    <div class="city med sq sq-chrono" style="--acc:${ap.accent}">
+      ${sqBgHtml(ap.motif, 'chrono', ap.img)}
       <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
       ${hero}
       <section class="city-sec" id="city-ville">
@@ -6946,16 +6970,17 @@ function orgMembersCount(id) {
 function renderOrganisationsList() {
   const orgs = getAllOrganisations();
   const logged = isLoggedIn();
+  const ap = apOf('organisations');
   const members = orgs.reduce((n, o) => n + orgMembersCount(o.id), 0);
   const cats = new Set();
   orgs.forEach(o => { if(o.category) cats.add(o.category); });
   const facts = [['Organisations', String(orgs.length)], ['Catégories', String(cats.size)], ['Membres recensés', String(members)]];
   const actions = `<button type="button" class="city-btn" onclick="scrollToCity('city-ville')">Le registre ↓</button>
+    ${logged ? `<button type="button" class="city-btn" onclick="openPageAppearance('organisations')">Modifier</button>` : ''}
     ${logged ? `<button type="button" class="city-btn" onclick="navigate('ecriture')">+ Créer une organisation</button>` : ''}`;
   const hero = cityHeroHtml({
-    kicker: 'Registre des pouvoirs · Oxiri', title: 'Organisations',
-    tagline: 'Les grandes organisations qui façonnent le monde.',
-    facts, img: '', tape: '', plaque: 'Registre', actions, music: '',
+    kicker: ap.kicker, title: ap.title, tagline: ap.tagline,
+    facts, img: ap.img, tape: '', plaque: 'Registre', actions, music: '',
   });
   const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Le registre', g: 'i' }];
   const cards = orgs.map((o, i) => {
@@ -6983,8 +7008,8 @@ function renderOrganisationsList() {
   }).join('');
   return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / Organisations</div>
-    <div class="city med sq sq-org" style="--acc:${SQ_ACCENTS.org}">
-      ${sqBgHtml('org', 'org')}
+    <div class="city med sq sq-org" style="--acc:${ap.accent}">
+      ${sqBgHtml(ap.motif, 'org', ap.img)}
       <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
       ${hero}
       <section class="city-sec" id="city-ville">
@@ -10231,7 +10256,8 @@ function render() {
         content.innerHTML = renderPersonnagesRoster();
     }
     else if (route === 'chronologie') {
-        playChronoBoot();
+        if (document.querySelector('.city.sq-chrono')) { content.innerHTML = renderChronologie(); initCityPage(isNavigation); }
+        else playChronoBoot();
     }
     else if (route === 'mission') {
         content.innerHTML = renderMission();
