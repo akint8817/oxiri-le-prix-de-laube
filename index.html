@@ -3188,7 +3188,40 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 }
 @keyframes ficheGlowA{ to{ transform: translate(24vw, 16vh) scale(1.15); } }
 @keyframes ficheGlowB{ to{ transform: translate(-20vw, -14vh) scale(1.2); } }
-/* ambiance « malaise » : bord qui bat comme un cœur, veines, yeux dans la marge, murmures, grain, faux contacts */
+/* ambiance « laboratoire futuriste qui vire au malaise » : science (quadrillage, hélice d'ADN, électrocardiogrammes, balayage) + creepy (bord qui bat, veines, yeux, murmures, grain) */
+.fiche-grid{
+  position:absolute; inset:0;
+  background-image:
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(rgba(var(--fclr),0.07) 1px, transparent 1px), linear-gradient(90deg, rgba(var(--fclr),0.07) 1px, transparent 1px);
+  background-size: 24px 24px, 24px 24px, 120px 120px, 120px 120px;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 8%, #000 92%, transparent);
+  mask-image: linear-gradient(180deg, transparent, #000 8%, #000 92%, transparent);
+}
+.fiche-helix{ position:absolute; top:0; bottom:0; width:26px; opacity:.65;
+  -webkit-mask-image: linear-gradient(180deg, transparent, #000 6%, #000 94%, transparent); mask-image: linear-gradient(180deg, transparent, #000 6%, #000 94%, transparent); }
+.fiche-helix.l{ left:3px; }
+.fiche-helix i{ position:absolute; left:0; right:0; height:6px; margin-top:-3px; animation: ficheHx 4.8s ease-in-out infinite;
+  background: linear-gradient(rgba(var(--fclr),0.4), rgba(var(--fclr),0.4)) center / 100% 1px no-repeat; }
+.fiche-helix i::before, .fiche-helix i::after{ content:''; position:absolute; top:50%; border-radius:50%; transform: translateY(-50%); }
+.fiche-helix i::before{ left:0; width:6px; height:6px; background: rgb(var(--fclr)); box-shadow: 0 0 7px rgba(var(--fclr),0.9); }
+.fiche-helix i::after{ right:0; width:4px; height:4px; background: rgba(var(--fclr),0.5); }
+@keyframes ficheHx{ 0%{ transform: scaleX(1); } 25%{ transform: scaleX(.04); } 50%{ transform: scaleX(-1); } 75%{ transform: scaleX(-.04); } 100%{ transform: scaleX(1); } }
+.fiche-ecg{ position:absolute; left:0; right:0; height:60px; overflow:hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent); mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent); }
+.fiche-ecg.t{ top:-8px; opacity:.55; }
+.fiche-ecg.b{ bottom:-6px; opacity:.35; }
+.fiche-ecg svg{ display:block; animation: ficheEcg 3.6s linear infinite; }
+.fiche-ecg.b svg{ animation-duration:5.4s; }
+.fiche-ecg path{ stroke: rgb(var(--fclr)); stroke-width:1.5; stroke-linejoin:round; filter: drop-shadow(0 0 3px rgba(var(--fclr),0.8)); }
+@keyframes ficheEcg{ to{ transform: translateX(-400px); } }
+.fiche-scan{
+  position:absolute; left:0; right:0; top:-90px; height:90px;
+  background: linear-gradient(180deg, transparent, rgba(var(--fclr),0.06) 70%, rgba(var(--fclr),0.18));
+  border-bottom: 1px solid rgba(var(--fclr),0.45);
+  animation: ficheScan 13s linear infinite;
+}
+@keyframes ficheScan{ to{ top:100%; } }
 .fiche-pulse{
   position:absolute; inset:0;
   background: radial-gradient(ellipse at 50% 42%, transparent 38%, rgba(var(--fclr),0.2) 100%), radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,0.55) 100%);
@@ -3199,8 +3232,7 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .fiche-veins path{ vector-effect: non-scaling-stroke; stroke: rgba(var(--fclr),0.5); stroke-linecap:round; stroke-linejoin:round; opacity:0; animation: ficheVein 4s ease-out both; filter: drop-shadow(0 0 3px rgba(var(--fclr),0.5)); }
 @keyframes ficheVein{ to{ opacity:.75; } }
 .fiche-eyes{ position:absolute; display:flex; gap:7px; opacity:0; transform-origin:center; animation: ficheEyes 24s infinite; }
-.fiche-eyes.l{ left:4px; }
-.fiche-eyes.r{ right:4px; }
+.fiche-eyes{ right:4px; }
 .fiche-eyes i{ display:block; width:9px; height:5px; border-radius:50%; background: radial-gradient(circle at 50% 50%, #050506 0 22%, rgb(var(--fclr)) 30% 55%, transparent 100%); box-shadow: 0 0 9px rgba(var(--fclr),0.9), 0 0 2px #fff; }
 @keyframes ficheEyes{
   0%, 58%{ opacity:0; transform: scaleY(.05); }
@@ -3213,8 +3245,7 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
   100%{ opacity:0; }
 }
 .fiche-whisper{ position:absolute; writing-mode:vertical-rl; white-space:nowrap; opacity:0; font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:.3em; text-transform:uppercase; color: rgba(var(--fclr),0.8); text-shadow: 0 0 6px rgba(var(--fclr),0.6); animation: ficheWhisper 20s infinite; }
-.fiche-whisper.l{ left:9px; }
-.fiche-whisper.r{ right:9px; }
+.fiche-whisper{ right:9px; }
 @keyframes ficheWhisper{ 0%, 40%{ opacity:0; } 46%{ opacity:.55; } 48%{ opacity:.15; } 50%{ opacity:.6; } 66%{ opacity:.5; } 72%, 100%{ opacity:0; } }
 .fiche-grain{ position:absolute; inset:-60px; opacity:.07; pointer-events:none; animation: ficheGrain .7s steps(5) infinite;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
@@ -3223,11 +3254,11 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 @keyframes ficheFlick{ 0%, 62%, 64.5%, 66%, 100%{ opacity:0; } 62.2%{ opacity:.35; } 64.7%{ opacity:.55; } 65.2%{ opacity:.15; } }
 .fiche-tag{ position:absolute; font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.16em; color: rgba(170,182,200,0.42); }
 .fiche-tag-a{ right:18px; top:10px; }
-.fiche-tag-b{ left:18px; bottom:10px; }
+.fiche-tag-b{ left:18px; bottom:10px; line-height:1.5; }
 .fiche-tag i{ font-style:normal; }
 .fiche-tag-b i:last-child{ animation: ficheBlink 1.4s steps(2) infinite; }
 @keyframes ficheBlink{ 50%{ opacity:0; } }
-@media (prefers-reduced-motion: reduce){ .fiche-bg::before, .fiche-bg::after, .fiche-pulse, .fiche-veins, .fiche-veins path, .fiche-eyes, .fiche-whisper, .fiche-grain, .fiche-flick, .fiche-tag i{ animation:none; } }
+@media (prefers-reduced-motion: reduce){ .fiche-bg::before, .fiche-bg::after, .fiche-pulse, .fiche-veins, .fiche-veins path, .fiche-eyes, .fiche-whisper, .fiche-grain, .fiche-flick, .fiche-helix i, .fiche-ecg svg, .fiche-scan, .fiche-tag i{ animation:none; } }
 
 .fiche-empty{ color:var(--text-dim); font-style:italic; font-size:13.5px; }
 
@@ -4784,6 +4815,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=148"></script>
+<script src="dist/main.js?v=149"></script>
 </body>
 </html>

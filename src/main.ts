@@ -6300,16 +6300,17 @@ function switchFicheTab(key: string): void {
   document.querySelectorAll<HTMLElement>('.dz-panel').forEach(p => p.classList.toggle('active', p.dataset.tab === key));
 }
 
-// Fond animé de la fiche, version « malaise » : bord de page qui bat comme un cœur, réseau de veines qui rampe depuis les marges,
-// paires d'yeux qui s'ouvrent et se ferment dans la marge, murmures verticaux, grain de pellicule et faux contacts de lumière.
+// Fond animé de la fiche : laboratoire futuriste qui vire au malaise. Côté science : quadrillage de mesure, double hélice d'ADN qui tourne dans la marge
+// gauche, tracés d'électrocardiogramme qui défilent, faisceau de balayage, relevés (séquençage, fréquence cardiaque). Côté creepy : bord de page qui bat
+// comme un cœur, veines qui rampent depuis les marges, yeux qui s'ouvrent dans la marge droite, murmures de rapport d'analyse, grain et faux contacts.
 // Tout est tiré au hasard de façon stable par fiche (même fiche = même fond).
 const FICHE_WHISPERS: string[] = [
-  'ne le regarde pas dans les yeux',
-  'il sait que tu lis ce dossier',
   'sujet non maîtrisé',
-  "personne n'est resté de ce côté",
-  'elle écoute',
+  'anomalie : il nous regarde',
+  'ne pas fixer le sujet',
+  "rythme cardiaque irrégulier",
   'ça respire encore',
+  'confinement compromis',
 ];
 
 // Une veine : marche aléatoire qui part d'un bord et se ramifie (profondeur limitée à 3).
@@ -6329,26 +6330,43 @@ function ficheGrowVein(r: any, paths: string[], x: number, y: number, a: number,
   paths.push(`<path d="${d}" style="animation-delay:${(depth * 1.2 + r() * 2.5).toFixed(1)}s;stroke-width:${depth ? 1 : 1.7}"/>`);
 }
 
+function ficheHelix(side: string): string {
+  let h = '';
+  for(let i = 0; i < 60; i++) h += `<i style="top:${(i / 60 * 100).toFixed(2)}%;animation-delay:-${(i * 0.2).toFixed(2)}s"></i>`;
+  return `<div class="fiche-helix ${side}">${h}</div>`;
+}
+
+// Un tracé d'électrocardiogramme : onde P, complexe QRS, onde T, répétés (le CSS le fait défiler d'une période à la fois).
+function ficheEcg(pos: string): string {
+  let d = '';
+  for(let k = 0; k < 14; k++){
+    const x = k * 400;
+    d += `M${x} 30H${x + 100}l8 -6 l8 6H${x + 150}l6 4 l8 -34 l8 44 l6 -14H${x + 210}l12 -10 l12 10H${x + 400}`;
+  }
+  return `<div class="fiche-ecg ${pos}"><svg width="5600" height="60" viewBox="0 0 5600 60" fill="none"><path d="${d}"/></svg></div>`;
+}
+
 function ficheBgHtml(id: string): string {
   const r = tmSeeded(tmHash(id));
   const paths: string[] = [];
   for(let i = 0; i < 9; i++){
-    const y = 40 + r() * 920;
-    ficheGrowVein(r, paths, -10, y, (r() - 0.5) * 0.9, 300 + r() * 160, 0);
+    ficheGrowVein(r, paths, -10, 40 + r() * 920, (r() - 0.5) * 0.9, 300 + r() * 160, 0);
     ficheGrowVein(r, paths, 1010, 40 + r() * 920, Math.PI + (r() - 0.5) * 0.9, 300 + r() * 160, 0);
   }
   for(let i = 0; i < 3; i++) ficheGrowVein(r, paths, 120 + r() * 760, -10, Math.PI / 2 + (r() - 0.5) * 0.8, 260 + r() * 120, 0);
   let eyes = '';
-  for(let i = 0; i < 6; i++){
-    eyes += `<span class="fiche-eyes ${i % 2 ? 'r' : 'l'}" style="top:${(6 + r() * 86).toFixed(1)}%;animation-duration:${(17 + r() * 15).toFixed(1)}s;animation-delay:-${(r() * 24).toFixed(1)}s"><i></i><i></i></span>`;
+  for(let i = 0; i < 5; i++){
+    eyes += `<span class="fiche-eyes" style="top:${(52 + r() * 42).toFixed(1)}%;animation-duration:${(17 + r() * 15).toFixed(1)}s;animation-delay:-${(r() * 24).toFixed(1)}s"><i></i><i></i></span>`;
   }
   let whispers = '';
   for(let i = 0; i < 4; i++){
     const t = FICHE_WHISPERS[Math.floor(r() * FICHE_WHISPERS.length)];
-    whispers += `<span class="fiche-whisper ${i % 2 ? 'l' : 'r'}" style="top:${(10 + r() * 70).toFixed(1)}%;animation-duration:${(14 + r() * 10).toFixed(1)}s;animation-delay:-${(r() * 18).toFixed(1)}s">${t}</span>`;
+    whispers += `<span class="fiche-whisper" style="top:${(6 + r() * 38).toFixed(1)}%;animation-duration:${(14 + r() * 10).toFixed(1)}s;animation-delay:-${(r() * 18).toFixed(1)}s">${t}</span>`;
   }
   const code = ('0000' + (tmHash(id) % 65536).toString(16).toUpperCase()).slice(-4);
-  return `<div class="fiche-bg" aria-hidden="true"><div class="fiche-pulse"></div><svg class="fiche-veins" viewBox="0 0 1000 1000" preserveAspectRatio="none" fill="none">${paths.join('')}</svg>${eyes}${whispers}<div class="fiche-grain"></div><div class="fiche-flick"></div><span class="fiche-tag fiche-tag-a">DOSSIER // 0x${code}</span><span class="fiche-tag fiche-tag-b">SYNC <i>▮▮▮▮</i><i>▯</i></span></div>`;
+  const seq = (91 + r() * 8.8).toFixed(1);
+  const bpm = 58 + Math.floor(r() * 46);
+  return `<div class="fiche-bg" aria-hidden="true"><div class="fiche-grid"></div><div class="fiche-pulse"></div><svg class="fiche-veins" viewBox="0 0 1000 1000" preserveAspectRatio="none" fill="none">${paths.join('')}</svg>${ficheHelix('l')}${ficheEcg('t')}${ficheEcg('b')}${eyes}${whispers}<div class="fiche-grain"></div><div class="fiche-flick"></div><div class="fiche-scan"></div><span class="fiche-tag fiche-tag-a">DOSSIER // 0x${code}</span><span class="fiche-tag fiche-tag-b">SÉQUENÇAGE ${seq}%<br>FC ${bpm} BPM<br>ANALYSE <i>▮▮▮▮</i><i>▯</i></span></div>`;
 }
 
 /* ----- Fiche personnage : dossier d'identification militaire -----
