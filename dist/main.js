@@ -5606,20 +5606,21 @@ function splitEntryChapters(body) {
     return { intro, chapters };
 }
 function ficheTextBoxHtml(lines) {
-    const html = renderRichBody(lines);
-    if (!html)
-        return '';
-    return `<div class="fiche-text">
-    <div class="fiche-text-bar"><span></span><span></span><span></span><span></span></div>
-    <div class="fiche-text-body">${html}</div>
+  const html = renderRichBody(lines);
+  if(!html) return '';
+  return `<div class="dz-text">
+    <div class="dz-text-bar"><span>Pièce versée au dossier</span><i></i></div>
+    <div class="dz-text-body">${html}</div>
   </div>`;
 }
+
 function switchFicheTab(key) {
-    const root = document.querySelector('.fiche');
-    fichePageTab = { entryId: root?.dataset.entry || '', tab: key };
-    document.querySelectorAll('.fiche-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === key));
-    document.querySelectorAll('.fiche-panel').forEach(p => p.classList.toggle('active', p.dataset.tab === key));
+  const root = document.querySelector('.fiche');
+  fichePageTab = { entryId: root?.dataset.entry || '', tab: key };
+  document.querySelectorAll('.dz-tab').forEach(b => b.classList.toggle('active', b.dataset.tab === key));
+  document.querySelectorAll('.dz-panel').forEach(p => p.classList.toggle('active', p.dataset.tab === key));
 }
+
 function ficheBgHtml(id) {
     const r = tmSeeded(tmHash(id));
     const hex = () => Math.floor(r() * 256).toString(16).toUpperCase().padStart(2, '0');
@@ -5640,36 +5641,99 @@ function ficheBgHtml(id) {
     const code = ('0000' + (tmHash(id) % 65536).toString(16).toUpperCase()).slice(-4);
     return `<div class="fiche-bg" aria-hidden="true"><div class="fiche-cols">${cols}</div><div class="fiche-scan"></div><span class="fiche-tag fiche-tag-a">DOSSIER // 0x${code}</span><span class="fiche-tag fiche-tag-b">SYNC <i>▮▮▮▮</i><i>▯</i></span></div>`;
 }
+/* ----- Fiche personnage : dossier d'identification militaire -----
+   Colonne gauche : carte d'identité (cadre photo avec réticule, tampon « MENACE POTENTIELLE », jauge de menace tirée du rang,
+   code-barres et lignes machine). Colonne droite : en-tête de dossier, informations signalétiques et onglets numérotés. */
+
+const FICHE_THREAT_LABELS = ['NON ÉVALUÉE', 'FAIBLE', 'MODÉRÉE', 'ÉLEVÉE', 'SÉVÈRE', 'CRITIQUE'];
+const FICHE_RANK_LEVEL = { s: 5, a: 4, b: 3, c: 2, d: 1 };
+
+// Niveau de menace déduit du rang (« Rang A » -> élevée) ; sans rang connu, la menace reste « potentielle » mais non évaluée.
+function ficheThreat(rang) {
+  const m = rang.match(/(?:rang|rank)\s*[:\-]?\s*([a-z])\b/i) || rang.match(/^\s*([a-z])\s*$/i);
+  const lvl = m ? (FICHE_RANK_LEVEL[m[1].toLowerCase()] || 0) : 0;
+  return { lvl, label: FICHE_THREAT_LABELS[lvl] };
+}
+
+function dzNorm(s) {
+  return s.normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/[^A-Z0-9]+/g, '<');
+}
+
+// Deux lignes « machine » façon passeport, à partir du nom, du matricule et de la faction.
+function dzMrz(name, matricule, faction) {
+  const nm = dzNorm(name).replace(/^<+|<+$/g, '').replace(/<+/g, '<<');
+  const fac = dzNorm(faction).replace(/</g, '').slice(0, 6);
+  const l1 = ('P<OXI' + nm).padEnd(30, '<').slice(0, 30);
+  const l2 = (matricule + '<' + fac + '<' + String(tmHash(name) % 1000000).padStart(6, '0')).padEnd(30, '<').slice(0, 30);
+  return [l1, l2];
+}
+
+function dzBarcode(seed) {
+  const r = tmSeeded(tmHash(seed + '-bc'));
+  let x = 0;
+  let bars = '';
+  while(x < 196){
+    const w = 1 + Math.floor(r() * 3);
+    if(r() < 0.64) bars += `<rect x="${x}" y="0" width="${w}" height="26"/>`;
+    x += w + 1;
+  }
+  return `<svg class="dz-bc" viewBox="0 0 200 26" preserveAspectRatio="none" aria-hidden="true" fill="currentColor">${bars}</svg>`;
+}
+
+// Le réticule du cadre photo suit le pointeur (« cible acquise ») ; sans pointeur il dérive lentement.
+function initDzFrame() {
+  const fr = document.querySelector('.dz-frame');
+  if(!fr) return;
+  fr.addEventListener('pointermove', ev => {
+    const r = fr.getBoundingClientRect();
+    fr.style.setProperty('--rx', (((ev.clientX - r.left) / r.width) * 100).toFixed(1) + '%');
+    fr.style.setProperty('--ry', (((ev.clientY - r.top) / r.height) * 100).toFixed(1) + '%');
+    fr.classList.add('track');
+  });
+  fr.addEventListener('pointerleave', () => fr.classList.remove('track'));
+}
+
 function renderPersonnageEntry(e) {
-    const c = CATS[e.cat];
-    const f = e.faction ? FACTIONS.find(x => x.id === e.faction) : undefined;
-    const fclr = f ? f.color : '196,201,209';
-    const list = ENTRIES.filter(x => x.cat === 'personnages');
-    const factionName = f ? f.name : (e.factionLabel || '—');
-    const geneValue = e.info["Gène d'Oxiri lié"] || '—';
-    const rangValue = e.info['Rang'] || e.info['Rang hybride'] || '—';
-    const specKey = e.info['Spécificité'] !== undefined ? 'Spécificité' : (e.info['Capacité'] !== undefined ? 'Capacité' : '');
-    const statCells = [
-        { label: 'Faction', value: factionName },
-        ...(specKey ? [{ label: specKey, value: e.info[specKey] }] : []),
-        ...parseStatLines(e.stats || []),
-    ];
-    const { intro, chapters } = splitEntryChapters(e.body);
-    const hasPowers = !!(e.specialite && e.specialite.length);
-    const tabs = [
-        { key: 'general', label: 'Présentation générale', locked: intro.some(l => l.startsWith(LOCK_SENTINEL)) },
-        ...chapters.map((ch, i) => ({ key: 'ch-' + i, label: ch.title, locked: ch.locked })),
-        ...(hasPowers ? [{ key: 'pouvoirs', label: 'Pouvoirs', locked: e.specialite.some(l => l.startsWith(LOCK_SENTINEL)) }] : []),
-    ];
-    const activeTab = fichePageTab.entryId === e.id && tabs.some(t => t.key === fichePageTab.tab) ? fichePageTab.tab : 'general';
-    const panel = (key, inner) => `<div class="fiche-panel${key === activeTab ? ' active' : ''}" data-tab="${key}">${inner}</div>`;
-    const railAvatars = list.map(p => {
-        const active = p.id === e.id;
-        return `<button type="button" class="op-rail-avatar${active ? ' active' : ''}" onclick="navigate('entry-${p.id}')" title="${esc(p.name)}">
+  const c = CATS[e.cat];
+  const f = e.faction ? FACTIONS.find(x => x.id === e.faction) : undefined;
+  const fclr = f ? f.color : '196,201,209';
+  const list = ENTRIES.filter(x => x.cat === 'personnages');
+  const factionName = f ? f.name : (e.factionLabel || '—');
+  const geneValue = e.info["Gène d'Oxiri lié"] || '—';
+  const rangValue = e.info['Rang'] || e.info['Rang hybride'] || '—';
+  const specKey = e.info['Spécificité'] !== undefined ? 'Spécificité' : (e.info['Capacité'] !== undefined ? 'Capacité' : '');
+  const statCells = [
+    { label: 'Faction', value: factionName },
+    ...(specKey ? [{ label: specKey, value: e.info[specKey] }] : []),
+    ...parseStatLines(e.stats || []),
+  ];
+  const { intro, chapters } = splitEntryChapters(e.body);
+  const hasPowers = !!(e.specialite && e.specialite.length);
+  const tabs = [
+    { key: 'general', label: 'Présentation générale', locked: intro.some(l => l.startsWith(LOCK_SENTINEL)) },
+    ...chapters.map((ch, i) => ({ key: 'ch-' + i, label: ch.title, locked: ch.locked })),
+    ...(hasPowers ? [{ key: 'pouvoirs', label: 'Pouvoirs', locked: e.specialite.some(l => l.startsWith(LOCK_SENTINEL)) }] : []),
+  ];
+  const activeTab = fichePageTab.entryId === e.id && tabs.some(t => t.key === fichePageTab.tab) ? fichePageTab.tab : 'general';
+  const panel = (key, inner) =>
+    `<div class="dz-panel${key === activeTab ? ' active' : ''}" data-tab="${key}">${inner}</div>`;
+  const num = (i) => String(i + 1).padStart(2, '0');
+
+  const railAvatars = list.map(p => {
+    const active = p.id === e.id;
+    return `<button type="button" class="op-rail-avatar${active ? ' active' : ''}" onclick="navigate('entry-${p.id}')" title="${esc(p.name)}">
       ${p.image ? `<img src="${encodeURI(p.image)}" alt="${esc(p.name)}" style="${p.imagePos ? `object-position:${p.imagePos}` : ''}">` : `<span>${esc(p.name.charAt(0))}</span>`}
     </button>`;
-    }).join('');
-    return `
+  }).join('');
+
+  const dossierNo = String(Math.max(list.findIndex(x => x.id === e.id), 0) + 1).padStart(3, '0');
+  const code = ('0000' + (tmHash(e.id) % 65536).toString(16).toUpperCase()).slice(-4);
+  const matricule = 'SUJ-' + String(1000 + (tmHash(e.id + '-m') % 9000));
+  const thr = ficheThreat(rangValue);
+  const mrz = dzMrz(e.name, matricule.replace('-', ''), factionName);
+  const segs = [1, 2, 3, 4, 5].map(n => `<i class="${n <= thr.lvl ? 'on' : ''}" style="--i:${n}"></i>`).join('');
+
+  return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('cat-${e.cat}')" style="cursor:pointer">${c.label}</span> / ${esc(e.name)}</div>
     <div class="op-page">
       <div class="op-rail">
@@ -5681,52 +5745,66 @@ function renderPersonnageEntry(e) {
       <div class="op-main">
         <div class="fiche" data-entry="${e.id}" style="--fclr:${fclr}">
           ${ficheBgHtml(e.id)}
-          <aside class="fiche-left">
-            <div class="fiche-portrait">
-              <span class="fiche-portrait-bar"></span>
-              ${e.image
-                ? `<img src="${encodeURI(e.image)}" alt="${esc(e.name)}" style="${e.imagePos ? `object-position:${e.imagePos}` : ''}">`
-                : `<div class="fiche-portrait-noimg">${esc(e.name.charAt(0))}</div>`}
-              <div class="fiche-portrait-scan"></div>
-            </div>
-            <div class="fiche-field fiche-field-main">
-              <span class="fiche-field-tab">Nom</span>
-              <div class="fiche-field-val">${esc(e.name)}</div>
-            </div>
-            <div class="fiche-field">
-              <span class="fiche-field-label">Gène d'Oxiri</span>
-              <div class="fiche-field-val">${esc(geneValue)}</div>
-            </div>
-            <div class="fiche-field">
-              <span class="fiche-field-label">Rang</span>
-              <div class="fiche-field-val">${esc(rangValue)}</div>
+          <aside class="dz-id">
+            <div class="dz-card">
+              <div class="dz-card-h"><b>Fiche d'identification</b><span>${matricule}</span></div>
+              <div class="dz-photo">
+                <div class="dz-frame">
+                  ${e.image
+                    ? `<img src="${encodeURI(e.image)}" alt="${esc(e.name)}" style="${e.imagePos ? `object-position:${e.imagePos}` : ''}">`
+                    : `<div class="dz-frame-noimg">${esc(e.name.charAt(0))}</div>`}
+                  <i class="dz-cm tl"></i><i class="dz-cm tr"></i><i class="dz-cm bl"></i><i class="dz-cm br"></i>
+                  <span class="dz-ruler"></span>
+                  <span class="dz-scanline"></span>
+                  <span class="dz-reticle"></span>
+                </div>
+                <div class="dz-stamp">Menace potentielle</div>
+                <div class="dz-photo-cap"><span>Photo d'identité</span><span class="dz-rec"><i></i>REC</span></div>
+              </div>
+              <div class="dz-fields">
+                <div class="dz-fld dz-fld-main"><small>Nom</small><b>${esc(e.name)}</b></div>
+                <div class="dz-fld"><small>Gène d'Oxiri</small><b>${esc(geneValue)}</b></div>
+                <div class="dz-fld"><small>Rang</small><b>${esc(rangValue)}</b></div>
+              </div>
+              <div class="dz-threat l${thr.lvl}">
+                <small>Niveau de menace</small>
+                <div class="dz-bar">${segs}</div>
+                <b>${thr.label}</b>
+              </div>
+              ${dzBarcode(e.id)}
+              <div class="dz-mrz">${esc(mrz[0])}\n${esc(mrz[1])}</div>
             </div>
           </aside>
-          <section class="fiche-right">
-            <header class="fiche-head">
-              <span class="tag ${e.rarity}">${e.rarity === 'rare' ? 'Notable' : 'Commun'} · ${c.label}</span>
-              <h1 class="fiche-title">${esc(e.name)}</h1>
-              <p class="fiche-tagline">${esc(e.tagline)}</p>
+          <section class="dz-file">
+            <header class="dz-head">
+              <div class="dz-meta">
+                <span class="dz-rar">${e.rarity === 'rare' ? 'Notable' : 'Commun'} · ${c.label}</span>
+                <span>Dossier n° ${dossierNo}</span>
+                <span class="dz-live"><i></i>Sous surveillance</span>
+                <span class="dz-conf">Confidentiel · 0x${code}</span>
+              </div>
+              <h1 class="dz-title">${esc(e.name)}</h1>
+              <p class="dz-tagline">${esc(e.tagline)}</p>
               ${entryOwnerActionsHtml(e)}
             </header>
             ${musicBarHtml(e.id, e.music)}
-            <div class="fiche-body">
-              <nav class="fiche-tabs">
-                ${tabs.map(t => `<button type="button" class="fiche-tab${t.key === activeTab ? ' active' : ''}" data-tab="${t.key}" onclick="switchFicheTab('${t.key}')">${t.locked ? '🔒 ' : ''}${esc(t.label)}</button>`).join('')}
+            <div class="dz-body">
+              <nav class="dz-tabs">
+                ${tabs.map((t, i) => `<button type="button" class="dz-tab${t.key === activeTab ? ' active' : ''}" data-tab="${t.key}" onclick="switchFicheTab('${t.key}')"><span class="dz-tab-n">${num(i)}</span><span>${t.locked ? '🔒 ' : ''}${esc(t.label)}</span></button>`).join('')}
               </nav>
-              <div class="fiche-panels">
+              <div class="dz-panels">
                 ${panel('general', `
-                  <div class="fiche-stats">
-                    ${statCells.map(s => `<div class="fiche-stat"><span class="fiche-stat-k">${esc(s.label)}</span><span class="fiche-stat-v">${esc(s.value)}</span></div>`).join('')}
+                  <div class="dz-stats">
+                    ${statCells.map(s => `<div class="dz-stat${(s.value || '').length > 30 ? ' wide' : ''}"><small>${esc(s.label)}</small><b>${esc(s.value)}</b></div>`).join('')}
                   </div>
-                  ${e.quote ? `<p class="entry-quote">${esc(e.quote)}</p>` : ''}
+                  ${e.quote ? `<figure class="dz-quote"><figcaption>Déclaration relevée</figcaption><blockquote>${esc(e.quote)}</blockquote></figure>` : ''}
                   ${entryLinkedCharactersHtml(e)}
                   ${ficheTextBoxHtml(intro)}`)}
                 ${chapters.map((ch, i) => panel('ch-' + i, `
-                  <h2 class="fiche-chapter-title">${esc(ch.title)}</h2>
+                  <h2 class="dz-chapter"><small>Section ${num(i + 1)}</small>${esc(ch.title)}</h2>
                   ${ficheTextBoxHtml(ch.lines) || `<p class="fiche-empty">Ce chapitre est vide pour l'instant.</p>`}`)).join('')}
                 ${hasPowers ? panel('pouvoirs', `
-                  <h2 class="fiche-chapter-title">Pouvoirs</h2>
+                  <h2 class="dz-chapter"><small>Section ${num(chapters.length + 1)}</small>Pouvoirs</h2>
                   ${ficheTextBoxHtml(e.specialite)}`) : ''}
               </div>
             </div>
@@ -5736,6 +5814,7 @@ function renderPersonnageEntry(e) {
     </div>
   `;
 }
+
 function navigatePersonnageRail(dir, currentId) {
     const list = ENTRIES.filter(e => e.cat === 'personnages');
     const idx = list.findIndex(e => e.id === currentId);
@@ -5744,6 +5823,7 @@ function navigatePersonnageRail(dir, currentId) {
     navigate('entry-' + next.id);
 }
 function initPersonnageEntryRail() {
+  initDzFrame();
     const active = document.querySelector('.op-rail-avatar.active');
     if (active) active.scrollIntoView({ block: 'center' });
     const page = document.querySelector('.op-page');
