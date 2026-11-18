@@ -6463,7 +6463,8 @@ function renderPersonnageEntry(e: Entry): string {
         <button type="button" class="op-rail-all" onclick="navigate('cat-personnages')" title="Tous les personnages">☰</button>
       </div>
       <div class="op-main">
-        <div class="fiche" data-entry="${e.id}" style="--fclr:${fclr}">
+        <div class="fiche${thr.lvl === 6 ? ' abs' : ''}" data-entry="${e.id}" style="--fclr:${thr.lvl === 6 ? '255,42,61' : fclr}">
+          ${thr.lvl === 6 ? '<div class="fiche-alarm"></div>' : ''}
           ${ficheBgHtml(e.id)}
           <aside class="dz-id">
             <div class="dz-card${thr.lvl === 6 ? ' abs' : ''}">
@@ -6494,6 +6495,7 @@ function renderPersonnageEntry(e: Entry): string {
             </div>
           </aside>
           <section class="dz-file">
+            ${thr.lvl === 6 ? '<div class="dz-alert"><div class="dz-alert-track"><span>' + '⚠ MENACE ABSOLUE ◆ CONFINEMENT REQUIS ◆ NE PAS APPROCHER ◆ '.repeat(8) + '</span><span>' + '⚠ MENACE ABSOLUE ◆ CONFINEMENT REQUIS ◆ NE PAS APPROCHER ◆ '.repeat(8) + '</span></div></div>' : ''}
             <header class="dz-head">
               <div class="dz-meta">
                 <span class="dz-rar">${e.rarity === 'rare' ? 'Notable' : 'Commun'} · ${c.label}</span>

@@ -3823,6 +3823,41 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 @keyframes dzCardGl{ 0%, 94%, 100%{ transform:none; filter:none; } 95%{ transform: translateX(-4px); filter: hue-rotate(40deg); } 96%{ transform: translateX(5px) skewX(2deg); filter: drop-shadow(-3px 0 rgba(0,229,255,0.6)) drop-shadow(3px 0 rgba(255,0,60,0.6)); } 97%{ transform: translateX(-2px); filter:none; } }
 .dz-abs{ padding:3px 9px; color:#ff2a3d; border:1px solid #ff2a3d; text-shadow: 0 0 8px rgba(255,42,61,0.6); animation: dzBlink 1.1s steps(2) infinite; }
 @media (prefers-reduced-motion: reduce){ .dz-threat.l6, .dz-threat.l6 .dz-bar i.on, .dz-threat.l6 b::before, .dz-threat.l6 b::after, .dz-card.abs, .dz-abs, .dz-over{ animation:none; } }
+/* menace absolue : toute la fiche passe en alerte rouge (couleur d'accent forcée, rythme cardiaque emballé, bandeau d'alerte, carte et photo qui saturent) */
+.fiche > .fiche-alarm{ position:absolute; inset:0; z-index:3; pointer-events:none; box-shadow: inset 0 0 0 2px rgba(255,42,61,0.55), inset 0 0 100px rgba(255,42,61,0.38); animation: dzAlarm 1.1s ease-in-out infinite; }
+@keyframes dzAlarm{ 0%, 100%{ opacity:.25; } 50%{ opacity:1; } }
+.fiche.abs .fiche-pulse{ animation-duration:1.1s; }
+.fiche.abs .fiche-ecg svg{ animation-duration:1.3s; }
+.fiche.abs .fiche-ecg{ opacity:.8; }
+.fiche.abs .fiche-helix i{ animation-duration:2.2s; }
+.fiche.abs .fiche-flick{ animation-duration:4s; }
+.fiche.abs .fiche-grain{ opacity:.14; }
+.dz-alert{ position:relative; overflow:hidden; height:30px; display:flex; align-items:center; color:#0a0204; background:#ff2a3d; box-shadow: 0 0 22px rgba(255,42,61,0.55); animation: dzAlertBg 1s steps(2) infinite; }
+.dz-alert::before, .dz-alert::after{ content:''; position:absolute; left:0; right:0; height:4px; background: repeating-linear-gradient(135deg, #0a0204 0 8px, transparent 8px 16px); }
+.dz-alert::before{ top:0; }
+.dz-alert::after{ bottom:0; }
+.dz-alert-track{ display:flex; white-space:nowrap; animation: dzMarquee 16s linear infinite; }
+.dz-alert-track span{ flex:none; padding-right:0; font-family:'IBM Plex Mono', monospace; font-size:12px; font-weight:700; letter-spacing:.34em; text-transform:uppercase; }
+@keyframes dzMarquee{ to{ transform: translateX(-50%); } }
+@keyframes dzAlertBg{ 0%{ background:#ff2a3d; } 50%{ background:#b8101f; } }
+.dz-card.abs .dz-card-h{ background: repeating-linear-gradient(135deg, #ff2a3d 0 10px, #14030a 10px 20px); background-size: 28px 28px; animation: dzHaz 1.2s linear infinite; }
+@keyframes dzHaz{ to{ background-position: 28px 0; } }
+.dz-card.abs .dz-card-h b, .dz-card.abs .dz-card-h span{ color:#fff; text-shadow: 0 0 4px #000, 0 0 2px #000; }
+.dz-card.abs{ box-shadow: 0 0 0 1px rgba(255,42,61,0.6), 0 0 34px rgba(255,42,61,0.4), 0 18px 40px rgba(0,0,0,0.55); }
+.dz-card.abs .dz-frame img{ filter: contrast(1.18) saturate(1.25) hue-rotate(-14deg); animation: dzImgGl 3.4s steps(1) infinite; }
+@keyframes dzImgGl{ 0%, 88%, 100%{ transform:none; } 89%{ transform: translateX(-5px); filter: contrast(1.3) drop-shadow(-5px 0 rgba(0,229,255,0.8)) drop-shadow(5px 0 rgba(255,0,60,0.8)); } 91%{ transform: translateX(6px) skewX(3deg); } 93%{ transform: translateX(-2px); filter: invert(.85) hue-rotate(160deg); } 94%{ transform:none; } }
+.dz-card.abs .dz-frame::before{ content:''; position:absolute; inset:0; z-index:2; pointer-events:none; background: rgba(255,0,40,0); animation: dzFrameAl 1.1s steps(2) infinite; }
+@keyframes dzFrameAl{ 50%{ background: rgba(255,0,40,0.2); } }
+.dz-card.abs .dz-cm{ border-color:#ff2a3d; animation: dzBlink .55s steps(2) infinite; }
+.dz-card.abs .dz-fld-main b{ color:#ff4e5e; text-shadow: 2px 0 rgba(0,229,255,0.55), -2px 0 rgba(255,0,60,0.7); animation: dzNameGl 3s steps(1) infinite; }
+@keyframes dzNameGl{ 0%, 90%, 100%{ transform:none; } 91%{ transform: translateX(-3px); } 93%{ transform: translateX(4px) skewX(-6deg); } 95%{ transform:none; } }
+.dz-threat.l6{ padding:14px 14px 12px; border-width:2px; box-shadow: 0 0 20px rgba(255,42,61,0.35); }
+.dz-threat.l6 .dz-bar i{ height:13px; }
+.dz-threat.l6 b{ font-size:23px; letter-spacing:.26em; }
+.fiche.abs .dz-title{ color:#fff; text-shadow: 3px 0 rgba(0,229,255,0.5), -3px 0 rgba(255,0,60,0.75); animation: dzTitle .9s cubic-bezier(.2,.8,.2,1) .2s both, dzTitleGl 4.2s steps(1) 1.4s infinite; }
+@keyframes dzTitleGl{ 0%, 92%, 100%{ transform:none; } 93%{ transform: translateX(-6px) skewX(4deg); } 95%{ transform: translateX(7px); } 96%{ transform:none; } }
+.fiche.abs .dz-head{ border-color: rgba(255,42,61,0.6); }
+@media (prefers-reduced-motion: reduce){ .fiche > .fiche-alarm, .dz-alert, .dz-alert-track, .dz-card.abs .dz-card-h, .dz-card.abs .dz-frame img, .dz-card.abs .dz-frame::before, .dz-card.abs .dz-cm, .dz-card.abs .dz-fld-main b, .fiche.abs .dz-title{ animation:none; } }
 @media (max-width:1000px){
   .fiche{ grid-template-columns:1fr; padding:20px; }
   .dz-id{ width:100%; max-width:440px; margin:0 auto; }
@@ -4842,6 +4877,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=152"></script>
+<script src="dist/main.js?v=153"></script>
 </body>
 </html>
