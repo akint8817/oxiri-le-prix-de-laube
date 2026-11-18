@@ -30,6 +30,8 @@ interface Entry {
   // Lignes "Libellé : valeur" affichées en grille de statistiques sur la fiche
   // d'un personnage (Sexe, Âge, Taille...) — voir parseStatLines.
   stats?: string[];
+  // Niveau de menace forcé (0 = non évaluée, 1 à 5, 6 = absolu) ; absent = déduit du rang.
+  menace?: string;
 }
 
 interface EntryImage {
@@ -827,6 +829,7 @@ interface CustomEntry {
   // (une par ligne) pour la page de fiche d'un personnage.
   rang?: string;
   stats?: string[];
+  menace?: string;
 }
 
 const AUTH_KEY = 'akiAuthUser';
@@ -993,7 +996,7 @@ function totalWfImagesBytes(): number {
 // tapé. On capture donc son brouillon juste avant le re-rendu et on le
 // restaure juste après, pour que la synchronisation en temps réel n'écrase
 // jamais un texte en cours de rédaction.
-const DRAFT_FIELD_IDS = ['wfCat','wfName','wfTagline','wfQuote','wfFactionSelect','wfFaction','wfOxiriGene','wfSpecialite','wfCapacite','wfMusic','wfBody','wfEditId','ceDate','ceTitle','ceBody','ceEditId','cnpLabel','cnpBody','hiDirigeant','hiDirigeantDesc','hsqName','hsqDesc','sqdName','sqdDesc','sqdTag','sqdCategory','sqdMusic','sqdBody','sfTitle','sfDanger','sfBody','sfEditId','orgfEditId','orgfName','orgfTag','orgfCategory','orgfDesc','orgdName','orgdTag','orgdCategory','orgdDesc','orgdMusic','orgdBody','frqEditId','frqName','frqTagline','frqQuote','frqFactionSelect','frqFaction','frqOxiriGene','frqRang','frqStats','wfRang','wfStats','frqSpecialite','frqCapacite','frqMusic','frqBody'];
+const DRAFT_FIELD_IDS = ['wfCat','wfName','wfTagline','wfQuote','wfFactionSelect','wfFaction','wfOxiriGene','wfMenace','wfSpecialite','wfCapacite','wfMusic','wfBody','wfEditId','ceDate','ceTitle','ceBody','ceEditId','cnpLabel','cnpBody','hiDirigeant','hiDirigeantDesc','hsqName','hsqDesc','sqdName','sqdDesc','sqdTag','sqdCategory','sqdMusic','sqdBody','sfTitle','sfDanger','sfBody','sfEditId','orgfEditId','orgfName','orgfTag','orgfCategory','orgfDesc','orgdName','orgdTag','orgdCategory','orgdDesc','orgdMusic','orgdBody','frqEditId','frqName','frqTagline','frqQuote','frqFactionSelect','frqFaction','frqOxiriGene','frqRang','frqStats','wfRang','wfStats','frqSpecialite','frqCapacite','frqMusic','frqBody'];
 
 function captureDraftFormState(): Record<string,string> {
   const state: Record<string,string> = {};
@@ -1066,11 +1069,11 @@ function initFirestoreSync(): void {
       const isOverride = ENTRIES_BASE.some(e => e.id === doc.id);
       if(isOverride){
         if(data.deleted){ deletedOverrideIds.add(doc.id); return; }
-        overrides[doc.id] = { cat: data.cat, name: data.name, tagline: data.tagline, quote: data.quote || undefined, body: data.body || [], images: data.images, specialite, capacite: data.capacite || undefined, faction: data.faction || undefined, factionId: data.factionId || undefined, music: data.music || undefined, linkedIds: data.linkedIds || undefined, oxiriGene: data.oxiriGene || undefined, rang: data.rang || undefined, stats: data.stats || undefined };
+        overrides[doc.id] = { cat: data.cat, name: data.name, tagline: data.tagline, quote: data.quote || undefined, body: data.body || [], images: data.images, specialite, capacite: data.capacite || undefined, faction: data.faction || undefined, factionId: data.factionId || undefined, music: data.music || undefined, linkedIds: data.linkedIds || undefined, oxiriGene: data.oxiriGene || undefined, rang: data.rang || undefined, stats: data.stats || undefined, menace: data.menace || undefined };
         return;
       }
       const images: EntryImage[] = data.images || (data.image ? [{ url: data.image, caption: '' }] : []);
-      list.push({ id: doc.id, cat: data.cat, name: data.name, tagline: data.tagline, quote: data.quote || undefined, body: data.body || [], author: data.author || 'aki', images, specialite, capacite: data.capacite || undefined, faction: data.faction || undefined, factionId: data.factionId || undefined, music: data.music || undefined, linkedIds: data.linkedIds || undefined, oxiriGene: data.oxiriGene || undefined, rang: data.rang || undefined, stats: data.stats || undefined });
+      list.push({ id: doc.id, cat: data.cat, name: data.name, tagline: data.tagline, quote: data.quote || undefined, body: data.body || [], author: data.author || 'aki', images, specialite, capacite: data.capacite || undefined, faction: data.faction || undefined, factionId: data.factionId || undefined, music: data.music || undefined, linkedIds: data.linkedIds || undefined, oxiriGene: data.oxiriGene || undefined, rang: data.rang || undefined, stats: data.stats || undefined, menace: data.menace || undefined });
     });
     ENTRIES.length = 0;
     ENTRIES_BASE.forEach(base => {
@@ -1260,6 +1263,7 @@ function customEntryToEntry(c: CustomEntry): Entry {
     quote: c.quote, summary: c.tagline, info, body: c.body,
     specialite: c.specialite,
     stats: c.stats,
+    menace: c.menace,
     faction: c.factionId,
     factionLabel: c.faction,
     music: c.music,
@@ -1287,6 +1291,7 @@ function mergeEntryOverride(base: Entry, ov: Partial<CustomEntry>): Entry {
   if(ov.rang) info['Rang'] = ov.rang;
   return {
     ...base,
+    menace: ov.menace || base.menace,
     stats: ov.stats && ov.stats.length ? ov.stats : base.stats,
     cat: ov.cat || base.cat,
     name: ov.name || base.name,
@@ -1530,6 +1535,20 @@ function renderEcriture(): string {
         <label>Rang (optionnel)</label>
         <input id="wfRang" type="text" placeholder="Ex : Rang A, S, D…">
         <div class="write-hint">S'affiche dans l'encadré « Rang » à gauche de la fiche d'un personnage.</div>
+      </div>
+      <div class="write-row">
+        <label>Niveau de menace (optionnel)</label>
+        <select id="wfMenace">
+          <option value="">Automatique (selon le rang)</option>
+          <option value="0">Non évaluée</option>
+          <option value="1">1 — Faible</option>
+          <option value="2">2 — Modérée</option>
+          <option value="3">3 — Élevée</option>
+          <option value="4">4 — Sévère</option>
+          <option value="5">5 — Critique</option>
+          <option value="6">6 — ABSOLU (l'affichage glitche)</option>
+        </select>
+        <div class="write-hint">Jauge « Niveau de menace » de la carte d'identité d'un personnage. Les niveaux 1 à 5 s'affichent normalement ; le niveau 6 (absolu) la remplit entièrement et fait glitcher l'affichage.</div>
       </div>
       <div class="write-row">
         <label>Statistiques (optionnel)</label>
@@ -2026,6 +2045,7 @@ function submitCustomEntry(): void {
   const faction = factionSelect === '__custom' ? (factionEl?.value || '').trim() : '';
   const oxiriGene = (oxiriGeneEl?.value || '').trim();
   const rang = (rangEl?.value || '').trim();
+  const menace = (document.getElementById('wfMenace') as HTMLSelectElement | null)?.value || '';
   const stats = (statsEl?.value || '').split('\n').map(s => s.trim()).filter(Boolean);
   const specialite = parseWriteBody(specialiteEl?.value || '');
   const capacite = (capaciteEl?.value || '').trim();
@@ -2044,12 +2064,12 @@ function submitCustomEntry(): void {
   if(editId){
     const existing = customEntriesCache.find(c=>c.id===editId);
     db.collection('entries').doc(editId).set({
-      cat, name, tagline, quote: quote || null, faction: faction || null, factionId: factionId || null, oxiriGene: oxiriGene || null, rang: rang || null, stats: stats.length ? stats : null, specialite: specialite.length ? specialite : null, capacite: capacite || null, music: music || null, linkedIds: linkedIds.length ? linkedIds : null, body, images,
+      cat, name, tagline, quote: quote || null, faction: faction || null, factionId: factionId || null, oxiriGene: oxiriGene || null, rang: rang || null, menace: menace || null, stats: stats.length ? stats : null, specialite: specialite.length ? specialite : null, capacite: capacite || null, music: music || null, linkedIds: linkedIds.length ? linkedIds : null, body, images,
       author: existing ? existing.author : (getCurrentUser() || 'aki'),
     }).catch((err: any)=>{ if(errEl) errEl.textContent = 'Erreur : ' + err.message; });
   } else {
     db.collection('entries').add({
-      cat, name, tagline, quote: quote || null, faction: faction || null, factionId: factionId || null, oxiriGene: oxiriGene || null, rang: rang || null, stats: stats.length ? stats : null, specialite: specialite.length ? specialite : null, capacite: capacite || null, music: music || null, linkedIds: linkedIds.length ? linkedIds : null, body, images, author: getCurrentUser() || 'aki',
+      cat, name, tagline, quote: quote || null, faction: faction || null, factionId: factionId || null, oxiriGene: oxiriGene || null, rang: rang || null, menace: menace || null, stats: stats.length ? stats : null, specialite: specialite.length ? specialite : null, capacite: capacite || null, music: music || null, linkedIds: linkedIds.length ? linkedIds : null, body, images, author: getCurrentUser() || 'aki',
     }).catch((err: any)=>{ if(errEl) errEl.textContent = 'Erreur : ' + err.message; });
   }
   cancelEditCustomEntry();
@@ -2079,6 +2099,7 @@ function editCustomEntry(id: string): void {
   onWfFactionSelectChange();
   (document.getElementById('wfOxiriGene') as HTMLInputElement).value = entry.info["Gène d'Oxiri lié"] || '';
   (document.getElementById('wfRang') as HTMLInputElement).value = entry.info['Rang'] || entry.info['Rang hybride'] || '';
+  (document.getElementById('wfMenace') as HTMLSelectElement).value = entry.menace || '';
   (document.getElementById('wfStats') as HTMLTextAreaElement).value = (entry.stats || []).join('\n');
   (document.getElementById('wfSpecialite') as HTMLTextAreaElement).value = (entry.specialite || []).map(decodeBodyLineForEdit).join('\n\n');
   (document.getElementById('wfCapacite') as HTMLInputElement).value = entry.info['Spécificité'] || entry.info['Capacité'] || '';
@@ -2106,6 +2127,7 @@ function cancelEditCustomEntry(): void {
   onWfFactionSelectChange();
   (document.getElementById('wfOxiriGene') as HTMLInputElement).value = '';
   (document.getElementById('wfRang') as HTMLInputElement).value = '';
+  (document.getElementById('wfMenace') as HTMLSelectElement).value = '';
   (document.getElementById('wfStats') as HTMLTextAreaElement).value = '';
   (document.getElementById('wfSpecialite') as HTMLTextAreaElement).value = '';
   (document.getElementById('wfCapacite') as HTMLInputElement).value = '';
@@ -6352,11 +6374,15 @@ function ficheBgHtml(id: string): string {
 interface FicheTab { key: string; label: string; locked: boolean; }
 interface FicheThreat { lvl: number; label: string; }
 
-const FICHE_THREAT_LABELS: string[] = ['NON ÉVALUÉE', 'FAIBLE', 'MODÉRÉE', 'ÉLEVÉE', 'SÉVÈRE', 'CRITIQUE'];
+const FICHE_THREAT_LABELS: string[] = ['NON ÉVALUÉE', 'FAIBLE', 'MODÉRÉE', 'ÉLEVÉE', 'SÉVÈRE', 'CRITIQUE', 'ABSOLU'];
 const FICHE_RANK_LEVEL: Record<string, number> = { s: 5, a: 4, b: 3, c: 2, d: 1 };
 
 // Niveau de menace déduit du rang (« Rang A » -> élevée) ; sans rang connu, la menace reste « potentielle » mais non évaluée.
-function ficheThreat(rang: string): FicheThreat {
+function ficheThreat(rang: string, menace?: string): FicheThreat {
+  if(menace !== undefined && /^[0-6]$/.test(menace)){
+    const n = Number(menace);
+    return { lvl: n, label: FICHE_THREAT_LABELS[n] };
+  }
   const m = rang.match(/(?:rang|rank)\s*[:\-]?\s*([a-z])\b/i) || rang.match(/^\s*([a-z])\s*$/i);
   const lvl = m ? (FICHE_RANK_LEVEL[m[1].toLowerCase()] || 0) : 0;
   return { lvl, label: FICHE_THREAT_LABELS[lvl] };
@@ -6423,7 +6449,7 @@ function renderPersonnageEntry(e: Entry): string {
   const dossierNo = String(Math.max(list.findIndex(x => x.id === e.id), 0) + 1).padStart(3, '0');
   const code = ('0000' + (tmHash(e.id) % 65536).toString(16).toUpperCase()).slice(-4);
   const matricule = 'SUJ-' + String(1000 + (tmHash(e.id + '-m') % 9000));
-  const thr = ficheThreat(rangValue);
+  const thr = ficheThreat(rangValue, e.menace);
   const mrz = dzMrz(e.name, matricule.replace('-', ''), factionName);
   const segs = [1, 2, 3, 4, 5].map(n => `<i class="${n <= thr.lvl ? 'on' : ''}" style="--i:${n}"></i>`).join('');
 
@@ -6440,7 +6466,7 @@ function renderPersonnageEntry(e: Entry): string {
         <div class="fiche" data-entry="${e.id}" style="--fclr:${fclr}">
           ${ficheBgHtml(e.id)}
           <aside class="dz-id">
-            <div class="dz-card">
+            <div class="dz-card${thr.lvl === 6 ? ' abs' : ''}">
               <div class="dz-card-h"><b>Fiche d'identification</b><span>${matricule}</span></div>
               <div class="dz-photo">
                 <div class="dz-frame">
@@ -6461,7 +6487,7 @@ function renderPersonnageEntry(e: Entry): string {
               <div class="dz-threat l${thr.lvl}">
                 <small>Niveau de menace</small>
                 <div class="dz-bar">${segs}</div>
-                <b>${thr.label}</b>
+                <b data-t="${thr.label}">${thr.label}</b>${thr.lvl === 6 ? '<em class="dz-over">échelle dépassée</em>' : ''}
               </div>
               ${dzBarcode(e.id)}
               <div class="dz-mrz">${esc(mrz[0])}\n${esc(mrz[1])}</div>
@@ -6473,6 +6499,7 @@ function renderPersonnageEntry(e: Entry): string {
                 <span class="dz-rar">${e.rarity === 'rare' ? 'Notable' : 'Commun'} · ${c.label}</span>
                 <span>Dossier n° ${dossierNo}</span>
                 <span class="dz-live"><i></i>Sous surveillance</span>
+                ${thr.lvl === 6 ? '<span class="dz-abs">Menace absolue</span>' : ''}
                 <span class="dz-conf">Confidentiel · 0x${code}</span>
               </div>
               <h1 class="dz-title">${esc(e.name)}</h1>
