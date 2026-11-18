@@ -3026,34 +3026,47 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
   max-width: 60ch;
 }
 .entry-owner-actions{ display:flex; gap:8px; margin-top:14px; }
+/* lecteur de musique : module HUD (cadre carré, repère d'angle, étiquette, barre segmentée, volume sur mesure), couleur = accent de la page */
 .entry-music{
+  --mc: var(--acc, var(--verdigris));
   position:relative; display:flex; align-items:center; gap:14px;
-  margin:14px 0; width:100%;
-  border:1px solid var(--border); border-radius:999px;
-  background: var(--surface-2); padding:8px 18px;
+  margin:18px 0 14px; width:100%; padding:10px 16px;
+  background:#0b0c0e; border:1px solid rgba(255,255,255,0.16); border-radius:0;
 }
-.entry-music audio{ display:none; }
-.entry-music-sc-frame{ position:absolute; left:-9999px; top:0; width:300px; height:166px; pointer-events:none; }
+.fiche .entry-music{ --mc: rgb(var(--fclr)); }
+.entry-music::before{ content:''; position:absolute; left:-1px; top:-1px; width:11px; height:11px; border-top:2px solid var(--mc); border-left:2px solid var(--mc); }
+.entry-music::after{ content:'Ambiance'; position:absolute; left:46px; top:-7px; padding:0 7px; background:#0b0c0e; font-family:'IBM Plex Mono', monospace; font-size:8.5px; letter-spacing:.28em; text-transform:uppercase; color:#8d969c; }
+.ch-music .entry-music::before, .ch-music .entry-music::after{ display:none; }
 .entry-music-toggle{
-  flex:none; width:28px; height:28px; border-radius:50%;
-  border:1px solid var(--border); background: var(--surface);
-  color: var(--verdigris); font-size:11px; cursor:pointer; line-height:1;
+  flex:none; width:30px; height:30px; border-radius:0; cursor:pointer; line-height:1; font-size:11px;
   display:flex; align-items:center; justify-content:center;
-  transition: border-color .15s, color .15s;
+  color: var(--mc); background:#07080a; border:1px solid var(--mc);
+  transition: background .2s ease, color .2s ease, box-shadow .2s ease;
 }
-.entry-music-toggle:hover{ border-color: var(--verdigris); color: var(--amber); }
+.entry-music-toggle:hover{ background: var(--mc); color:#06080a; }
+.entry-music[data-playing="1"] .entry-music-toggle{ box-shadow: 0 0 10px color-mix(in srgb, var(--mc) 55%, transparent); }
 .entry-music-track{
-  flex:1; height:6px; cursor:pointer; position:relative;
-  background-image: repeating-linear-gradient(to right, var(--border) 0 3px, transparent 3px 6px);
+  flex:1; height:14px; cursor:pointer; position:relative;
+  background-image: repeating-linear-gradient(to right, rgba(255,255,255,0.14) 0 3px, transparent 3px 6px);
 }
 .entry-music-progress{
   position:absolute; left:0; top:0; height:100%; width:0%; overflow:hidden;
-  background-image: repeating-linear-gradient(to right, var(--verdigris) 0 3px, transparent 3px 6px);
+  background-image: repeating-linear-gradient(to right, var(--mc) 0 3px, transparent 3px 6px);
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--mc) 70%, transparent));
 }
-.entry-music-time{ flex:none; font-size:11px; font-family:'IBM Plex Mono', monospace; color: var(--text-dim); white-space:nowrap; }
-.entry-music-vol{ flex:none; display:flex; align-items:center; gap:6px; }
-.entry-music-vol-icon{ font-size:12px; color: var(--text-dim); }
-.entry-music-vol-slider{ width:70px; accent-color: var(--verdigris); }
+.entry-music-time{ flex:none; min-width:3.2em; font-size:11px; letter-spacing:.1em; font-family:'IBM Plex Mono', monospace; color:#aeb6bc; white-space:nowrap; }
+.entry-music[data-playing="1"] .entry-music-time{ color: var(--mc); }
+.entry-music-vol{ flex:none; display:flex; align-items:center; gap:8px; }
+.entry-music-vol-icon{ font-size:0; }
+.entry-music-vol-icon::before{ content:'VOL'; font-family:'IBM Plex Mono', monospace; font-size:9.5px; letter-spacing:.22em; color:#8d969c; }
+.entry-music-vol-slider{ -webkit-appearance:none; appearance:none; width:76px; height:14px; background:none; cursor:pointer; accent-color: var(--mc); }
+.entry-music-vol-slider::-webkit-slider-runnable-track{ height:6px; background-image: repeating-linear-gradient(to right, rgba(255,255,255,0.22) 0 3px, transparent 3px 6px); }
+.entry-music-vol-slider::-webkit-slider-thumb{ -webkit-appearance:none; width:7px; height:14px; margin-top:-4px; background: var(--mc); border:0; border-radius:0; box-shadow: 0 0 6px color-mix(in srgb, var(--mc) 70%, transparent); }
+.entry-music-vol-slider::-moz-range-track{ height:6px; background-image: repeating-linear-gradient(to right, rgba(255,255,255,0.22) 0 3px, transparent 3px 6px); }
+.entry-music-vol-slider::-moz-range-thumb{ width:7px; height:14px; background: var(--mc); border:0; border-radius:0; }
+@media (max-width:560px){ .entry-music{ flex-wrap:wrap; gap:10px 12px; } .entry-music-track{ flex:1 1 140px; } }
+.entry-music audio{ display:none; }
+.entry-music-sc-frame{ position:absolute; left:-9999px; top:0; width:300px; height:166px; pointer-events:none; }
 .entry-music-fallback{
   color: var(--verdigris); font-size:12.5px; text-decoration:none;
   font-family:'IBM Plex Mono', monospace;
@@ -4813,6 +4826,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=150"></script>
+<script src="dist/main.js?v=151"></script>
 </body>
 </html>
