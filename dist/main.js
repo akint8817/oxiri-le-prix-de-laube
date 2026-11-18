@@ -5621,26 +5621,23 @@ function switchFicheTab(key) {
   document.querySelectorAll('.dz-panel').forEach(p => p.classList.toggle('active', p.dataset.tab === key));
 }
 
+// Fond animé de la fiche, façon dossier classifié : quadrillage de plan qui défile, bandes « CONFIDENTIEL » en diagonale qui glissent,
+// radar tournant de la couleur de la faction, passages caviardés qui apparaissent et disparaissent (positions stables par fiche).
 function ficheBgHtml(id) {
-    const r = tmSeeded(tmHash(id));
-    const hex = () => Math.floor(r() * 256).toString(16).toUpperCase().padStart(2, '0');
-    const line = () => {
-        const k = r();
-        const s = k < 0.6 ? `${hex()} ${hex()} ${hex()}` : k < 0.85 ? Math.floor(r() * 256).toString(2).padStart(8, '0') : `0x${hex()}${hex()}`;
-        return r() < 0.09 ? `<b>${s}</b>` : s;
-    };
-    const COLS = 9;
-    let cols = '';
-    for (let c = 0; c < COLS; c++) {
-        const lines = [];
-        for (let i = 0; i < 90; i++)
-            lines.push(line());
-        const block = lines.join('\n');
-        cols += `<div class="fiche-col" style="left:${((c + 0.5) / COLS * 100 + (r() - 0.5) * 4).toFixed(1)}%;animation-duration:${(70 + r() * 80).toFixed(0)}s;animation-delay:-${(r() * 60).toFixed(0)}s">${block}\n${block}</div>`;
-    }
-    const code = ('0000' + (tmHash(id) % 65536).toString(16).toUpperCase()).slice(-4);
-    return `<div class="fiche-bg" aria-hidden="true"><div class="fiche-cols">${cols}</div><div class="fiche-scan"></div><span class="fiche-tag fiche-tag-a">DOSSIER // 0x${code}</span><span class="fiche-tag fiche-tag-b">SYNC <i>▮▮▮▮</i><i>▯</i></span></div>`;
+  const r = tmSeeded(tmHash(id));
+  const phrase = 'CONFIDENTIEL ◆ DOSSIER SUJET ◆ ACCÈS RESTREINT ◆ NE PAS DIFFUSER ◆ ';
+  let rows = '';
+  for(let i = 0; i < 8; i++){
+    rows += `<div class="fiche-tape-row" style="animation-duration:${(150 + r() * 90).toFixed(0)}s;animation-direction:${i % 2 ? 'reverse' : 'normal'}"><span>${phrase.repeat(16)}</span></div>`;
+  }
+  let bars = '';
+  for(let i = 0; i < 7; i++){
+    bars += `<i class="fiche-redact" style="left:${(4 + r() * 88).toFixed(1)}%;top:${(3 + r() * 92).toFixed(1)}%;width:${Math.round(70 + r() * 150)}px;animation-delay:-${(r() * 12).toFixed(1)}s;animation-duration:${(9 + r() * 8).toFixed(1)}s"></i>`;
+  }
+  const code = ('0000' + (tmHash(id) % 65536).toString(16).toUpperCase()).slice(-4);
+  return `<div class="fiche-bg" aria-hidden="true"><div class="fiche-grid"></div><div class="fiche-tape">${rows}</div><div class="fiche-radar"></div>${bars}<div class="fiche-scan"></div><span class="fiche-tag fiche-tag-a">DOSSIER // 0x${code}</span><span class="fiche-tag fiche-tag-b">SYNC <i>▮▮▮▮</i><i>▯</i></span></div>`;
 }
+
 /* ----- Fiche personnage : dossier d'identification militaire -----
    Colonne gauche : carte d'identité (cadre photo avec réticule, tampon « MENACE POTENTIELLE », jauge de menace tirée du rang,
    code-barres et lignes machine). Colonne droite : en-tête de dossier, informations signalétiques et onglets numérotés. */
@@ -5681,18 +5678,6 @@ function dzBarcode(seed) {
 }
 
 // Le réticule du cadre photo suit le pointeur (« cible acquise ») ; sans pointeur il dérive lentement.
-function initDzFrame() {
-  const fr = document.querySelector('.dz-frame');
-  if(!fr) return;
-  fr.addEventListener('pointermove', ev => {
-    const r = fr.getBoundingClientRect();
-    fr.style.setProperty('--rx', (((ev.clientX - r.left) / r.width) * 100).toFixed(1) + '%');
-    fr.style.setProperty('--ry', (((ev.clientY - r.top) / r.height) * 100).toFixed(1) + '%');
-    fr.classList.add('track');
-  });
-  fr.addEventListener('pointerleave', () => fr.classList.remove('track'));
-}
-
 function renderPersonnageEntry(e) {
   const c = CATS[e.cat];
   const f = e.faction ? FACTIONS.find(x => x.id === e.faction) : undefined;
@@ -5756,9 +5741,7 @@ function renderPersonnageEntry(e) {
                   <i class="dz-cm tl"></i><i class="dz-cm tr"></i><i class="dz-cm bl"></i><i class="dz-cm br"></i>
                   <span class="dz-ruler"></span>
                   <span class="dz-scanline"></span>
-                  <span class="dz-reticle"></span>
                 </div>
-                <div class="dz-stamp">Menace potentielle</div>
                 <div class="dz-photo-cap"><span>Photo d'identité</span><span class="dz-rec"><i></i>REC</span></div>
               </div>
               <div class="dz-fields">
@@ -5823,7 +5806,6 @@ function navigatePersonnageRail(dir, currentId) {
     navigate('entry-' + next.id);
 }
 function initPersonnageEntryRail() {
-  initDzFrame();
     const active = document.querySelector('.op-rail-avatar.active');
     if (active) active.scrollIntoView({ block: 'center' });
     const page = document.querySelector('.op-page');
