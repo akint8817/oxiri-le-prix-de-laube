@@ -3206,6 +3206,7 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .fiche-helix i::before, .fiche-helix i::after{ content:''; position:absolute; top:50%; border-radius:50%; transform: translateY(-50%); }
 .fiche-helix i::before{ left:0; width:6px; height:6px; background: rgb(var(--fclr)); box-shadow: 0 0 7px rgba(var(--fclr),0.9); }
 .fiche-helix i::after{ right:0; width:4px; height:4px; background: rgba(var(--fclr),0.5); }
+.fiche-grid::after{ content:''; position:absolute; inset:0; background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cpath d='M54 60h12M60 54v12' stroke='%23c8d2dc' stroke-opacity='.3' stroke-width='1' fill='none'/%3E%3C/svg%3E") 60px 60px / 120px 120px; animation: ficheBeat 2.8s ease-in-out infinite; }
 @keyframes ficheHx{ 0%{ transform: scaleX(1); } 25%{ transform: scaleX(.04); } 50%{ transform: scaleX(-1); } 75%{ transform: scaleX(-.04); } 100%{ transform: scaleX(1); } }
 .fiche-ecg{ position:absolute; left:0; right:0; height:60px; overflow:hidden;
   -webkit-mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent); mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent); }
@@ -3228,9 +3229,6 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
   animation: ficheBeat 2.8s ease-in-out infinite;
 }
 @keyframes ficheBeat{ 0%{ opacity:.4; } 9%{ opacity:1; } 17%{ opacity:.5; } 27%{ opacity:.95; } 42%, 100%{ opacity:.4; } }
-.fiche-veins{ position:absolute; inset:0; width:100%; height:100%; opacity:.5; animation: ficheBeat 2.8s ease-in-out infinite; }
-.fiche-veins path{ vector-effect: non-scaling-stroke; stroke: rgba(var(--fclr),0.5); stroke-linecap:round; stroke-linejoin:round; opacity:0; animation: ficheVein 4s ease-out both; filter: drop-shadow(0 0 3px rgba(var(--fclr),0.5)); }
-@keyframes ficheVein{ to{ opacity:.75; } }
 .fiche-eyes{ position:absolute; display:flex; gap:7px; opacity:0; transform-origin:center; animation: ficheEyes 24s infinite; }
 .fiche-eyes{ right:4px; }
 .fiche-eyes i{ display:block; width:9px; height:5px; border-radius:50%; background: radial-gradient(circle at 50% 50%, #050506 0 22%, rgb(var(--fclr)) 30% 55%, transparent 100%); box-shadow: 0 0 9px rgba(var(--fclr),0.9), 0 0 2px #fff; }
@@ -3258,7 +3256,7 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .fiche-tag i{ font-style:normal; }
 .fiche-tag-b i:last-child{ animation: ficheBlink 1.4s steps(2) infinite; }
 @keyframes ficheBlink{ 50%{ opacity:0; } }
-@media (prefers-reduced-motion: reduce){ .fiche-bg::before, .fiche-bg::after, .fiche-pulse, .fiche-veins, .fiche-veins path, .fiche-eyes, .fiche-whisper, .fiche-grain, .fiche-flick, .fiche-helix i, .fiche-ecg svg, .fiche-scan, .fiche-tag i{ animation:none; } }
+@media (prefers-reduced-motion: reduce){ .fiche-bg::before, .fiche-bg::after, .fiche-pulse, .fiche-eyes, .fiche-whisper, .fiche-grain, .fiche-flick, .fiche-helix i, .fiche-ecg svg, .fiche-scan, .fiche-tag i{ animation:none; } }
 
 .fiche-empty{ color:var(--text-dim); font-style:italic; font-size:13.5px; }
 
@@ -4815,6 +4813,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=149"></script>
+<script src="dist/main.js?v=150"></script>
 </body>
 </html>

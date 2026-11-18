@@ -6302,7 +6302,7 @@ function switchFicheTab(key: string): void {
 
 // Fond animé de la fiche : laboratoire futuriste qui vire au malaise. Côté science : quadrillage de mesure, double hélice d'ADN qui tourne dans la marge
 // gauche, tracés d'électrocardiogramme qui défilent, faisceau de balayage, relevés (séquençage, fréquence cardiaque). Côté creepy : bord de page qui bat
-// comme un cœur, veines qui rampent depuis les marges, yeux qui s'ouvrent dans la marge droite, murmures de rapport d'analyse, grain et faux contacts.
+// comme un cœur, repères en croix qui battent avec lui, yeux qui s'ouvrent dans la marge droite, murmures de rapport d'analyse, grain et faux contacts.
 // Tout est tiré au hasard de façon stable par fiche (même fiche = même fond).
 const FICHE_WHISPERS: string[] = [
   'sujet non maîtrisé',
@@ -6312,23 +6312,6 @@ const FICHE_WHISPERS: string[] = [
   'ça respire encore',
   'confinement compromis',
 ];
-
-// Une veine : marche aléatoire qui part d'un bord et se ramifie (profondeur limitée à 3).
-function ficheGrowVein(r: any, paths: string[], x: number, y: number, a: number, len: number, depth: number): void {
-  let px = x;
-  let py = y;
-  let ang = a;
-  let d = `M${x.toFixed(1)} ${y.toFixed(1)}`;
-  const steps = Math.max(4, Math.round(len / 26));
-  for(let i = 0; i < steps; i++){
-    ang += (r() - 0.5) * 0.8;
-    px += Math.cos(ang) * 26;
-    py += Math.sin(ang) * 26;
-    d += `L${px.toFixed(1)} ${py.toFixed(1)}`;
-    if(depth < 3 && r() < 0.2) ficheGrowVein(r, paths, px, py, ang + (r() < 0.5 ? -1 : 1) * (0.5 + r() * 0.7), len * 0.55, depth + 1);
-  }
-  paths.push(`<path d="${d}" style="animation-delay:${(depth * 1.2 + r() * 2.5).toFixed(1)}s;stroke-width:${depth ? 1 : 1.7}"/>`);
-}
 
 function ficheHelix(side: string): string {
   let h = '';
@@ -6348,12 +6331,6 @@ function ficheEcg(pos: string): string {
 
 function ficheBgHtml(id: string): string {
   const r = tmSeeded(tmHash(id));
-  const paths: string[] = [];
-  for(let i = 0; i < 9; i++){
-    ficheGrowVein(r, paths, -10, 40 + r() * 920, (r() - 0.5) * 0.9, 300 + r() * 160, 0);
-    ficheGrowVein(r, paths, 1010, 40 + r() * 920, Math.PI + (r() - 0.5) * 0.9, 300 + r() * 160, 0);
-  }
-  for(let i = 0; i < 3; i++) ficheGrowVein(r, paths, 120 + r() * 760, -10, Math.PI / 2 + (r() - 0.5) * 0.8, 260 + r() * 120, 0);
   let eyes = '';
   for(let i = 0; i < 5; i++){
     eyes += `<span class="fiche-eyes" style="top:${(52 + r() * 42).toFixed(1)}%;animation-duration:${(17 + r() * 15).toFixed(1)}s;animation-delay:-${(r() * 24).toFixed(1)}s"><i></i><i></i></span>`;
@@ -6366,7 +6343,7 @@ function ficheBgHtml(id: string): string {
   const code = ('0000' + (tmHash(id) % 65536).toString(16).toUpperCase()).slice(-4);
   const seq = (91 + r() * 8.8).toFixed(1);
   const bpm = 58 + Math.floor(r() * 46);
-  return `<div class="fiche-bg" aria-hidden="true"><div class="fiche-grid"></div><div class="fiche-pulse"></div><svg class="fiche-veins" viewBox="0 0 1000 1000" preserveAspectRatio="none" fill="none">${paths.join('')}</svg>${ficheHelix('l')}${ficheEcg('t')}${ficheEcg('b')}${eyes}${whispers}<div class="fiche-grain"></div><div class="fiche-flick"></div><div class="fiche-scan"></div><span class="fiche-tag fiche-tag-a">DOSSIER // 0x${code}</span><span class="fiche-tag fiche-tag-b">SÉQUENÇAGE ${seq}%<br>FC ${bpm} BPM<br>ANALYSE <i>▮▮▮▮</i><i>▯</i></span></div>`;
+  return `<div class="fiche-bg" aria-hidden="true"><div class="fiche-grid"></div><div class="fiche-pulse"></div>${ficheHelix('l')}${ficheEcg('t')}${ficheEcg('b')}${eyes}${whispers}<div class="fiche-grain"></div><div class="fiche-flick"></div><div class="fiche-scan"></div><span class="fiche-tag fiche-tag-a">DOSSIER // 0x${code}</span><span class="fiche-tag fiche-tag-b">SÉQUENÇAGE ${seq}%<br>FC ${bpm} BPM<br>ANALYSE <i>▮▮▮▮</i><i>▯</i></span></div>`;
 }
 
 /* ----- Fiche personnage : dossier d'identification militaire -----
