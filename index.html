@@ -3188,48 +3188,46 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 }
 @keyframes ficheGlowA{ to{ transform: translate(24vw, 16vh) scale(1.15); } }
 @keyframes ficheGlowB{ to{ transform: translate(-20vw, -14vh) scale(1.2); } }
-/* ambiance « dossier classifié » : quadrillage de plan, bandes de mise en garde en diagonale, radar, passages caviardés, balayage, étiquettes */
-.fiche-grid{
+/* ambiance « malaise » : bord qui bat comme un cœur, veines, yeux dans la marge, murmures, grain, faux contacts */
+.fiche-pulse{
   position:absolute; inset:0;
-  background-image:
-    linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px),
-    linear-gradient(rgba(var(--fclr),0.08) 1px, transparent 1px), linear-gradient(90deg, rgba(var(--fclr),0.08) 1px, transparent 1px);
-  background-size: 32px 32px, 32px 32px, 192px 192px, 192px 192px;
-  animation: ficheGrid 40s linear infinite;
-  -webkit-mask-image: linear-gradient(180deg, transparent, #000 8%, #000 92%, transparent);
-  mask-image: linear-gradient(180deg, transparent, #000 8%, #000 92%, transparent);
+  background: radial-gradient(ellipse at 50% 42%, transparent 38%, rgba(var(--fclr),0.2) 100%), radial-gradient(ellipse at 50% 50%, transparent 55%, rgba(0,0,0,0.55) 100%);
+  animation: ficheBeat 2.8s ease-in-out infinite;
 }
-@keyframes ficheGrid{ to{ background-position: 0 192px, 192px 0, 0 192px, 192px 0; } }
-.fiche-tape{ position:absolute; left:-25%; right:-25%; top:-5%; bottom:-5%; display:flex; flex-direction:column; justify-content:space-around; transform: rotate(-11deg); }
-.fiche-tape-row{ white-space:nowrap; animation: ficheTape linear infinite; }
-.fiche-tape-row span{ display:inline-block; font-size: clamp(44px, 5vw, 84px); font-weight:800; letter-spacing:.32em; text-transform:uppercase; color: rgba(255,255,255,0.026); -webkit-text-stroke: 1px rgba(var(--fclr),0.08); }
-@keyframes ficheTape{ to{ transform: translateX(-50%); } }
-.fiche-radar{
-  position:absolute; right:-12vw; top:5%; width:min(60vw, 820px); aspect-ratio:1; border-radius:50%; opacity:.6;
-  background:
-    repeating-radial-gradient(circle, transparent 0 62px, rgba(var(--fclr),0.12) 62px 63px),
-    conic-gradient(from 0deg, transparent 0 300deg, rgba(var(--fclr),0.17) 358deg, transparent 360deg);
-  -webkit-mask-image: radial-gradient(circle, #000 52%, transparent 72%);
-  mask-image: radial-gradient(circle, #000 52%, transparent 72%);
-  animation: ficheRadar 16s linear infinite;
+@keyframes ficheBeat{ 0%{ opacity:.4; } 9%{ opacity:1; } 17%{ opacity:.5; } 27%{ opacity:.95; } 42%, 100%{ opacity:.4; } }
+.fiche-veins{ position:absolute; inset:0; width:100%; height:100%; opacity:.5; animation: ficheBeat 2.8s ease-in-out infinite; }
+.fiche-veins path{ vector-effect: non-scaling-stroke; stroke: rgba(var(--fclr),0.5); stroke-linecap:round; stroke-linejoin:round; opacity:0; animation: ficheVein 4s ease-out both; filter: drop-shadow(0 0 3px rgba(var(--fclr),0.5)); }
+@keyframes ficheVein{ to{ opacity:.75; } }
+.fiche-eyes{ position:absolute; display:flex; gap:7px; opacity:0; transform-origin:center; animation: ficheEyes 24s infinite; }
+.fiche-eyes.l{ left:4px; }
+.fiche-eyes.r{ right:4px; }
+.fiche-eyes i{ display:block; width:9px; height:5px; border-radius:50%; background: radial-gradient(circle at 50% 50%, #050506 0 22%, rgb(var(--fclr)) 30% 55%, transparent 100%); box-shadow: 0 0 9px rgba(var(--fclr),0.9), 0 0 2px #fff; }
+@keyframes ficheEyes{
+  0%, 58%{ opacity:0; transform: scaleY(.05); }
+  61%{ opacity:.95; transform: scaleY(1); }
+  72%{ opacity:.95; transform: scaleY(1); }
+  73.5%{ opacity:.95; transform: scaleY(.08); }
+  75%{ opacity:.95; transform: scaleY(1); }
+  86%{ opacity:.95; transform: scaleY(1); }
+  89%{ opacity:0; transform: scaleY(.05); }
+  100%{ opacity:0; }
 }
-@keyframes ficheRadar{ to{ transform: rotate(360deg); } }
-.fiche-redact{ position:absolute; height:14px; opacity:0; background: rgba(0,0,0,0.72); border:1px solid rgba(var(--fclr),0.3); animation: ficheRedact 11s steps(1) infinite; }
-@keyframes ficheRedact{ 0%, 100%{ opacity:0; } 8%{ opacity:.9; } 40%{ opacity:.9; } 41%{ opacity:.2; } 43%{ opacity:.9; } 70%{ opacity:.9; } 71%{ opacity:0; } }
-.fiche-scan{
-  position:absolute; left:0; right:0; top:-90px; height:90px;
-  background: linear-gradient(180deg, transparent, rgba(var(--fclr),0.07) 70%, rgba(var(--fclr),0.2));
-  border-bottom: 1px solid rgba(var(--fclr),0.45);
-  animation: ficheScan 13s linear infinite;
-}
-@keyframes ficheScan{ to{ top:100%; } }
+.fiche-whisper{ position:absolute; writing-mode:vertical-rl; white-space:nowrap; opacity:0; font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:.3em; text-transform:uppercase; color: rgba(var(--fclr),0.8); text-shadow: 0 0 6px rgba(var(--fclr),0.6); animation: ficheWhisper 20s infinite; }
+.fiche-whisper.l{ left:9px; }
+.fiche-whisper.r{ right:9px; }
+@keyframes ficheWhisper{ 0%, 40%{ opacity:0; } 46%{ opacity:.55; } 48%{ opacity:.15; } 50%{ opacity:.6; } 66%{ opacity:.5; } 72%, 100%{ opacity:0; } }
+.fiche-grain{ position:absolute; inset:-60px; opacity:.07; pointer-events:none; animation: ficheGrain .7s steps(5) infinite;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"); }
+@keyframes ficheGrain{ 0%{ transform: translate(0,0); } 20%{ transform: translate(-22px,14px); } 40%{ transform: translate(16px,-26px); } 60%{ transform: translate(-30px,-10px); } 80%{ transform: translate(24px,22px); } 100%{ transform: translate(0,0); } }
+.fiche-flick{ position:absolute; inset:0; background:#000; opacity:0; animation: ficheFlick 11s steps(1) infinite; }
+@keyframes ficheFlick{ 0%, 62%, 64.5%, 66%, 100%{ opacity:0; } 62.2%{ opacity:.35; } 64.7%{ opacity:.55; } 65.2%{ opacity:.15; } }
 .fiche-tag{ position:absolute; font-family:'IBM Plex Mono', monospace; font-size:10px; letter-spacing:0.16em; color: rgba(170,182,200,0.42); }
 .fiche-tag-a{ right:18px; top:10px; }
 .fiche-tag-b{ left:18px; bottom:10px; }
 .fiche-tag i{ font-style:normal; }
 .fiche-tag-b i:last-child{ animation: ficheBlink 1.4s steps(2) infinite; }
 @keyframes ficheBlink{ 50%{ opacity:0; } }
-@media (prefers-reduced-motion: reduce){ .fiche-bg::before, .fiche-bg::after, .fiche-grid, .fiche-tape-row, .fiche-radar, .fiche-redact, .fiche-scan, .fiche-tag i{ animation:none; } }
+@media (prefers-reduced-motion: reduce){ .fiche-bg::before, .fiche-bg::after, .fiche-pulse, .fiche-veins, .fiche-veins path, .fiche-eyes, .fiche-whisper, .fiche-grain, .fiche-flick, .fiche-tag i{ animation:none; } }
 
 .fiche-empty{ color:var(--text-dim); font-style:italic; font-size:13.5px; }
 
@@ -4786,6 +4784,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=147"></script>
+<script src="dist/main.js?v=148"></script>
 </body>
 </html>
