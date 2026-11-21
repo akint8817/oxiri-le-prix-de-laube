@@ -3637,6 +3637,11 @@ let apDoc = 'arsenal';
 function apDefaults(docId) {
   if(docId === 'chronologie') return { kicker: 'Archives temporelles · Oxiri', title: 'Chronologie du monde', tagline: "L'histoire n'est jamais écrite par ceux qui l'ont vécue. Elle est écrite par ceux qui ont survécu.", motif: 'chrono', color: SQ_ACCENTS.chrono };
   if(docId === 'organisations') return { kicker: 'Registre des pouvoirs · Oxiri', title: 'Organisations', tagline: 'Les grandes organisations qui façonnent le monde.', motif: 'org', color: SQ_ACCENTS.org };
+  if(docId === 'archives') return { kicker: 'Halcyon · Département des Reliques', title: 'Archives des Artefacts Oxiriens', tagline: "Dossiers classifiés sur les artefacts nés de l'énergie d'Oxiri.", motif: 'arc', color: SQ_ACCENTS.arc };
+  if(docId.indexOf('arme-') === 0){
+    const w = findWeapon(docId.slice(5));
+    if(w) return { kicker: 'Dossier ' + w.dossier + ' · Artefact oxirien', title: w.name, tagline: w.info['Type'] || '', motif: 'arc', color: SQ_ACCENTS.arc };
+  }
   return { kicker: 'Archives · Arsenal', title: CATS.objets.label, tagline: CATS.objets.desc, motif: 'arm', color: SQ_ACCENTS.arm };
 }
 
@@ -3652,7 +3657,7 @@ function apOf(docId) {
   };
 }
 const AP_COLORS = ['#35c6ff', '#ff7a45', '#36e0b4', '#5aa9ff', '#b79bff', '#ff4d6d', '#f2e24a', '#e8eef2'];
-const AP_MOTIFS = [['arm', 'Grille hexagonale (par défaut)'], ['ops', 'Radar'], ['lab', 'Atome et papier millimétré'], ['law', 'Balance et colonnes'], ['chrono', 'Cadran et règle graduée'], ['org', 'Organigramme'], ['none', 'Aucun motif']];
+const AP_MOTIFS = [['arm', 'Grille hexagonale (par défaut)'], ['ops', 'Radar'], ['lab', 'Atome et papier millimétré'], ['law', 'Balance et colonnes'], ['arc', 'Archive (Ω et radar)'], ['chrono', 'Cadran et règle graduée'], ['org', 'Organigramme'], ['none', 'Aucun motif']];
 
 function apRefresh() {
   const el = document.getElementById('apPrev');
@@ -7451,13 +7456,14 @@ function arCardHtml(w, i) {
 
 function renderArmesArchive() {
   const open = WEAPONS.filter(w => !w.restricted).length;
+  const ap = apOf('archives');
   const facts = [["Niveau d'accès", 'OMEGA'], ['Dossiers consultables', String(open)], ['Classification', 'Artefacts oxiriens'], ['Accès', 'Journalisé']];
   const actions = `<button type="button" class="city-btn" onclick="navigate('halcyon')">← Halcyon</button>
-    <button type="button" class="city-btn" onclick="scrollToCity('city-ville')">Ouvrir les dossiers ↓</button>`;
+    <button type="button" class="city-btn" onclick="scrollToCity('city-ville')">Ouvrir les dossiers ↓</button>
+    ${isLoggedIn() ? `<button type="button" class="city-btn" onclick="openPageAppearance('archives')">Modifier</button>` : ''}`;
   const hero = cityHeroHtml({
-    kicker: 'Halcyon · Département des Reliques', title: 'Archives des Artefacts Oxiriens',
-    tagline: "Dossiers classifiés sur les artefacts nés de l'énergie d'Oxiri.",
-    facts, img: '', tape: '', plaque: 'Habilitation', actions, music: '',
+    kicker: ap.kicker, title: ap.title, tagline: ap.tagline,
+    facts, img: ap.img, tape: '', plaque: 'Habilitation', actions, music: '',
   });
   const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Les dossiers', g: 'i' }];
   const cards = WEAPONS.map((w, i) => arCardHtml(w, i)).join('') + `
@@ -7473,8 +7479,8 @@ function renderArmesArchive() {
     </div>`;
   return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / Armes</div>
-    <div class="city med sq sq-arc" style="--acc:${SQ_ACCENTS.arc}">
-      ${sqBgHtml('arc', 'archives')}
+    <div class="city med sq sq-arc" style="--acc:${ap.accent}">
+      ${sqBgHtml(ap.motif, 'archives', ap.img)}
       <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
       ${hero}
       ${arBannerHtml()}
@@ -7517,13 +7523,15 @@ function renderArmeDossier(id) {
       </div>`;
   }
 
+  const ap = apOf('arme-' + w.id);
   const classification = w.info['Classification'] || 'Artefact oxirien';
   const facts = [['Dossier', w.dossier], ['Dangerosité', w.danger], ['Statut', w.status], ['Classification', classification]];
   const actions = `<button type="button" class="city-btn" onclick="navigate('armes')">← Archives</button>
-    ${w.classified ? `<button type="button" class="city-btn" onclick="scrollToCity('ar-classified')">Section chiffrée ↓</button>` : ''}`;
+    ${w.classified ? `<button type="button" class="city-btn" onclick="scrollToCity('ar-classified')">Section chiffrée ↓</button>` : ''}
+    ${isLoggedIn() ? `<button type="button" class="city-btn" onclick="openPageAppearance('arme-${w.id}')">Modifier</button>` : ''}`;
   const hero = cityHeroHtml({
-    kicker: 'Dossier ' + w.dossier + ' · Artefact oxirien', title: w.name, tagline: w.info['Type'] || '',
-    facts, img: w.image || '', tape: '', plaque: 'Dossier', actions, music: '',
+    kicker: ap.kicker, title: ap.title, tagline: ap.tagline,
+    facts, img: ap.img || w.image || '', tape: '', plaque: 'Dossier', actions, music: '',
   });
   const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Le dossier', g: 'i' }];
   const r = tmSeeded(tmHash(w.id));
@@ -7546,8 +7554,8 @@ function renderArmeDossier(id) {
     ? `<img src="${encodeURI(w.image)}" alt="">`
     : `<div class="ar-noimg"><b>—</b><span>IMAGE INDISPONIBLE</span></div>`;
   return `${crumbs}
-    <div class="city med sq sq-arc" style="--acc:${SQ_ACCENTS.arc}">
-      ${sqBgHtml('arc', w.id)}
+    <div class="city med sq sq-arc" style="--acc:${ap.accent}">
+      ${sqBgHtml(ap.motif, w.id, ap.img)}
       <nav class="city-rail">${rail.map((r2, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r2.id}" title="${escAttr(r2.t)}" onclick="scrollToCity('${r2.id}')">${esc(r2.g)}</a>`).join('')}</nav>
       ${hero}
       ${arBannerHtml()}
@@ -10410,7 +10418,8 @@ function render() {
         content.innerHTML = renderHalcyonPage();
     }
     else if (route === 'armes') {
-        playDossierBoot(() => renderArmesArchive());
+        if (document.querySelector('.city.sq-arc')) { content.innerHTML = renderArmesArchive(); initCityPage(isNavigation); }
+        else playDossierBoot(() => renderArmesArchive());
     }
     else if (route.startsWith('arme-')) {
         dockHalcyonLogoImmediate();
