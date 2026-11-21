@@ -7660,7 +7660,7 @@ function renderBranchDossierCard(p: SquadProject, squad: Squad, docCode: string,
 // Dossier complet d'un escadron ou d'un département : même habillage HUD que la page Hybrides (bandeau, plaque « Dossier »,
 // panneaux pleins, fond animé), avec une couleur et un motif par thème : « ops » (escadron : radar), « law » (justice : balance)
 // et « lab » (recherche : atome). Le texte du dossier, les projets et l'effectif restent éditables comme avant.
-const SQ_ACCENTS: Record<string, string> = { ops: '#ff7a45', law: '#5aa9ff', lab: '#36e0b4', arm: '#35c6ff', chrono: '#e8b04a', org: '#a98bff' };
+const SQ_ACCENTS: Record<string, string> = { ops: '#ff7a45', law: '#5aa9ff', lab: '#36e0b4', arm: '#35c6ff', chrono: '#e8b04a', org: '#a98bff', arc: '#e0524a' };
 
 function sqThemeOf(s: Squad): string {
   const t = ((s.category || '') + ' ' + s.name + ' ' + (s.tag || '')).normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
@@ -7683,6 +7683,8 @@ function sqBgHtml(theme: string, seed: string, img: string = ''): string {
     mark = `<div class="sq-ruler"></div><div class="sq-sweep"></div><svg class="sq-mark sq-dial" viewBox="-30 -30 460 460" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="200" cy="200" r="190"/><circle cx="200" cy="200" r="166" stroke-dasharray="3 9"/><circle cx="200" cy="200" r="104"/><path d="M200 200V66M200 200L292 248"/><circle cx="200" cy="200" r="8" fill="currentColor"/><path d="${ticks}"/></svg>`;
   } else if(theme === 'org'){
     mark = `<div class="sq-dots"></div><svg class="sq-mark sq-net" viewBox="0 0 400 340" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M200 78V120H70V154M200 120V154M200 120H330V154M70 186V230H30V274M70 230H110V274M200 186V274M330 186V230H290V274M330 230H370V274"/><circle class="n" cx="200" cy="60" r="18"/><circle cx="200" cy="60" r="6" fill="currentColor"/><circle class="n" cx="70" cy="170" r="16"/><circle class="n" cx="200" cy="170" r="16"/><circle class="n" cx="330" cy="170" r="16"/><circle class="n" cx="30" cy="290" r="11"/><circle class="n" cx="110" cy="290" r="11"/><circle class="n" cx="200" cy="290" r="11"/><circle class="n" cx="290" cy="290" r="11"/><circle class="n" cx="370" cy="290" r="11"/></svg>`;
+  } else if(theme === 'arc'){
+    mark = `<div class="sq-hex"></div><div class="sq-sweep"></div><svg class="sq-mark sq-omega" viewBox="0 0 400 400" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="200" cy="200" r="186" stroke-dasharray="4 10"/><circle cx="200" cy="200" r="150"/><path d="M110 320H170C120 285 92 245 92 195A108 108 0 1 1 308 195C308 245 280 285 230 320H290"/></svg>`;
   } else if(theme === 'law'){
     mark = `<div class="sq-cols"></div><svg class="sq-mark" viewBox="0 0 400 400" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M200 40V340M130 360H270M160 340H240M70 110H330"/><circle cx="200" cy="58" r="12"/><path d="M90 110L40 220M90 110L140 220M310 110L260 220M310 110L360 220"/><path d="M30 220H150Q140 270 90 270Q40 270 30 220ZM250 220H370Q360 270 310 270Q260 270 250 220Z"/></svg>`;
   } else if(theme === 'arm'){
@@ -8201,52 +8203,88 @@ function findWeapon(id: string): Weapon | undefined {
   return WEAPONS.find(w => w.id === id);
 }
 
-function dossierRowHtml(w: Weapon): string {
+/* ----- Archives Halcyon — artefacts oxiriens : registre et dossiers secrets -----
+   Même habillage HUD que le reste du site (bandeau, plaque, panneaux pleins), mais en « archive interdite » : bandeau d'alerte,
+   dossiers-chemises avec onglet et photo scotchée, tampons de statut, jauge de dangerosité, lignes caviardées, section chiffrée. */
+function arLevel(danger: string): number {
+  const s = danger.toLowerCase();
+  if(s.includes('catastrophique')) return 5;
+  if(s.includes('extrême')) return 4;
+  if(s.includes('très')) return 3;
+  if(s.includes('élevée')) return 2;
+  return 0;
+}
+
+function arMeter(danger: string): string {
+  const n = arLevel(danger);
+  return `<div class="ar-meter${n ? '' : ' unk'}">${[1, 2, 3, 4, 5].map(i => `<i class="${i <= n ? 'on' : ''}" style="--i:${i}"></i>`).join('')}</div>`;
+}
+
+const AR_BANNER: string = '⚠ ARCHIVES INTERDITES ◆ HABILITATION OMEGA REQUISE ◆ TOUTE CONSULTATION EST JOURNALISÉE ◆ ';
+
+function arBannerHtml(): string {
+  return `<div class="ar-ban" aria-hidden="true"><div class="ar-ban-track"><span>${AR_BANNER.repeat(8)}</span><span>${AR_BANNER.repeat(8)}</span></div></div>`;
+}
+
+function arCardHtml(w: Weapon, i: number): string {
+  const locked = !!w.restricted;
+  const cls = 'ar-card cv-rv' + (w.id === 'division-astrale' ? ' corrupted' : '') + (locked ? ' locked' : '');
   const thumb = w.image
     ? `<img src="${encodeURI(w.image)}" alt="">`
-    : `<div class="dossier-row-noimg">${w.restricted ? '🔒' : '✕'}</div>`;
+    : `<div class="ar-noimg"><b>${locked ? 'ACCÈS' : '—'}</b><span>${locked ? 'INTERDIT' : 'AUCUNE IMAGE'}</span></div>`;
   return `
-    <div class="dossier-row ${w.id==='division-astrale' ? 'corrupted' : ''} ${w.restricted ? 'restricted' : ''}" onclick="navigate('arme-${w.id}')">
-      <div class="dossier-row-num">DOSSIER<br>${esc(w.dossier)}</div>
-      <div class="dossier-row-thumb">${thumb}</div>
-      <div class="dossier-row-info">
-        <div class="dossier-row-name">${esc(w.name)}</div>
-        <div class="dossier-row-tags">
-          <span class="dstamp dstamp-${dangerClass(w.danger)}">${esc(w.danger)}</span>
-          <span class="dstamp dstamp-${statusClass(w.status)}">${esc(w.status)}</span>
-        </div>
+    <div class="${cls}" style="--n:${i}" onclick="navigate('arme-${w.id}')">
+      <span class="ar-tab">Dossier ${esc(w.dossier)}</span>
+      <div class="ar-photo">
+        ${thumb}
+        <i class="ar-cm tl"></i><i class="ar-cm tr"></i><i class="ar-cm bl"></i><i class="ar-cm br"></i>
+        <span class="ar-stamp s-${statusClass(w.status)}">${esc(w.status)}</span>
       </div>
-      <div class="dossier-row-arrow">→</div>
+      <div class="ar-body">
+        <h3>${esc(w.name)}</h3>
+        <div class="ar-danger"><small>Dangerosité</small>${arMeter(w.danger)}<b>${esc(w.danger)}</b></div>
+        <div class="ar-foot"><span>${locked ? 'Au-delà de OMEGA' : 'Accès OMEGA'}</span><b>${locked ? 'Tenter l\'accès →' : 'Ouvrir le dossier →'}</b></div>
+      </div>
     </div>`;
 }
 
 function renderArmesArchive(): string {
+  const open = WEAPONS.filter(w => !w.restricted).length;
+  const facts: [string, string][] = [["Niveau d'accès", 'OMEGA'], ['Dossiers consultables', String(open)], ['Classification', 'Artefacts oxiriens'], ['Accès', 'Journalisé']];
+  const actions = `<button type="button" class="city-btn" onclick="navigate('halcyon')">← Halcyon</button>
+    <button type="button" class="city-btn" onclick="scrollToCity('city-ville')">Ouvrir les dossiers ↓</button>`;
+  const hero = cityHeroHtml({
+    kicker: 'Halcyon · Département des Reliques', title: 'Archives des Artefacts Oxiriens',
+    tagline: "Dossiers classifiés sur les artefacts nés de l'énergie d'Oxiri.",
+    facts, img: '', tape: '', plaque: 'Habilitation', actions, music: '',
+  });
+  const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Les dossiers', g: 'i' }];
+  const cards = WEAPONS.map((w, i) => arCardHtml(w, i)).join('') + `
+    <div class="ar-card cv-rv corrupted unk" style="--n:${WEAPONS.length}" onclick="navigate('archives-corrompues')">
+      <span class="ar-tab">Dossier ???</span>
+      <div class="ar-photo"><div class="ar-noimg"><b class="corrupted-text">????</b><span>DONNÉES CORROMPUES</span></div>
+        <i class="ar-cm tl"></i><i class="ar-cm tr"></i><i class="ar-cm bl"></i><i class="ar-cm br"></i></div>
+      <div class="ar-body">
+        <h3 class="corrupted-text">????</h3>
+        <div class="ar-danger"><small>Dangerosité</small>${arMeter('?')}<b>INCONNUE</b></div>
+        <div class="ar-foot"><span>Intégrité critique</span><b>Tenter la lecture →</b></div>
+      </div>
+    </div>`;
   return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / Armes</div>
-    <div class="dossier-header">
-      <div class="dossier-header-org">HALCYON</div>
-      <h1 class="dossier-header-title">Archives des Artefacts Oxiriens</h1>
-      <div class="dossier-header-meta">
-        <span>Niveau d'accès : <b>OMEGA</b></span>
-        <span>Classification : ARTEFACTS OXIRIENS</span>
-      </div>
-      <blockquote class="dossier-epigraph">
-        « Il existe des armes capables de tuer un homme.<br>Il existe des armes capables de détruire une ville.<br>
-        Et il existe des armes qui peuvent changer la définition même de ce qu'est un homme. »
-        <cite>— Extrait des archives du Département des Reliques</cite>
-      </blockquote>
-    </div>
-    <div class="dossier-list">
-      ${WEAPONS.map(dossierRowHtml).join('')}
-      <div class="dossier-row corrupted-row" onclick="navigate('archives-corrompues')">
-        <div class="dossier-row-num">DOSSIER<br>???</div>
-        <div class="dossier-row-thumb"><div class="dossier-row-noimg">?</div></div>
-        <div class="dossier-row-info">
-          <div class="dossier-row-name corrupted-text">????</div>
-          <div class="dossier-row-tags"><span class="dstamp dstamp-unknown">DONNÉES CORROMPUES</span></div>
-        </div>
-        <div class="dossier-row-arrow">→</div>
-      </div>
+    <div class="city med sq sq-arc" style="--acc:${SQ_ACCENTS.arc}">
+      ${sqBgHtml('arc', 'archives')}
+      <nav class="city-rail">${rail.map((r, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r.id}" title="${escAttr(r.t)}" onclick="scrollToCity('${r.id}')">${esc(r.g)}</a>`).join('')}</nav>
+      ${hero}
+      ${arBannerHtml()}
+      <section class="city-sec" id="city-ville">
+        ${secHead('I', 'Registre', 'LES <em>DOSSIERS</em>', 'Chaque consultation est enregistrée au nom de son auteur.')}
+        <figure class="ar-epi cv-rv">
+          <blockquote>« Il existe des armes capables de tuer un homme.<br>Il existe des armes capables de détruire une ville.<br>Et il existe des armes qui peuvent changer la définition même de ce qu'est un homme. »</blockquote>
+          <figcaption>— Extrait des archives du Département des Reliques</figcaption>
+        </figure>
+        <div class="ar-grid">${cards}</div>
+      </section>
     </div>
   `;
 }
@@ -8254,59 +8292,84 @@ function renderArmesArchive(): string {
 function renderArmeDossier(id: string): string {
   const w = findWeapon(id);
   if(!w) return renderNotFound();
-  const idx = WEAPONS.findIndex(x=>x.id===id);
-  const prev = WEAPONS[idx-1], next = WEAPONS[idx+1];
+  const idx = WEAPONS.findIndex(x => x.id === id);
+  const prev = WEAPONS[idx - 1];
+  const next = WEAPONS[idx + 1];
+  const crumbs = `<div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('armes')" style="cursor:pointer">Armes</span> / DOSSIER ${esc(w.dossier)}</div>`;
 
   if(w.restricted && !armesFinalUnlocked){
-    return `
-      <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('armes')" style="cursor:pointer">Armes</span> / DOSSIER ${esc(w.dossier)}</div>
-      <div class="dossier-gate cyber-glitch" id="dossierGate">
-        <div class="dossier-gate-icon">🔒</div>
-        <div class="dossier-gate-title">ACCÈS INTERDIT</div>
-        <p class="dossier-gate-text">Ce dossier requiert une habilitation de niveau supérieur à OMEGA.<br>Saisis le code d'authentification Halcyon pour continuer.</p>
-        <div class="dossier-gate-code-row">
-          <input type="text" id="archiveCodeInput" maxlength="4" inputmode="numeric" placeholder="Code" class="dossier-gate-code-input" onkeydown="if(event.key==='Enter') submitArchiveCode();">
-          <span class="btn btn-primary" onclick="submitArchiveCode()">Déverrouiller</span>
-        </div>
-      </div>
-    `;
+    return `${crumbs}
+      <div class="city med sq sq-arc" style="--acc:${SQ_ACCENTS.arc}">
+        ${sqBgHtml('arc', 'gate')}
+        <section class="city-sec ar-gate-sec">
+          ${arBannerHtml()}
+          <div class="dossier-gate cyber-glitch" id="dossierGate">
+            <div class="dossier-gate-icon">🔒</div>
+            <div class="dossier-gate-title">ACCÈS INTERDIT</div>
+            <p class="dossier-gate-text">Ce dossier requiert une habilitation de niveau supérieur à OMEGA.<br>Saisis le code d'authentification Halcyon pour continuer.</p>
+            <div class="dossier-gate-code-row">
+              <input type="text" id="archiveCodeInput" maxlength="4" inputmode="numeric" placeholder="Code" class="dossier-gate-code-input" onkeydown="if(event.key==='Enter') submitArchiveCode();">
+              <span class="btn btn-primary" onclick="submitArchiveCode()">Déverrouiller</span>
+            </div>
+          </div>
+        </section>
+      </div>`;
   }
 
-  return `
-    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / <span onclick="navigate('armes')" style="cursor:pointer">Armes</span> / DOSSIER ${esc(w.dossier)}</div>
-    <div class="dossier-file">
-      <div class="dossier-file-top">
-        <div class="dossier-file-num">DOSSIER ${esc(w.dossier)}</div>
-        <div class="dstamp-big dstamp-${statusClass(w.status)}">${esc(w.status)}</div>
-      </div>
-      <h1 class="dossier-file-title">${esc(w.name)}</h1>
-      <div class="dossier-file-body">
-        <div class="dossier-file-main">
-          ${w.sections.map(weaponSectionHtml).join('')}
-          ${w.classified ? `
-            <div class="classified-block" id="classified-${w.id}">
-              <div class="classified-bar" onclick="toggleClassified('${w.id}')">
-                <span class="classified-lock">🔒</span>
-                <span class="classified-label">${esc(w.classified.heading)} — cliquer pour décrypter</span>
-                <span class="classified-chevron">▾</span>
-              </div>
-              <div class="classified-content">
-                ${w.classified.paragraphs.map(weaponParaHtml).join('')}
-              </div>
-            </div>` : ''}
-        </div>
-        <div class="dossier-file-side">
-          ${w.image ? `<div class="dossier-file-media"><img src="${encodeURI(w.image)}" alt=""></div>` : `<div class="dossier-file-media dossier-file-noimg">IMAGE INDISPONIBLE</div>`}
-          <div class="infobox dossier-infobox">
-            ${Object.entries(w.info).map(([k,v])=>`<div class="ib-row"><span class="ib-k">${esc(k)}</span><span class="ib-v">${esc(v)}</span></div>`).join('')}
+  const classification = w.info['Classification'] || 'Artefact oxirien';
+  const facts: [string, string][] = [['Dossier', w.dossier], ['Dangerosité', w.danger], ['Statut', w.status], ['Classification', classification]];
+  const actions = `<button type="button" class="city-btn" onclick="navigate('armes')">← Archives</button>
+    ${w.classified ? `<button type="button" class="city-btn" onclick="scrollToCity('ar-classified')">Section chiffrée ↓</button>` : ''}`;
+  const hero = cityHeroHtml({
+    kicker: 'Dossier ' + w.dossier + ' · Artefact oxirien', title: w.name, tagline: w.info['Type'] || '',
+    facts, img: w.image || '', tape: '', plaque: 'Dossier', actions, music: '',
+  });
+  const rail = [{ id: 'city-top', t: 'Haut de page', g: '↑' }, { id: 'city-ville', t: 'Le dossier', g: 'i' }];
+  const r = tmSeeded(tmHash(w.id));
+  const code = ('0000' + (tmHash(w.id) % 65536).toString(16).toUpperCase()).slice(-4);
+  const redacts = [0, 1, 2, 3, 4].map(() => `<i style="width:${Math.round(38 + r() * 58)}%"></i>`).join('');
+  const sections = w.sections.map((s, i) => pnl(s.heading, '§ ' + String(i + 1).padStart(2, '0'), s.paragraphs.map(weaponParaHtml).join(''))).join('');
+  const classified = w.classified ? `
+        <div class="ar-classified cv-rv" id="ar-classified">
+          <div class="classified-block" id="classified-${w.id}">
+            <div class="classified-bar" onclick="toggleClassified('${w.id}')">
+              <span class="classified-lock">🔒</span>
+              <span class="classified-label">${esc(w.classified.heading)} — cliquer pour décrypter</span>
+              <span class="classified-chevron">▾</span>
+            </div>
+            <div class="classified-content">${w.classified.paragraphs.map(weaponParaHtml).join('')}</div>
           </div>
+        </div>` : '';
+  const rows = Object.entries(w.info).map(([k, v]) => `<div class="ar-row"><span>${esc(k)}</span><b>${esc(v)}</b></div>`).join('');
+  const photo = w.image
+    ? `<img src="${encodeURI(w.image)}" alt="">`
+    : `<div class="ar-noimg"><b>—</b><span>IMAGE INDISPONIBLE</span></div>`;
+  return `${crumbs}
+    <div class="city med sq sq-arc" style="--acc:${SQ_ACCENTS.arc}">
+      ${sqBgHtml('arc', w.id)}
+      <nav class="city-rail">${rail.map((r2, i) => `<a class="${i === 0 ? 'on' : ''}" data-target="${r2.id}" title="${escAttr(r2.t)}" onclick="scrollToCity('${r2.id}')">${esc(r2.g)}</a>`).join('')}</nav>
+      ${hero}
+      ${arBannerHtml()}
+      <section class="city-sec" id="city-ville">
+        ${secHead('I', 'Dossier ' + w.dossier, 'LE <em>DOSSIER</em>', 'Document classifié : ne pas reproduire.')}
+        <div class="sq-intro ar-intro">
+          <div class="ar-main">${sections}${classified}</div>
+          <aside class="sq-side">
+            <figure class="ar-bigphoto cv-rv">
+              <div class="ar-photo">${photo}<i class="ar-cm tl"></i><i class="ar-cm tr"></i><i class="ar-cm bl"></i><i class="ar-cm br"></i>
+                <span class="ar-stamp s-${statusClass(w.status)}">${esc(w.status)}</span></div>
+            </figure>
+            ${pnl('Fiche technique', 'DOC-' + w.dossier, `<div class="ar-rows">${rows}</div>`)}
+            <div class="ar-redacts cv-rv"><small>Éléments caviardés</small>${redacts}</div>
+          </aside>
         </div>
-      </div>
-      <div class="dossier-nav">
-        ${prev ? `<span onclick="navigate('arme-${prev.id}')">← DOSSIER ${esc(prev.dossier)}</span>` : `<span></span>`}
-        <span onclick="navigate('armes')">Index des archives</span>
-        ${next ? `<span onclick="navigate('arme-${next.id}')">DOSSIER ${esc(next.dossier)} →</span>` : `<span></span>`}
-      </div>
+        <div class="ar-nav cv-rv">
+          ${prev ? `<button type="button" onclick="navigate('arme-${prev.id}')"><small>← Dossier ${esc(prev.dossier)}</small>${esc(prev.name)}</button>` : '<span></span>'}
+          <button type="button" class="ar-nav-idx" onclick="navigate('armes')">Index des archives</button>
+          ${next ? `<button type="button" class="r" onclick="navigate('arme-${next.id}')"><small>Dossier ${esc(next.dossier)} →</small>${esc(next.name)}</button>` : '<span></span>'}
+        </div>
+        <div class="ar-end cv-rv">Fin du dossier ${esc(w.dossier)} — copie n° ${code} — reproduction interdite</div>
+      </section>
     </div>
   `;
 }
@@ -8628,7 +8691,7 @@ function unlockFinalDossier(): void {
   armesFinalUnlocked = true;
   const content = document.getElementById('content');
   const route = (window.location.hash || '#home').slice(1);
-  if(content && route.startsWith('arme-')) content.innerHTML = renderArmeDossier(route.replace('arme-',''));
+  if(content && route.startsWith('arme-')){ content.innerHTML = renderArmeDossier(route.replace('arme-','')); initCityPage(false); }
 }
 
 const ARCHIVE_UNLOCK_CODE = '1234';
@@ -8800,7 +8863,7 @@ function playDossierBoot(renderFn: () => string): void {
         const c = document.getElementById('content');
         setHalcyonLogoPos(dock, '20px', '20px', '46px', false);
         dock.classList.add('docked');
-        if(c){ c.innerHTML = renderFn(); c.scrollTop = 0; }
+        if(c){ c.innerHTML = renderFn(); c.scrollTop = 0; initCityPage(true); }
       }, 420);
     }
   }
@@ -10954,6 +11017,7 @@ function render(): void {
   } else if(route.startsWith('arme-')){
     dockHalcyonLogoImmediate();
     content.innerHTML = renderArmeDossier(route.replace('arme-',''));
+    initCityPage(isNavigation);
   } else if(route.startsWith('escadron-')){
     dockHalcyonLogoImmediate();
     // Même logique que pour la musique d'une fiche personnage (voir plus bas,
