@@ -4268,7 +4268,7 @@ let apDoc = 'arsenal';
 function apDefaults(docId: string): ApDef {
   if(docId === 'chronologie') return { kicker: 'Archives temporelles · Oxiri', title: 'Chronologie du monde', tagline: "L'histoire n'est jamais écrite par ceux qui l'ont vécue. Elle est écrite par ceux qui ont survécu.", motif: 'chrono', color: SQ_ACCENTS.chrono };
   if(docId === 'organisations') return { kicker: 'Registre des pouvoirs · Oxiri', title: 'Organisations', tagline: 'Les grandes organisations qui façonnent le monde.', motif: 'org', color: SQ_ACCENTS.org };
-  if(docId === 'essence') return { kicker: 'Savoir · Essence', title: "L'Essence", tagline: "L'énergie qui traverse le monde, et ce qu'elle en a fait.", motif: 'arm', color: '#7ad9ff' };
+  if(docId === 'essence') return { kicker: 'Savoir · Essence', title: "L'Essence", tagline: "L'énergie qui traverse le monde, et ce qu'elle en a fait.", motif: 'arm', color: '#d45cff' };
   if(docId === 'archives') return { kicker: 'Halcyon · Département des Reliques', title: 'Archives des Artefacts Oxiriens', tagline: "Dossiers classifiés sur les artefacts nés de l'énergie d'Oxiri.", motif: 'arc', color: SQ_ACCENTS.arc };
   if(docId.indexOf('arme-') === 0){
     const w = findWeapon(docId.slice(5));
@@ -4403,10 +4403,10 @@ function renderObjetsPage(): string {
     </div>`;
 }
 
-/* ---------------- Page « Essence » : un cristal flotte au milieu de l'écran ; un clic le fait exploser en fragments (façon éidolons),
-   chaque fragment ouvre sa fiche. Fragments modifiables (titre, image, texte, ordre), fond / couleur / titre / musique modifiables. ---------------- */
+/* ---------------- Page « Essence » : un cristal holographique néon flotte, glitche et se charge ; un clic l'écrase, le noir se fait, puis il explose
+   en éclats de verre et en fragments (façon éidolons) qui ouvrent chacun leur fiche. Rendu 3D maison sur canvas (fils néon, faces de verre, anneau d'énergie,
+   décalage RGB, éclats en vortex, lignes de vitesse), habillage HUD. Fragments, fond, couleur, titre et musique modifiables. ---------------- */
 interface EsFrag { id: string; t: string; s: string; img: string; body: string; order: number; }
-interface EsPart { x: number; y: number; vx: number; vy: number; life: number; max: number; kind: number; size: number; rot: number; vr: number; }
 
 const ES_DEFAULTS: EsFrag[] = [
   { id: 'd1', t: 'Origine', s: 'Le souffle du monde', img: '', order: 1,
@@ -4425,9 +4425,10 @@ const ES_DEFAULTS: EsFrag[] = [
 
 let esMode = 'crystal';
 let esOpenId = '';
-let esFxBurst: any = null;
 let esImg = '';
 let esEditId = '';
+let esModeT = 0;
+let esG: any = null;
 
 // Fragments : les 6 fragments d'origine (modifiables ou supprimables) + ceux ajoutés depuis le site, stockés un par document « esf-<id> ».
 function esFrags(): EsFrag[] {
@@ -4452,40 +4453,27 @@ function esFrags(): EsFrag[] {
   return out;
 }
 
-// Cristal en 3D pur CSS : bipyramide hexagonale de 12 faces translucides qui tourne ; chaque face a ses propres vecteurs d'éclatement.
-function esCrystalHtml(): string {
-  const R = 74;
-  const A = 122;
-  const a = R * Math.sqrt(3) / 2;
-  const S = Math.sqrt(A * A + a * a);
-  const beta = Math.atan2(a, A) * 180 / Math.PI;
-  const r = tmSeeded(7421);
-  let faces = '';
-  for(let k = 0; k < 12; k++){
-    const top = k < 6;
-    const i = k % 6;
-    const l = 0.4 + 0.5 * Math.abs(Math.sin((i * 60 + (top ? 20 : 80)) * Math.PI / 180));
-    const fx = Math.round((r() - 0.5) * 900);
-    const fy = Math.round((r() - 0.5) * 700 + (top ? -160 : 160));
-    const fz = Math.round((r() - 0.3) * 700);
-    faces += `<i class="f ${top ? 't' : 'b'}" style="--r:${i * 60}deg;--l:${l.toFixed(2)};--fx:${fx}px;--fy:${fy}px;--fz:${fz}px;--fr:${Math.round((r() - 0.5) * 540)}deg;--dl:-${(r() * 4).toFixed(2)}s"></i>`;
-  }
-  return `<div class="es-gem" style="--R:${R}px;--S:${S.toFixed(1)}px;--a:${a.toFixed(1)}px;--beta:${beta.toFixed(2)}deg">${faces}</div>`;
-}
-
 function esShardHtml(f: EsFrag, i: number, n: number): string {
   const num = String(i + 1);
-  const hue = Math.round((200 + i * (160 / Math.max(n, 1))) % 360);
+  const hue = Math.round((270 + i * (150 / Math.max(n, 1))) % 360);
+  const code = ('0000' + (tmHash(f.id + 'es') % 65536).toString(16).toUpperCase()).slice(-4);
   return `<div class="es-shard" data-id="${escAttr(f.id)}" style="--i:${i};--rev:${n - i};--h:${hue}">
     <div class="es-shard-float" style="--d:${(0.4 + (i % 3) * 0.3).toFixed(2)};animation-duration:${(5 + (i % 4) * 1.3).toFixed(1)}s;animation-delay:-${(i * 1.7).toFixed(1)}s">
       <div class="es-shard-in" onclick="esOpen('${escAttr(f.id)}')">
         <div class="es-img"${f.img ? ` style="background-image:url('${escAttr(f.img)}')"` : ''}><b class="es-wm">${num}</b></div>
         <div class="es-shade"></div>
+        <div class="es-scan"></div>
       </div>
-      <svg class="es-edge" aria-hidden="true"><polygon points=""/></svg>
-      <div class="es-label"><b>${num}</b><span>${esc(f.t)}</span></div>
+      <svg class="es-edge" aria-hidden="true"><polygon class="e1" points=""/><polygon class="e2" points=""/></svg>
+      <div class="es-label"><b>${num}</b><span>${esc(f.t)}<small>ESS // 0x${code}</small></span></div>
     </div>
   </div>`;
+}
+
+function esHexLine(): string {
+  let s = '';
+  for(let i = 0; i < 40; i++) s += ('0' + Math.floor(Math.random() * 256).toString(16).toUpperCase()).slice(-2) + ' ';
+  return s;
 }
 
 function renderEssencePage(): string {
@@ -4505,24 +4493,29 @@ function renderEssencePage(): string {
       <div class="es-stage" id="esStage" data-mode="${esMode}" data-acc="${escAttr(ap.accent)}">
         ${ap.img ? `<div class="es-bgimg" style="background-image:url('${escAttr(ap.img)}')"></div>` : ''}
         <div class="es-nebula"></div>
-        <canvas class="es-fx" id="esFx"></canvas>
         <div class="es-vig"></div>
+        <div class="es-hud" aria-hidden="true">
+          <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
+          <span class="rl l"></span><span class="rl r"></span>
+          <div class="es-hud-top"><span>ESSENCE // ANALYSE</span><span id="esBars">▮▮▮▮▯</span><span id="esClock">00:00:00</span></div>
+          <div class="es-ticker"><span>${esHexLine()}${esHexLine()}</span><span>${esHexLine()}${esHexLine()}</span></div>
+        </div>
         <header class="es-title">
           <span class="es-kicker">${esc(ap.kicker)}</span>
           <h1>${esc(ap.title)}</h1>
           <p>${esc(ap.tagline)}</p>
         </header>
-        <div class="es-beams"></div>
-        <div class="es-crystal" id="esCrystal" onclick="esBurst()" role="button" aria-label="Briser le cristal">
-          <div class="es-crystal-s" id="esCrystalS">
-            <div class="es-orbit o1"><i></i></div><div class="es-orbit o2"><i></i></div>
-            <div class="es-tilt">${esCrystalHtml()}</div>
-            <div class="es-core"></div>
-          </div>
+        <div class="es-calls" aria-hidden="true">
+          <div class="es-call l" style="--cx:-270;--cy:-10"><small>Noyau</small><b id="esC1">0x7F3A · STABLE</b></div>
+          <div class="es-call r" style="--cx:250;--cy:-110"><small>Fréquence</small><b id="esC2">432.7 THz</b></div>
+          <div class="es-call l" style="--cx:-260;--cy:130"><small>Flux d'essence</small><b id="esC3">0.87 ± 0.03</b></div>
+          <div class="es-call r" style="--cx:255;--cy:160"><small>Intégrité</small><b id="esC4">▮▮▮▮▯ 87 %</b></div>
         </div>
-        <div class="es-ring r1"></div><div class="es-ring r2"></div>
-        <div class="es-flash"></div>
+        <button type="button" class="es-hit" onclick="esBurst()" aria-label="Briser le cristal"></button>
         <div class="es-shards" id="esShards">${frags.map((f, i) => esShardHtml(f, i, frags.length)).join('')}</div>
+        <canvas class="es-fx" id="esFx"></canvas>
+        <div class="es-flash"></div>
+        <div class="es-ring r1"></div><div class="es-ring r2"></div>
         ${frags.length ? '' : '<p class="es-none">Aucun fragment : ajoute-en un depuis « + Fragment ».</p>'}
         <div class="es-hint"><span class="h-c">Touche le cristal</span><span class="h-s">Choisis un fragment</span></div>
         <div class="es-tools">${tools}</div>
@@ -4556,9 +4549,10 @@ function esLayout(): void {
   const H = st.clientHeight;
   const els = Array.from(st.querySelectorAll<HTMLElement>('.es-shard'));
   const n = els.length;
-  if(!n || !W || !H) return;
+  if(!W || !H) return;
   const k = Math.max(0.62, Math.min(1.5, Math.min(W, H) / 640));
   st.style.setProperty('--k', k.toFixed(3));
+  if(!n) return;
   const r = tmSeeded(5309 + n);
   const cx = W / 2;
   const cy = H / 2;
@@ -4615,166 +4609,560 @@ function esLayout(): void {
     if(svg){
       svg.setAttribute('width', String(bw));
       svg.setAttribute('height', String(bh));
-      const pg = svg.querySelector('polygon');
-      if(pg) pg.setAttribute('points', pts.join(' '));
+      svg.querySelectorAll('polygon').forEach(pg => pg.setAttribute('points', pts.join(' ')));
     }
     const lab = el.querySelector<HTMLElement>('.es-label');
     if(lab){ lab.style.left = ox.toFixed(1) + 'px'; lab.style.top = (oy + (bh - oy) * 0.4).toFixed(1) + 'px'; }
   });
 }
 
-/* ---- fond animé : étoiles qui scintillent + éclats projetés par l'explosion (ou aspirés à la recomposition) ---- */
-function esHexRgb(hex: string): string {
+/* ---- moteur 3D sur canvas : cristal de 36 faces en verre, fils néon, anneau d'énergie, noyau ---- */
+function esHexRgb(hex: string): number[] {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
-  if(!m) return '122,217,255';
-  const v = parseInt(m[1], 16);
-  return ((v >> 16) & 255) + ',' + ((v >> 8) & 255) + ',' + (v & 255);
+  const v = parseInt(m ? m[1] : 'd45cff', 16);
+  return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
+}
+
+function esMix(a: number[], b: number[], t: number): string {
+  return Math.round(a[0] + (b[0] - a[0]) * t) + ',' + Math.round(a[1] + (b[1] - a[1]) * t) + ',' + Math.round(a[2] + (b[2] - a[2]) * t);
+}
+
+function esRot(v: number[], rx: number, ry: number, rz: number): number[] {
+  let x = v[0];
+  let y = v[1];
+  let z = v[2];
+  let c = Math.cos(rz);
+  let s = Math.sin(rz);
+  let t = x * c - y * s;
+  y = x * s + y * c;
+  x = t;
+  c = Math.cos(ry);
+  s = Math.sin(ry);
+  t = x * c + z * s;
+  z = -x * s + z * c;
+  x = t;
+  c = Math.cos(rx);
+  s = Math.sin(rx);
+  t = y * c - z * s;
+  z = y * s + z * c;
+  y = t;
+  return [x, y, z];
+}
+
+function esProj(v: number[], cx: number, cy: number, sc: number): number[] {
+  const f = 4.4 / (4.4 + v[2]);
+  return [cx + v[0] * sc * f, cy + v[1] * sc * f, f];
+}
+
+// Maillage : sommet haut, anneau haut, anneau médian décalé de 30°, anneau bas, sommet bas -> 36 triangles.
+function esBuildMesh(): any {
+  const v: number[][] = [[0, -1.55, 0]];
+  for(let i = 0; i < 6; i++) v.push([Math.cos(i * Math.PI / 3) * 0.72, -0.52, Math.sin(i * Math.PI / 3) * 0.72]);
+  for(let i = 0; i < 6; i++) v.push([Math.cos(i * Math.PI / 3 + Math.PI / 6) * 1.0, 0, Math.sin(i * Math.PI / 3 + Math.PI / 6) * 1.0]);
+  for(let i = 0; i < 6; i++) v.push([Math.cos(i * Math.PI / 3) * 0.72, 0.52, Math.sin(i * Math.PI / 3) * 0.72]);
+  v.push([0, 1.55, 0]);
+  const f: number[][] = [];
+  for(let i = 0; i < 6; i++){
+    const j = (i + 1) % 6;
+    f.push([0, 1 + i, 1 + j]);
+    f.push([1 + i, 7 + i, 1 + j]);
+    f.push([1 + j, 7 + i, 7 + j]);
+    f.push([7 + i, 13 + j, 13 + i]);
+    f.push([7 + i, 7 + j, 13 + j]);
+    f.push([19, 13 + i, 13 + j]);
+  }
+  const seen: Record<string, boolean> = {};
+  const e: number[][] = [];
+  f.forEach(t => {
+    for(let q = 0; q < 3; q++){
+      const a = t[q];
+      const b = t[(q + 1) % 3];
+      const key = Math.min(a, b) + '-' + Math.max(a, b);
+      if(!seen[key]){ seen[key] = true; e.push([a, b]); }
+    }
+  });
+  return { v, f, e };
+}
+
+// Dessine le cristal (faces de verre, fils néon, octaèdre intérieur, anneau d'énergie, noyau) sur le contexte donné.
+function esDrawCrystal(g: any, cx: number, cy: number, sc: number, rx: number, ry: number, rz: number, a: number, charge: number, t: number, P: number[], S: number[]): void {
+  const mesh = esMeshCache;
+  const pv = mesh.v.map((p: number[]) => {
+    const r = esRot(p, rx, ry, rz);
+    return { r, p: esProj(r, cx, cy, sc) };
+  });
+  g.globalCompositeOperation = 'lighter';
+  g.lineJoin = 'round';
+  // faces, de la plus lointaine à la plus proche
+  const faces = mesh.f.map((tr: number[], i: number) => {
+    const A = pv[tr[0]];
+    const B = pv[tr[1]];
+    const C = pv[tr[2]];
+    const ux = B.r[0] - A.r[0];
+    const uy = B.r[1] - A.r[1];
+    const uz = B.r[2] - A.r[2];
+    const vx = C.r[0] - A.r[0];
+    const vy = C.r[1] - A.r[1];
+    const vz = C.r[2] - A.r[2];
+    let nx = uy * vz - uz * vy;
+    let ny = uz * vx - ux * vz;
+    let nz = ux * vy - uy * vx;
+    const cxm = (A.r[0] + B.r[0] + C.r[0]) / 3;
+    const cym = (A.r[1] + B.r[1] + C.r[1]) / 3;
+    const czm = (A.r[2] + B.r[2] + C.r[2]) / 3;
+    if(nx * cxm + ny * cym + nz * czm < 0){ nx = -nx; ny = -ny; nz = -nz; }
+    const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+    return { tr, z: czm, nx: nx / len, ny: ny / len, nz: nz / len, i };
+  });
+  faces.sort((q: any, w: any) => w.z - q.z);
+  faces.forEach((fc: any) => {
+    const A = pv[fc.tr[0]].p;
+    const B = pv[fc.tr[1]].p;
+    const C = pv[fc.tr[2]].p;
+    const edge = Math.pow(1 - Math.abs(fc.nz), 1.3);
+    const lit = Math.max(0, -fc.nx * 0.4 - fc.ny * 0.7 - fc.nz * 0.6);
+    const fl = 0.8 + 0.2 * Math.sin(t * 3 + fc.i * 1.7);
+    const al = (0.05 + 0.2 * edge + 0.14 * lit + 0.12 * charge) * a * fl;
+    g.fillStyle = 'rgba(' + esMix(P, S, (fc.ny + 1) / 2) + ',' + al.toFixed(3) + ')';
+    g.beginPath();
+    g.moveTo(A[0], A[1]);
+    g.lineTo(B[0], B[1]);
+    g.lineTo(C[0], C[1]);
+    g.closePath();
+    g.fill();
+  });
+  // fils néon
+  const glitchBlank = esG && esG.glitch > 0.5;
+  for(let pass = 0; pass < 3; pass++){
+    const lw = pass === 0 ? 6 : pass === 1 ? 2.6 : 1.1;
+    const aa = (pass === 0 ? 0.09 : pass === 1 ? 0.22 : 0.95) * a;
+    mesh.e.forEach((ed: number[], i: number) => {
+      if(glitchBlank && (i * 7 + Math.floor(t * 20)) % 9 === 0) return;
+      const A = pv[ed[0]];
+      const B = pv[ed[1]];
+      const depth = (A.r[2] + B.r[2]) / 2;
+      const dim = depth > 0 ? 0.55 : 1;
+      const mixv = (A.r[1] + B.r[1]) / 6 + 0.5;
+      g.strokeStyle = 'rgba(' + (pass === 2 ? esMix([255, 255, 255], P, 0.35 + 0.35 * (1 - mixv)) : esMix(P, S, mixv)) + ',' + (aa * dim * (0.85 + 0.15 * Math.sin(t * 5 + i))).toFixed(3) + ')';
+      g.lineWidth = lw * (0.7 + 0.5 * A.p[2]);
+      g.beginPath();
+      g.moveTo(A.p[0], A.p[1]);
+      g.lineTo(B.p[0], B.p[1]);
+      g.stroke();
+    });
+  }
+  // octaèdre intérieur (contre-rotation)
+  const oct = [[0, -0.55, 0], [0.5, 0, 0], [0, 0, 0.5], [-0.5, 0, 0], [0, 0, -0.5], [0, 0.55, 0]];
+  const oe = [[0, 1], [0, 2], [0, 3], [0, 4], [5, 1], [5, 2], [5, 3], [5, 4], [1, 2], [2, 3], [3, 4], [4, 1]];
+  const op = oct.map(p => esProj(esRot(esRot(p, -rx * 1.6 + t * 0.4, -ry * 1.9, rz * 0.5), rx, ry, rz), cx, cy, sc));
+  g.strokeStyle = 'rgba(' + S[0] + ',' + S[1] + ',' + S[2] + ',' + (0.8 * a).toFixed(3) + ')';
+  g.lineWidth = 1.2;
+  oe.forEach(q => { g.beginPath(); g.moveTo(op[q[0]][0], op[q[0]][1]); g.lineTo(op[q[1]][0], op[q[1]][1]); g.stroke(); });
+  // anneau d'énergie qui tourne dans le cristal
+  const rr = 0.78 - 0.3 * charge;
+  const ringPts: number[][] = [];
+  for(let i = 0; i <= 72; i++){
+    const th = i / 72 * Math.PI * 2;
+    ringPts.push(esProj(esRot(esRot([Math.cos(th) * rr, 0, Math.sin(th) * rr], t * (1 + charge * 5), t * 0.7, 0.5), rx, ry, rz), cx, cy, sc));
+  }
+  for(let pass = 0; pass < 3; pass++){
+    g.strokeStyle = 'rgba(255,' + (150 + pass * 30) + ',' + (190 - pass * 20) + ',' + ((pass === 0 ? 0.12 : pass === 1 ? 0.35 : 1) * a).toFixed(3) + ')';
+    g.lineWidth = pass === 0 ? 9 : pass === 1 ? 4 : 1.6;
+    g.beginPath();
+    ringPts.forEach((p, i) => { if(i === 0) g.moveTo(p[0], p[1]); else g.lineTo(p[0], p[1]); });
+    g.stroke();
+  }
+  // noyau
+  const pulse = 0.85 + 0.15 * Math.sin(t * 3.4) + charge * 0.9;
+  const cr = sc * 0.62 * pulse;
+  const gr = g.createRadialGradient(cx, cy, 0, cx, cy, cr);
+  gr.addColorStop(0, 'rgba(255,255,255,' + (0.95 * a).toFixed(3) + ')');
+  gr.addColorStop(0.18, 'rgba(255,190,235,' + (0.7 * a).toFixed(3) + ')');
+  gr.addColorStop(0.5, 'rgba(' + P[0] + ',' + P[1] + ',' + P[2] + ',' + (0.3 * a).toFixed(3) + ')');
+  gr.addColorStop(1, 'rgba(' + P[0] + ',' + P[1] + ',' + P[2] + ',0)');
+  g.fillStyle = gr;
+  g.beginPath();
+  g.arc(cx, cy, cr, 0, 6.2832);
+  g.fill();
+  g.globalCompositeOperation = 'source-over';
+}
+
+let esMeshCache: any = null;
+
+// Réticule HUD autour du cristal : anneaux gradués, arcs épais, repères.
+function esDrawReticle(g: any, cx: number, cy: number, R: number, t: number, a: number, S: number[], P: number[]): void {
+  g.save();
+  g.translate(cx, cy);
+  g.globalCompositeOperation = 'lighter';
+  g.strokeStyle = 'rgba(' + S[0] + ',' + S[1] + ',' + S[2] + ',' + (0.3 * a).toFixed(3) + ')';
+  g.lineWidth = 1;
+  g.beginPath();
+  g.arc(0, 0, R, 0, 6.2832);
+  g.stroke();
+  g.rotate(t * 0.08);
+  for(let i = 0; i < 90; i++){
+    const an = i / 90 * Math.PI * 2;
+    const l = i % 6 === 0 ? 14 : 6;
+    g.beginPath();
+    g.moveTo(Math.cos(an) * R, Math.sin(an) * R);
+    g.lineTo(Math.cos(an) * (R + l), Math.sin(an) * (R + l));
+    g.stroke();
+  }
+  g.rotate(-t * 0.18);
+  g.setLineDash([5, 9]);
+  g.beginPath();
+  g.arc(0, 0, R * 1.22, 0, 6.2832);
+  g.stroke();
+  g.setLineDash([]);
+  g.strokeStyle = 'rgba(' + P[0] + ',' + P[1] + ',' + P[2] + ',' + (0.55 * a).toFixed(3) + ')';
+  g.lineWidth = 3;
+  for(let i = 0; i < 3; i++){
+    g.beginPath();
+    g.arc(0, 0, R * 0.86, i * 2.0944 + t * 0.35, i * 2.0944 + t * 0.35 + 0.7);
+    g.stroke();
+  }
+  g.restore();
+}
+
+/* ---- éclats de verre, lignes de vitesse, étincelles, ondes de choc ---- */
+function esSpawnBurst(G: any, implode: boolean): void {
+  const W = G.W;
+  const H = G.H;
+  const cx = W / 2;
+  const cy = H / 2;
+  if(implode){
+    for(let i = 0; i < 260; i++){
+      const an = Math.random() * Math.PI * 2;
+      const dist = 140 + Math.random() * Math.min(W, H) * 0.7;
+      G.sparks.push({ x: cx + Math.cos(an) * dist, y: cy + Math.sin(an) * dist, vx: -Math.cos(an) * (6 + Math.random() * 12), vy: -Math.sin(an) * (6 + Math.random() * 12), life: 0, max: 36 + Math.random() * 30, w: 1 + Math.random() * 1.6 });
+    }
+    return;
+  }
+  const mesh = esMeshCache;
+  const sc = G.sc * 0.35;
+  G.shards = [];
+  mesh.f.forEach((tr: number[]) => {
+    const vs = tr.map((i: number) => mesh.v[i]);
+    const ctr = [(vs[0][0] + vs[1][0] + vs[2][0]) / 3 + (Math.random() - 0.5) * 0.2, (vs[0][1] + vs[1][1] + vs[2][1]) / 3 + (Math.random() - 0.5) * 0.2, (vs[0][2] + vs[1][2] + vs[2][2]) / 3 + (Math.random() - 0.5) * 0.2];
+    for(let q = 0; q < 3; q++){
+      const a = vs[q];
+      const b = vs[(q + 1) % 3];
+      const m = [(a[0] + b[0] + ctr[0]) / 3, (a[1] + b[1] + ctr[1]) / 3, (a[2] + b[2] + ctr[2]) / 3];
+      const rel = [[a[0] - m[0], a[1] - m[1], a[2] - m[2]], [b[0] - m[0], b[1] - m[1], b[2] - m[2]], [ctr[0] - m[0], ctr[1] - m[1], ctr[2] - m[2]]];
+      const len = Math.sqrt(m[0] * m[0] + m[1] * m[1] + m[2] * m[2]) || 1;
+      const sp = 0.06 + Math.random() * 0.11;
+      const sw = 0.07 + Math.random() * 0.05;
+      G.shards.push({
+        p: [m[0] * 0.35, m[1] * 0.35, m[2] * 0.35], rel,
+        v: [m[0] / len * sp + (Math.random() - 0.5) * 0.04 - m[2] * sw, m[1] / len * sp + (Math.random() - 0.5) * 0.04, m[2] / len * sp + (Math.random() - 0.5) * 0.04 + m[0] * sw],
+        r: [Math.random() * 6, Math.random() * 6, Math.random() * 6], vr: [(Math.random() - 0.5) * 0.22, (Math.random() - 0.5) * 0.22, (Math.random() - 0.5) * 0.22],
+        life: 0, max: 120 + Math.random() * 70, glint: Math.random() < 0.25,
+      });
+    }
+  });
+  G.shardSc = sc * 2.9;
+  for(let i = 0; i < 260; i++){
+    const an = Math.random() * Math.PI * 2;
+    G.lines.push({ an, r: 10 + Math.random() * 40, v: 38 + Math.random() * 60, len: 90 + Math.random() * 300, life: 0, max: 22 + Math.random() * 26, w: 0.8 + Math.random() * 2 });
+  }
+  for(let i = 0; i < 160; i++){
+    const an = Math.random() * Math.PI * 2;
+    const sp = 6 + Math.random() * 20;
+    G.sparks.push({ x: cx, y: cy, vx: Math.cos(an) * sp, vy: Math.sin(an) * sp, life: 0, max: 40 + Math.random() * 60, w: 1 + Math.random() * 1.8 });
+  }
+  G.waves.push({ r: 10, a: 1, v: 30, w: 4 });
+  G.waves.push({ r: 4, a: 0.8, v: 18, w: 8 });
+  G.flash = 1;
+  G.shake = 1;
 }
 
 function esFxStart(): void {
   const cv = document.querySelector<HTMLCanvasElement>('#esFx');
   const st = document.getElementById('esStage');
   if(!cv || !st) return;
-  const g = cv.getContext('2d');
-  if(!g) return;
+  const g0 = cv.getContext('2d');
+  if(!g0) return;
   const stage: HTMLElement = st;
   const canvas: HTMLCanvasElement = cv;
-  const ctx: CanvasRenderingContext2D = g;
-  const rgb = esHexRgb(st.dataset.acc || '');
-  let W = 0;
-  let H = 0;
-  let dpr = 1;
-  let mx = 0;
-  let my = 0;
-  function resize(): void {
-    dpr = Math.min(2, window.devicePixelRatio || 1);
-    W = stage.clientWidth;
-    H = stage.clientHeight;
-    canvas.width = Math.max(1, Math.round(W * dpr));
-    canvas.height = Math.max(1, Math.round(H * dpr));
-    canvas.style.width = W + 'px';
-    canvas.style.height = H + 'px';
-  }
+  const ctx: CanvasRenderingContext2D = g0;
+  if(!esMeshCache) esMeshCache = esBuildMesh();
+  const og = document.createElement('canvas');
+  const octx = og.getContext('2d');
+  if(!octx) return;
+  const P = esHexRgb(stage.dataset.acc || '');
+  const S = [79, 233, 255];
+  const G: any = { W: 0, H: 0, dpr: 1, sc: 140, mx: 0, my: 0, shards: [], lines: [], sparks: [], waves: [], flash: 0, shake: 0, glitch: 0, nextGlitch: 1.5, glitchEnd: 0, rx: 0, ry: 0, rz: 0, mat: 0, stars: [], streaks: [] };
+  esG = G;
+  const resize = () => {
+    G.dpr = Math.min(2, window.devicePixelRatio || 1);
+    G.W = stage.clientWidth;
+    G.H = stage.clientHeight;
+    canvas.width = Math.max(1, Math.round(G.W * G.dpr));
+    canvas.height = Math.max(1, Math.round(G.H * G.dpr));
+    canvas.style.width = G.W + 'px';
+    canvas.style.height = G.H + 'px';
+    og.width = canvas.width;
+    og.height = canvas.height;
+    G.sc = Math.max(70, Math.min(G.W, G.H) * 0.2);
+  };
   resize();
-  const stars: number[][] = [];
-  for(let i = 0; i < 240; i++) stars.push([Math.random(), Math.random(), 0.2 + Math.random() * 0.8, Math.random() * 6.28, 0.4 + Math.random() * 1.6]);
-  const parts: EsPart[] = [];
-  function spawn(implode: boolean): void {
-    const cx = W / 2;
-    const cy = H / 2;
-    for(let i = 0; i < 230; i++){
-      const kind = i < 130 ? 0 : i < 190 ? 1 : 2;
-      const ang = Math.random() * Math.PI * 2;
-      const sp = kind === 0 ? 7 + Math.random() * 16 : kind === 1 ? 3 + Math.random() * 9 : 1 + Math.random() * 4;
-      const dist = implode ? 120 + Math.random() * Math.min(W, H) * 0.6 : 0;
-      parts.push({
-        x: cx + Math.cos(ang) * dist, y: cy + Math.sin(ang) * dist,
-        vx: implode ? -Math.cos(ang) * sp * 0.55 : Math.cos(ang) * sp, vy: implode ? -Math.sin(ang) * sp * 0.55 : Math.sin(ang) * sp,
-        life: 0, max: 40 + Math.random() * 60, kind, size: kind === 0 ? 1 + Math.random() * 1.6 : kind === 1 ? 4 + Math.random() * 9 : 2 + Math.random() * 3,
-        rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 0.3,
-      });
-    }
-  }
-  esFxBurst = spawn;
-  st.addEventListener('pointermove', ev => {
-    const b = st.getBoundingClientRect();
-    mx = (ev.clientX - b.left) / b.width - 0.5;
-    my = (ev.clientY - b.top) / b.height - 0.5;
-    st.style.setProperty('--mx', mx.toFixed(3));
-    st.style.setProperty('--my', my.toFixed(3));
+  for(let i = 0; i < 260; i++) G.stars.push([Math.random(), Math.random(), 0.2 + Math.random() * 0.8, Math.random() * 6.28, 0.4 + Math.random() * 1.6]);
+  for(let i = 0; i < 16; i++) G.streaks.push([Math.random(), Math.random(), 120 + Math.random() * 360, 0.15 + Math.random() * 0.35, 0.2 + Math.random() * 0.9]);
+  stage.addEventListener('pointermove', ev => {
+    const b = stage.getBoundingClientRect();
+    G.mx = (ev.clientX - b.left) / b.width - 0.5;
+    G.my = (ev.clientY - b.top) / b.height - 0.5;
+    stage.style.setProperty('--mx', G.mx.toFixed(3));
+    stage.style.setProperty('--my', G.my.toFixed(3));
   });
   const onResize = () => { resize(); esLayout(); };
   window.addEventListener('resize', onResize);
+  esSetMode(stage.dataset.mode || 'crystal', true);
+  let last = performance.now();
   let t = 0;
-  function frame(): void {
+  const frame = () => {
     if(document.querySelector('#esFx') !== cv){ window.removeEventListener('resize', onResize); return; }
-    t += 1;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    ctx.clearRect(0, 0, W, H);
-    ctx.globalCompositeOperation = 'lighter';
-    for(let i = 0; i < stars.length; i++){
-      const s = stars[i];
-      const x = ((s[0] * W + t * 0.05 * s[2] * 4 - mx * 40 * s[2]) % W + W) % W;
-      const y = ((s[1] * H + t * 0.02 * s[2] - my * 26 * s[2]) % H + H) % H;
-      const a = (0.25 + 0.6 * Math.abs(Math.sin(t * 0.02 * s[4] + s[3]))) * s[2];
-      ctx.fillStyle = 'rgba(' + (i % 5 === 0 ? rgb : '225,235,255') + ',' + a.toFixed(2) + ')';
-      const sz = s[2] > 0.8 ? 2 : 1.2;
-      ctx.fillRect(x, y, sz, sz);
+    const now = performance.now();
+    const dt = Math.min(0.05, (now - last) / 1000);
+    last = now;
+    t += dt;
+    const stp = dt * 60;
+    const mode = stage.dataset.mode || 'crystal';
+    const tm = (now - esModeT) / 1000;
+    const W = G.W;
+    const H = G.H;
+    const cx = W / 2;
+    const cy = H / 2;
+    // glitch : rafales aléatoires (continues pendant la charge)
+    let charge = 0;
+    if(mode === 'charge') charge = Math.min(1, tm / 0.9);
+    if(t > G.nextGlitch && mode !== 'burst' && mode !== 'shards'){
+      G.glitch = 0.5 + Math.random() * 0.5;
+      G.glitchEnd = t + 0.14 + Math.random() * 0.3;
+      G.nextGlitch = t + (mode === 'charge' ? 0.12 : 2.2 + Math.random() * 3);
     }
-    for(let i = parts.length - 1; i >= 0; i--){
-      const p = parts[i];
-      p.life += 1;
-      if(p.life > p.max){ parts.splice(i, 1); continue; }
-      p.x += p.vx;
-      p.y += p.vy;
-      p.vx *= 0.955;
-      p.vy *= 0.955;
-      p.rot += p.vr;
-      const k = 1 - p.life / p.max;
-      if(p.kind === 0){
-        ctx.strokeStyle = 'rgba(' + rgb + ',' + (k * 0.9).toFixed(2) + ')';
-        ctx.lineWidth = p.size;
-        ctx.beginPath();
-        ctx.moveTo(p.x, p.y);
-        ctx.lineTo(p.x - p.vx * 2.4, p.y - p.vy * 2.4);
-        ctx.stroke();
-      } else if(p.kind === 1){
-        ctx.save();
-        ctx.translate(p.x, p.y);
-        ctx.rotate(p.rot);
-        ctx.fillStyle = 'rgba(255,255,255,' + (k * 0.35).toFixed(2) + ')';
-        ctx.strokeStyle = 'rgba(' + rgb + ',' + (k * 0.9).toFixed(2) + ')';
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        ctx.moveTo(0, -p.size);
-        ctx.lineTo(p.size * 0.8, p.size * 0.7);
-        ctx.lineTo(-p.size * 0.9, p.size * 0.5);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        ctx.restore();
+    if(t > G.glitchEnd) G.glitch = mode === 'charge' ? 0.35 + charge * 0.5 : 0;
+    ctx.setTransform(G.dpr, 0, 0, G.dpr, 0, 0);
+    ctx.globalCompositeOperation = 'source-over';
+    ctx.clearRect(0, 0, W, H);
+    ctx.save();
+    if(G.shake > 0.02){ ctx.translate((Math.random() - 0.5) * 22 * G.shake, (Math.random() - 0.5) * 22 * G.shake); G.shake *= Math.pow(0.9, stp); }
+    ctx.globalCompositeOperation = 'lighter';
+    // étoiles
+    for(let i = 0; i < G.stars.length; i++){
+      const s = G.stars[i];
+      const x = ((s[0] * W + t * 3 * s[2] - G.mx * 40 * s[2]) % W + W) % W;
+      const y = ((s[1] * H + t * 1.2 * s[2] - G.my * 26 * s[2]) % H + H) % H;
+      const a = (0.25 + 0.6 * Math.abs(Math.sin(t * 1.2 * s[4] + s[3]))) * s[2];
+      ctx.fillStyle = 'rgba(' + (i % 5 === 0 ? P.join(',') : '225,235,255') + ',' + a.toFixed(2) + ')';
+      ctx.fillRect(x, y, s[2] > 0.8 ? 2 : 1.2, s[2] > 0.8 ? 2 : 1.2);
+    }
+    // traînées de lumière en diagonale (débris, comme dans la bande-annonce)
+    ctx.lineWidth = 1;
+    for(let i = 0; i < G.streaks.length; i++){
+      const s = G.streaks[i];
+      const x = ((s[0] * (W + 400) + t * 90 * s[4]) % (W + 400)) - 200;
+      const y = ((s[1] * (H + 200) - t * 22 * s[4] + 4000) % (H + 200)) - 100;
+      const gr = ctx.createLinearGradient(x, y, x - s[2], y + s[2] * 0.22);
+      gr.addColorStop(0, 'rgba(255,255,255,' + (s[3] * 0.55).toFixed(2) + ')');
+      gr.addColorStop(1, 'rgba(' + S.join(',') + ',0)');
+      ctx.strokeStyle = gr;
+      ctx.beginPath();
+      ctx.moveTo(x, y);
+      ctx.lineTo(x - s[2], y + s[2] * 0.22);
+      ctx.stroke();
+    }
+    // cristal
+    const showCrystal = mode === 'crystal' || mode === 'charge' || mode === 'blackout';
+    if(showCrystal){
+      let mat = mode === 'crystal' ? Math.min(1, tm / 1.7) : 1;
+      mat = 1 - Math.pow(1 - mat, 3);
+      let scale = 0.45 + 0.55 * mat;
+      let alpha = mat;
+      if(mode === 'charge') scale = 1 - 0.1 * charge + (Math.random() - 0.5) * 0.02 * charge;
+      if(mode === 'blackout'){ const k = Math.min(1, tm / 0.26); scale = 0.9 * (1 - k * k); alpha = 1 - k * 0.4; }
+      G.rx = -0.32 + G.my * -0.5 + Math.sin(t * 0.5) * 0.12;
+      G.ry += dt * (0.55 + charge * 6);
+      G.rz = G.mx * 0.3;
+      const fy = Math.sin(t * 1.05) * 14 * G.sc / 140;
+      const ccx = cx;
+      const ccy = cy + fy;
+      octx.setTransform(G.dpr, 0, 0, G.dpr, 0, 0);
+      octx.clearRect(0, 0, W, H);
+      esDrawReticle(octx, ccx, ccy, G.sc * 1.55 * scale, t, alpha * (mode === 'blackout' ? 0.4 : 1), S, P);
+      esDrawCrystal(octx, ccx, ccy, G.sc * scale, G.rx, G.ry, G.rz, alpha, charge, t, P, S);
+      G.csc = G.sc * scale;
+      const gl = G.glitch;
+      ctx.globalCompositeOperation = 'lighter';
+      if(gl > 0.05){
+        const dx = gl * 11;
+        ctx.globalAlpha = 0.55;
+        ctx.filter = 'hue-rotate(-70deg)';
+        ctx.drawImage(og, 0, 0, W * G.dpr, H * G.dpr, -dx, 0, W, H);
+        ctx.filter = 'hue-rotate(95deg)';
+        ctx.drawImage(og, 0, 0, W * G.dpr, H * G.dpr, dx, 0, W, H);
+        ctx.filter = 'none';
+        ctx.globalAlpha = 1;
+        ctx.drawImage(og, 0, 0, W * G.dpr, H * G.dpr, 0, 0, W, H);
+        const bands = 2 + Math.floor(gl * 5);
+        for(let b = 0; b < bands; b++){
+          const by = Math.random() * H;
+          const bh = 4 + Math.random() * 28;
+          const off = (Math.random() - 0.5) * 70 * gl;
+          ctx.drawImage(og, 0, by * G.dpr, W * G.dpr, bh * G.dpr, off, by, W, bh);
+        }
       } else {
-        ctx.fillStyle = 'rgba(' + rgb + ',' + (k * 0.5).toFixed(2) + ')';
-        ctx.beginPath();
-        ctx.arc(p.x, p.y, p.size * k, 0, 6.283);
-        ctx.fill();
+        ctx.drawImage(og, 0, 0, W * G.dpr, H * G.dpr, 0, 0, W, H);
       }
+    }
+    // obscurité avant l'explosion (le « silence » de la bande-annonce)
+    ctx.globalCompositeOperation = 'source-over';
+    if(mode === 'blackout'){
+      ctx.fillStyle = 'rgba(0,0,6,' + Math.min(0.88, tm / 0.2).toFixed(2) + ')';
+      ctx.fillRect(0, 0, W, H);
+    }
+    ctx.globalCompositeOperation = 'lighter';
+    // lignes de vitesse
+    for(let i = G.lines.length - 1; i >= 0; i--){
+      const l = G.lines[i];
+      l.life += stp;
+      if(l.life > l.max){ G.lines.splice(i, 1); continue; }
+      l.r += l.v * stp;
+      l.v *= Math.pow(0.93, stp);
+      const k = 1 - l.life / l.max;
+      const r0 = Math.max(0, l.r - l.len * k);
+      ctx.strokeStyle = 'rgba(' + (i % 3 === 0 ? S.join(',') : '235,245,255') + ',' + (k * 0.85).toFixed(2) + ')';
+      ctx.lineWidth = l.w;
+      ctx.beginPath();
+      ctx.moveTo(cx + Math.cos(l.an) * r0, cy + Math.sin(l.an) * r0);
+      ctx.lineTo(cx + Math.cos(l.an) * l.r, cy + Math.sin(l.an) * l.r);
+      ctx.stroke();
+    }
+    // éclats de verre en vortex (3D)
+    const draw: any[] = [];
+    for(let i = G.shards.length - 1; i >= 0; i--){
+      const s = G.shards[i];
+      s.life += stp;
+      if(s.life > s.max){ G.shards.splice(i, 1); continue; }
+      s.p[0] += s.v[0] * stp;
+      s.p[1] += s.v[1] * stp;
+      s.p[2] += s.v[2] * stp;
+      const dr = Math.pow(0.985, stp);
+      s.v[0] *= dr;
+      s.v[1] *= dr;
+      s.v[2] *= dr;
+      s.r[0] += s.vr[0] * stp;
+      s.r[1] += s.vr[1] * stp;
+      s.r[2] += s.vr[2] * stp;
+      draw.push(s);
+    }
+    draw.sort((a: any, b: any) => b.p[2] - a.p[2]);
+    draw.forEach((s: any) => {
+      const k = Math.min(1, (1 - s.life / s.max) * 2.2);
+      const pts = s.rel.map((q: number[]) => {
+        const r = esRot(q, s.r[0], s.r[1], s.r[2]);
+        return esProj([r[0] * 1.0 + s.p[0], r[1] + s.p[1], r[2] + s.p[2]], cx, cy, G.shardSc);
+      });
+      ctx.fillStyle = 'rgba(' + esMix(P, S, (Math.sin(s.r[0]) + 1) / 2) + ',' + (0.2 * k).toFixed(3) + ')';
+      ctx.strokeStyle = s.glint && s.life % 14 < 4 ? 'rgba(255,255,255,' + k.toFixed(2) + ')' : 'rgba(' + S.join(',') + ',' + (0.85 * k).toFixed(2) + ')';
+      ctx.lineWidth = 1.3;
+      ctx.beginPath();
+      ctx.moveTo(pts[0][0], pts[0][1]);
+      ctx.lineTo(pts[1][0], pts[1][1]);
+      ctx.lineTo(pts[2][0], pts[2][1]);
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    });
+    // étincelles
+    for(let i = G.sparks.length - 1; i >= 0; i--){
+      const p = G.sparks[i];
+      p.life += stp;
+      if(p.life > p.max){ G.sparks.splice(i, 1); continue; }
+      p.x += p.vx * stp;
+      p.y += p.vy * stp;
+      p.vx *= Math.pow(0.955, stp);
+      p.vy *= Math.pow(0.955, stp);
+      const k = 1 - p.life / p.max;
+      ctx.strokeStyle = 'rgba(' + (i % 2 ? S.join(',') : '255,200,240') + ',' + (k * 0.9).toFixed(2) + ')';
+      ctx.lineWidth = p.w;
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y);
+      ctx.lineTo(p.x - p.vx * 2.4, p.y - p.vy * 2.4);
+      ctx.stroke();
+    }
+    // ondes de choc
+    for(let i = G.waves.length - 1; i >= 0; i--){
+      const w = G.waves[i];
+      w.r += w.v * stp;
+      w.v *= Math.pow(0.965, stp);
+      w.a *= Math.pow(0.95, stp);
+      if(w.a < 0.02){ G.waves.splice(i, 1); continue; }
+      ctx.strokeStyle = 'rgba(' + S.join(',') + ',' + w.a.toFixed(2) + ')';
+      ctx.lineWidth = w.w * w.a + 1;
+      ctx.beginPath();
+      ctx.arc(cx, cy, w.r, 0, 6.2832);
+      ctx.stroke();
+    }
+    ctx.restore();
+    // éclair blanc-bleu de l'explosion
+    if(G.flash > 0.02){
+      ctx.globalCompositeOperation = 'lighter';
+      const gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * 0.75);
+      gr.addColorStop(0, 'rgba(255,255,255,' + G.flash.toFixed(2) + ')');
+      gr.addColorStop(0.35, 'rgba(190,225,255,' + (G.flash * 0.7).toFixed(2) + ')');
+      gr.addColorStop(1, 'rgba(' + S.join(',') + ',0)');
+      ctx.fillStyle = gr;
+      ctx.fillRect(0, 0, W, H);
+      G.flash *= Math.pow(0.9, stp);
     }
     ctx.globalCompositeOperation = 'source-over';
     requestAnimationFrame(frame);
-  }
+  };
   requestAnimationFrame(frame);
 }
 
-/* ---- scénario : charge -> explosion -> fragments (et retour) ---- */
+function esSetMode(m: string, silent: boolean = false): void {
+  const st = document.getElementById('esStage');
+  if(!st) return;
+  st.dataset.mode = m;
+  if(!silent || !esModeT) esModeT = performance.now();
+}
+
+/* ---- scénario : charge -> noir -> explosion -> fragments (et retour) ---- */
 function esBurst(): void {
   const st = document.getElementById('esStage');
   if(!st || st.dataset.mode !== 'crystal') return;
-  st.dataset.mode = 'charge';
+  esSetMode('charge');
   window.setTimeout(() => {
-    if(!document.body.contains(st)) return;
-    st.dataset.mode = 'burst';
+    if(!document.body.contains(st) || st.dataset.mode !== 'charge') return;
+    esSetMode('blackout');
+  }, 900);
+  window.setTimeout(() => {
+    if(!document.body.contains(st) || st.dataset.mode !== 'blackout') return;
+    esSetMode('burst');
     esMode = 'shards';
-    if(esFxBurst) esFxBurst(false);
+    if(esG) esSpawnBurst(esG, false);
     st.classList.add('es-shake');
     window.setTimeout(() => st.classList.remove('es-shake'), 650);
-  }, 460);
-  window.setTimeout(() => { if(document.body.contains(st) && st.dataset.mode === 'burst') st.dataset.mode = 'shards'; }, 2800);
+  }, 1170);
+  window.setTimeout(() => { if(document.body.contains(st) && st.dataset.mode === 'burst') st.dataset.mode = 'shards'; }, 4200);
 }
 
 function esReform(): void {
   const st = document.getElementById('esStage');
   if(!st || (st.dataset.mode !== 'shards' && st.dataset.mode !== 'burst')) return;
   esCloseDetail(true);
-  st.dataset.mode = 'crystal';
+  esSetMode('crystal');
   esMode = 'crystal';
-  if(esFxBurst) esFxBurst(true);
+  if(esG) esSpawnBurst(esG, true);
 }
 
 /* ---- fiche d'un fragment ---- */
 function esDetailHtml(f: EsFrag, i: number, n: number): string {
-  const prev = esFrags()[(i - 1 + n) % n];
-  const next = esFrags()[(i + 1) % n];
+  const all = esFrags();
+  const prev = all[(i - 1 + n) % n];
+  const next = all[(i + 1) % n];
   const body = renderRichBody(parseWriteBody(f.body)) || '<p>Pas encore de texte.</p>';
   return `<div class="es-d-in">
     <button type="button" class="es-x" onclick="esCloseDetail()" aria-label="Fermer">✕</button>
@@ -4866,6 +5254,11 @@ function esOpenEditor(id: string): void {
   box.classList.add('open');
 }
 
+function esVal(id: string): string {
+  const el = document.querySelector<HTMLInputElement>('#' + id);
+  return ((el && el.value) || '').trim();
+}
+
 function esSaveFrag(): void {
   if(!isLoggedIn()) return;
   const t = esVal('esfT');
@@ -4875,11 +5268,6 @@ function esSaveFrag(): void {
   writeCityPatch('esf-' + id, { t, s: esVal('esfS'), img: esImg || null, body: esVal('esfB'), order: isFinite(ord) ? ord : 100, deleted: false })
     .then(() => { nvCloseForm(); if(esOpenId) window.setTimeout(() => esOpen(esOpenId), 80); })
     .catch(err => alert('Enregistrement impossible : ' + (err && err.message ? err.message : err)));
-}
-
-function esVal(id: string): string {
-  const el = document.querySelector<HTMLInputElement>('#' + id);
-  return ((el && el.value) || '').trim();
 }
 
 function esDeleteFrag(): void {
@@ -4908,6 +5296,22 @@ function initEssencePage(): void {
     window.setTimeout(() => st.classList.remove('es-instant'), 60);
   }
   if(esOpenId) esOpen(esOpenId);
+  // relevés du HUD : valeurs qui bougent
+  const tick = () => {
+    if(!document.getElementById('esStage')) return;
+    function set(id: string, v: string): void { const el = document.getElementById(id); if(el) el.textContent = v; }
+    const d = new Date();
+    set('esClock', ('0' + d.getHours()).slice(-2) + ':' + ('0' + d.getMinutes()).slice(-2) + ':' + ('0' + d.getSeconds()).slice(-2));
+    const lv = 60 + Math.floor(Math.random() * 38);
+    const n = Math.max(1, Math.min(5, Math.round(lv / 20)));
+    set('esBars', '▮'.repeat(n) + '▯'.repeat(5 - n));
+    set('esC1', '0x' + ('0000' + Math.floor(Math.random() * 65536).toString(16).toUpperCase()).slice(-4) + (lv > 70 ? ' · STABLE' : ' · INSTABLE'));
+    set('esC2', (420 + Math.random() * 25).toFixed(1) + ' THz');
+    set('esC3', (0.6 + Math.random() * 0.35).toFixed(2) + ' ± 0.0' + Math.ceil(Math.random() * 5));
+    set('esC4', '▮'.repeat(n) + '▯'.repeat(5 - n) + ' ' + lv + ' %');
+    window.setTimeout(tick, 1100);
+  };
+  tick();
   function onKey(ev: KeyboardEvent): void {
     if(!document.getElementById('esStage')){ window.removeEventListener('keydown', onKey); return; }
     const ae = document.activeElement;
