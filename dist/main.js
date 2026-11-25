@@ -3772,9 +3772,9 @@ function renderObjetsPage() {
     </div>`;
 }
 
-/* ---------------- Page « Essence » : un cristal taillé flotte dans un orbe de verre sombre (l'Essence vient d'Oxiri : elle n'est jamais tout à fait pure) ;
-   un clic l'écrase, le noir se fait, puis il explose en éclats et en fragments (façon éidolons) qui ouvrent chacun leur fiche. Rendu 3D maison sur canvas
-   (nébuleuse et fumée noire, fils néon, faces de verre, fissures rouges, anneau d'énergie, décalage RGB, éclats en vortex), habillage HUD.
+/* ---------------- Page « Essence » : un cristal de verre sombre flotte (l'Essence vient d'Oxiri : son cœur et ses veines sont rouges) ;
+   un clic l'écrase, le noir se fait, puis il éclate en morceaux de verre et en fragments brisés façon éidolons, qui ouvrent chacun leur fiche.
+   Rendu 3D maison sur canvas (verre qui reflète la nébuleuse, arêtes lumineuses, éclats en étoile, petits cristaux en orbite), habillage HUD.
    Fragments, fond, couleur, titre et musique modifiables. ---------------- */
 
 const ES_DEFAULTS = [
@@ -3835,8 +3835,8 @@ function esShardHtml(f, i, n) {
         <div class="es-shade"></div>
         <div class="es-scan"></div>
       </div>
-      <svg class="es-edge" aria-hidden="true"><polygon class="e1" points=""/><polygon class="e2" points=""/></svg>
-      <div class="es-label"><b>${num}</b><span>${esc(f.t)}<small>ESS // 0x${code}</small></span></div>
+      <svg class="es-edge" aria-hidden="true"><polygon class="e2" points=""/><polygon class="e1" points=""/><polygon class="e3" points=""/></svg>
+      <div class="es-label"><i class="es-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5l2.4 8.1 8.1 2.4-8.1 2.4L12 22.5l-2.4-8.1L1.5 12l8.1-2.4z"/></svg></i><span><em>${num}</em>${esc(f.t)}<small>ESS // 0x${code}</small></span></div>
     </div>
   </div>`;
 }
@@ -3917,7 +3917,7 @@ function renderEssencePage() {
         <div class="es-gauges" aria-hidden="true">${esGaugeHtml('esG1', 'Stabilité', 87)}${esGaugeHtml('esG2', 'Flux', 64)}${esGaugeHtml('esG3', 'Résonance', 92)}</div>
         ${esBootHtml()}
         <button type="button" class="es-hit" onclick="esBurst()" aria-label="Briser le cristal"></button>
-        <div class="es-shards" id="esShards">${frags.map((f, i) => esShardHtml(f, i, frags.length)).join('')}</div>
+        <div class="es-shards" id="esShards"><svg class="es-minis" aria-hidden="true"></svg>${frags.map((f, i) => esShardHtml(f, i, frags.length)).join('')}</div>
         <canvas class="es-fx" id="esFx"></canvas>
         <div class="es-flash"></div>
         <div class="es-ring r1"></div><div class="es-ring r2"></div>
@@ -3967,9 +3967,13 @@ function esLayout() {
     const rad = 0.26 + r() * 0.1;
     seeds.push([cx + Math.cos(a) * W * rad * 1.15, cy + Math.sin(a) * H * rad * 1.25]);
   }
-  const m = 10;
+  const ell = [];
+  for(let q = 0; q < 28; q++){
+    const an = q / 28 * Math.PI * 2;
+    ell.push([cx + Math.cos(an) * W * 0.48, cy + Math.sin(an) * H * 0.47]);
+  }
   els.forEach((el, i) => {
-    let poly = [[m, m], [W - m, m], [W - m, H - m], [m, H - m]];
+    let poly = ell.map(p => [p[0], p[1]]);
     for(let j = 0; j < n; j++){
       if(j === i) continue;
       const nx = seeds[j][0] - seeds[i][0];
@@ -3984,8 +3988,17 @@ function esLayout() {
     poly.forEach(p => { gx += p[0]; gy += p[1]; });
     gx /= poly.length;
     gy /= poly.length;
-    const f = 0.9;
+    const f = 0.86;
     poly = poly.map(p => [gx + (p[0] - gx) * f, gy + (p[1] - gy) * f]);
+    // verre brisé : sommets décalés, une pointe tirée vers l'extérieur, parfois un angle en moins
+    const rj = tmSeeded(77 + i * 13);
+    let md = 0;
+    poly.forEach(p => { md += Math.hypot(p[0] - gx, p[1] - gy); });
+    md /= poly.length;
+    poly = poly.map(p => [p[0] + (rj() - 0.5) * md * 0.14, p[1] + (rj() - 0.5) * md * 0.14]);
+    const spk = Math.floor(rj() * poly.length);
+    poly[spk] = [gx + (poly[spk][0] - gx) * 1.18, gy + (poly[spk][1] - gy) * 1.18];
+    if(poly.length > 5 && rj() < 0.6) poly.splice((spk + 2) % poly.length, 1);
     let x0 = 1e9;
     let y0 = 1e9;
     let x1 = -1e9;
@@ -3994,6 +4007,7 @@ function esLayout() {
     const bw = x1 - x0;
     const bh = y1 - y0;
     const pts = poly.map(p => (p[0] - x0).toFixed(1) + ',' + (p[1] - y0).toFixed(1));
+    const pts2 = poly.map(p => (gx + (p[0] - gx) * 0.94 - x0).toFixed(1) + ',' + (gy + (p[1] - gy) * 0.94 - y0).toFixed(1));
     const ox = gx - x0;
     const oy = gy - y0;
     const rr = tmSeeded(911 + i * 17);
@@ -4007,18 +4021,45 @@ function esLayout() {
     el.style.setProperty('--ir', Math.round((rr() - 0.5) * 540) + 'deg');
     el.style.setProperty('--dx', ((rr() - 0.5) * 10).toFixed(1) + 'px');
     el.style.setProperty('--dy', ((rr() - 0.5) * 10).toFixed(1) + 'px');
-    el.style.setProperty('--dr', ((rr() - 0.5) * 2.4).toFixed(2) + 'deg');
+    el.style.setProperty('--dr', ((rr() - 0.5) * 9).toFixed(2) + 'deg');
+    el.style.setProperty('--tx', ((rr() - 0.5) * 22).toFixed(1) + 'deg');
+    el.style.setProperty('--ty', ((rr() - 0.5) * 26).toFixed(1) + 'deg');
     const inner = el.querySelector('.es-shard-in');
     if(inner) inner.style.clipPath = 'polygon(' + pts.map(p => p.replace(',', 'px ') + 'px').join(',') + ')';
     const svg = el.querySelector('.es-edge');
     if(svg){
       svg.setAttribute('width', String(bw));
       svg.setAttribute('height', String(bh));
-      svg.querySelectorAll('polygon').forEach(pg => pg.setAttribute('points', pts.join(' ')));
+      svg.querySelectorAll('polygon').forEach(pg => pg.setAttribute('points', (pg.getAttribute('class') === 'e3' ? pts2 : pts).join(' ')));
     }
     const lab = el.querySelector('.es-label');
-    if(lab){ lab.style.left = ox.toFixed(1) + 'px'; lab.style.top = (oy + (bh - oy) * 0.4).toFixed(1) + 'px'; }
+    let blv = poly[0];
+    poly.forEach(p => { if(p[1] - p[0] > blv[1] - blv[0]) blv = p; });
+    if(lab){ lab.style.left = (gx + (blv[0] - gx) * 0.5 - x0).toFixed(1) + 'px'; lab.style.top = (gy + (blv[1] - gy) * 0.5 - y0).toFixed(1) + 'px'; }
   });
+  // petits éclats de verre qui flottent entre les fragments
+  const mini = st.querySelector('.es-minis');
+  if(mini){
+    const rm = tmSeeded(4242);
+    let html = '';
+    for(let q = 0; q < 14; q++){
+      const an = rm() * 6.283;
+      const rad = q < 3 ? rm() * 0.04 : 0.47 + rm() * 0.09;
+      const px = cx + Math.cos(an) * W * rad;
+      const py = cy + Math.sin(an) * H * rad;
+      const sz = 5 + rm() * (q < 3 ? 8 : 22);
+      const nv = 3 + Math.floor(rm() * 2);
+      let pp = '';
+      for(let v = 0; v < nv; v++){
+        const a2 = v / nv * 6.283 + rm() * 1.2;
+        const rr2 = sz * (0.5 + rm() * 0.6);
+        pp += (px + Math.cos(a2) * rr2).toFixed(1) + ',' + (py + Math.sin(a2) * rr2 * 1.3).toFixed(1) + ' ';
+      }
+      html += `<polygon points="${pp}" style="animation-delay:-${(rm() * 6).toFixed(1)}s;animation-duration:${(5 + rm() * 5).toFixed(1)}s"/>`;
+    }
+    mini.innerHTML = html;
+    mini.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  }
 }
 
 /* ---- moteur 3D sur canvas : cristal de 36 faces en verre, fils néon, anneau d'énergie, noyau ---- */
@@ -4059,7 +4100,6 @@ function esProj(v, cx, cy, sc) {
   return [cx + v[0] * sc * f, cy + v[1] * sc * f, f];
 }
 
-// Maillage : sommet haut, anneau haut, anneau médian décalé de 30°, anneau bas, sommet bas -> 36 triangles.
 /* ---- bruit, textures procédurales, maillage du cristal taillé ---- */
 function esMixArr(a, b, t) {
   return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
@@ -4121,21 +4161,28 @@ function esNoiseCanvas(w, h, seed, c1, c2, lo, hi) {
   return cv;
 }
 
-// Maillage : gemme taillée à 9 anneaux de 8 sommets décalés (couronne, ceinture, culasse) -> 112 facettes.
-function esBuildMesh() {
-  const N = 8;
-  const prof = [[-1.2, 0.4], [-0.82, 0.8], [-0.42, 1.02], [0, 1.1], [0.42, 0.96], [0.86, 0.68], [1.24, 0.36]];
-  const v = [[0, -1.62, 0]];
-  prof.forEach((p, k) => {
+// Maillage d'un cristal : pointe haute, anneaux de N sommets (légèrement irréguliers), pointe basse. Arêtes « dures » uniquement (pas les diagonales).
+function esCrystalMesh(tipT, tipB, rings, N, seed, jit) {
+  const r = tmSeeded(seed);
+  const v = [[(r() - 0.5) * jit, tipT, (r() - 0.5) * jit]];
+  rings.forEach(p => {
     for(let j = 0; j < N; j++){
-      const an = j * Math.PI * 2 / N + (k % 2) * Math.PI / N;
-      v.push([Math.cos(an) * p[1], p[0], Math.sin(an) * p[1]]);
+      const an = j * Math.PI * 2 / N + (r() - 0.5) * jit * 0.8;
+      const rad = p[1] * (1 + (r() - 0.5) * jit);
+      v.push([Math.cos(an) * rad, p[0] + (r() - 0.5) * jit * 0.3, Math.sin(an) * rad]);
     }
   });
-  v.push([0, 1.62, 0]);
+  v.push([(r() - 0.5) * jit, tipB, (r() - 0.5) * jit]);
   const f = [];
-  for(let j = 0; j < N; j++) f.push([0, 1 + j, 1 + (j + 1) % N]);
-  for(let k = 0; k < prof.length - 1; k++){
+  const e = [];
+  for(let j = 0; j < N; j++){
+    f.push([0, 1 + j, 1 + (j + 1) % N]);
+    e.push([0, 1 + j]);
+  }
+  for(let k = 0; k < rings.length; k++){
+    for(let j = 0; j < N; j++) e.push([1 + k * N + j, 1 + k * N + (j + 1) % N]);
+  }
+  for(let k = 0; k < rings.length - 1; k++){
     for(let j = 0; j < N; j++){
       const j2 = (j + 1) % N;
       const a = 1 + k * N + j;
@@ -4144,151 +4191,220 @@ function esBuildMesh() {
       const b2 = 1 + (k + 1) * N + j2;
       f.push([a, b, a2]);
       f.push([a2, b, b2]);
+      e.push([a, b]);
     }
   }
   const last = v.length - 1;
-  const base = 1 + (prof.length - 1) * N;
-  for(let j = 0; j < N; j++) f.push([last, base + j, base + (j + 1) % N]);
-  const seen = {};
-  const e = [];
-  f.forEach(t => {
-    for(let q = 0; q < 3; q++){
-      const a = t[q];
-      const b = t[(q + 1) % 3];
-      const key = Math.min(a, b) + '-' + Math.max(a, b);
-      if(!seen[key]){ seen[key] = true; e.push([a, b]); }
-    }
-  });
+  const base = 1 + (rings.length - 1) * N;
+  for(let j = 0; j < N; j++){
+    f.push([last, base + j, base + (j + 1) % N]);
+    e.push([last, base + j]);
+  }
   return { v, f, e };
 }
 
-// Dessine le cristal (faces de verre, fils néon, octaèdre intérieur, anneau d'énergie, noyau) sur le contexte donné.
-function esDrawCrystal(g, cx, cy, sc, rx, ry, rz, a, charge, t, P, S, scan) {
-  const mesh = esMeshCache;
-  const pv = mesh.v.map((p) => {
-    const r = esRot(p, rx, ry, rz);
-    return { r, p: esProj(r, cx, cy, sc) };
-  });
+// Le grand cristal : prisme hexagonal irrégulier, longues pointes.
+function esBuildMesh() {
+  return esCrystalMesh(-2.05, 1.85, [[-1.15, 0.55], [-0.35, 0.68], [0.55, 0.64], [1.2, 0.46]], 6, 1307, 0.12);
+}
+
+// Petit éclat de cristal qui gravite autour.
+function esBuildShard(seed) {
+  return esCrystalMesh(-1, 0.9, [[-0.25, 0.42], [0.3, 0.36]], 4 + (seed % 2), seed, 0.25);
+}
+
+// « Environnement » reflété par le verre : nébuleuse violette + quelques sources de lumière (blanche, lavande, rouge).
+function esMakeEnv() {
+  const cv = esNoiseCanvas(256, 256, 97, [40, 20, 110], [110, 70, 230], 0.28, 0.8);
+  const g = cv.getContext('2d');
+  if(!g) return cv;
   g.globalCompositeOperation = 'lighter';
-  g.lineJoin = 'round';
-  // faces, de la plus lointaine à la plus proche
-  const faces = mesh.f.map((tr, i) => {
-    const A = pv[tr[0]];
-    const B = pv[tr[1]];
-    const C = pv[tr[2]];
-    const ux = B.r[0] - A.r[0];
-    const uy = B.r[1] - A.r[1];
-    const uz = B.r[2] - A.r[2];
-    const vx = C.r[0] - A.r[0];
-    const vy = C.r[1] - A.r[1];
-    const vz = C.r[2] - A.r[2];
+  const blobs = [[70, 60, 60, '255,255,255', 0.85], [190, 90, 70, '190,170,255', 0.6], [120, 200, 80, '255,60,110', 0.45], [210, 210, 40, '255,255,255', 0.5]];
+  blobs.forEach(b => {
+    const gr = g.createRadialGradient(Number(b[0]), Number(b[1]), 0, Number(b[0]), Number(b[1]), Number(b[2]));
+    gr.addColorStop(0, 'rgba(' + b[3] + ',' + b[4] + ')');
+    gr.addColorStop(1, 'rgba(' + b[3] + ',0)');
+    g.fillStyle = gr;
+    g.fillRect(0, 0, 256, 256);
+  });
+  g.strokeStyle = 'rgba(255,255,255,0.55)';
+  g.lineWidth = 10;
+  g.beginPath();
+  g.moveTo(-20, 190);
+  g.lineTo(276, 40);
+  g.stroke();
+  return cv;
+}
+
+// Matière « verre sombre » : faces arrière teintées, cœur et veines rouges à l'intérieur, faces avant (dégradé éclairé,
+// reflet de la nébuleuse, spéculaire, liseré de Fresnel), arêtes blanches lumineuses et éclats en étoile aux sommets.
+function esDrawGlass(g, mesh, cx, cy, sc, rot, pos, ms, a, t, env, main, veins, charge) {
+  const pv = mesh.v.map((p) => {
+    const r = esRot([p[0] * ms, p[1] * ms, p[2] * ms], rot[0], rot[1], rot[2]);
+    const w = [r[0] + pos[0], r[1] + pos[1], r[2] + pos[2]];
+    return { r, w, p: esProj(w, cx, cy, sc) };
+  });
+  const ll = Math.sqrt(0.42 * 0.42 + 0.68 * 0.68 + 0.6 * 0.6);
+  const L = [-0.42 / ll, -0.68 / ll, -0.6 / ll];
+  const hx = L[0];
+  const hy = L[1];
+  const hz = L[2] - 1;
+  const hl = Math.sqrt(hx * hx + hy * hy + hz * hz);
+  const faces = mesh.f.map((tr) => {
+    const A = pv[tr[0]].r;
+    const B = pv[tr[1]].r;
+    const C = pv[tr[2]].r;
+    const ux = B[0] - A[0];
+    const uy = B[1] - A[1];
+    const uz = B[2] - A[2];
+    const vx = C[0] - A[0];
+    const vy = C[1] - A[1];
+    const vz = C[2] - A[2];
     let nx = uy * vz - uz * vy;
     let ny = uz * vx - ux * vz;
     let nz = ux * vy - uy * vx;
-    const cxm = (A.r[0] + B.r[0] + C.r[0]) / 3;
-    const cym = (A.r[1] + B.r[1] + C.r[1]) / 3;
-    const czm = (A.r[2] + B.r[2] + C.r[2]) / 3;
-    if(nx * cxm + ny * cym + nz * czm < 0){ nx = -nx; ny = -ny; nz = -nz; }
+    const mx = (A[0] + B[0] + C[0]) / 3;
+    const my = (A[1] + B[1] + C[1]) / 3;
+    const mz = (A[2] + B[2] + C[2]) / 3;
+    if(nx * mx + ny * my + nz * mz < 0){ nx = -nx; ny = -ny; nz = -nz; }
     const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
-    return { tr, z: czm, nx: nx / len, ny: ny / len, nz: nz / len, i };
+    return { tr, z: mz + pos[2], nx: nx / len, ny: ny / len, nz: nz / len };
   });
   faces.sort((q, w) => w.z - q.z);
-  faces.forEach((fc) => {
-    const A = pv[fc.tr[0]].p;
-    const B = pv[fc.tr[1]].p;
-    const C = pv[fc.tr[2]].p;
-    const edge = Math.pow(1 - Math.abs(fc.nz), 1.3);
-    const lit = Math.max(0, -fc.nx * 0.4 - fc.ny * 0.7 - fc.nz * 0.6);
-    const fl = 0.8 + 0.2 * Math.sin(t * 3 + fc.i * 1.7);
-    const fyw = (mesh.v[fc.tr[0]][1] + mesh.v[fc.tr[1]][1] + mesh.v[fc.tr[2]][1]) / 3;
-    const fsb = Math.max(0, 1 - Math.abs(fyw - scan) / 0.3);
-    const al = (0.05 + 0.2 * edge + 0.14 * lit + 0.12 * charge + 0.3 * fsb) * a * fl;
-    g.fillStyle = 'rgba(' + esMix(P, S, (fc.ny + 1) / 2) + ',' + al.toFixed(3) + ')';
+  const pc = esProj(pos, cx, cy, sc);
+  function path(f) {
+    const A = pv[f.tr[0]].p;
+    const B = pv[f.tr[1]].p;
+    const C = pv[f.tr[2]].p;
     g.beginPath();
     g.moveTo(A[0], A[1]);
     g.lineTo(B[0], B[1]);
     g.lineTo(C[0], C[1]);
     g.closePath();
+  }
+  g.save();
+  g.lineJoin = 'round';
+  // 1) faces arrière : l'intérieur teinté du cristal
+  g.globalCompositeOperation = 'source-over';
+  faces.forEach((f) => {
+    if(f.nz <= 0) return;
+    path(f);
+    g.fillStyle = 'rgba(16,8,38,' + (0.5 * a).toFixed(3) + ')';
     g.fill();
+    g.strokeStyle = 'rgba(160,140,255,' + (0.16 * a).toFixed(3) + ')';
+    g.lineWidth = 0.8;
+    g.stroke();
   });
-  // fils néon
-  const glitchBlank = esG && esG.glitch > 0.5;
-  for(let pass = 0; pass < 3; pass++){
-    const lw = pass === 0 ? 6 : pass === 1 ? 2.6 : 1.1;
-    const aa = (pass === 0 ? 0.09 : pass === 1 ? 0.22 : 0.95) * a;
-    mesh.e.forEach((ed, i) => {
-      if(glitchBlank && (i * 7 + Math.floor(t * 20)) % 9 === 0) return;
-      const A = pv[ed[0]];
-      const B = pv[ed[1]];
-      const depth = (A.r[2] + B.r[2]) / 2;
-      const dim = depth > 0 ? 0.55 : 1;
-      const mixv = (A.r[1] + B.r[1]) / 6 + 0.5;
-      const wy = (mesh.v[ed[0]][1] + mesh.v[ed[1]][1]) / 2;
-      const sb = Math.max(0, 1 - Math.abs(wy - scan) / 0.3);
-      g.strokeStyle = 'rgba(' + (pass === 2 ? esMix([255, 255, 255], P, 0.35 + 0.35 * (1 - mixv)) : esMix(P, S, mixv)) + ',' + Math.min(1, aa * dim * (0.85 + 0.15 * Math.sin(t * 5 + i)) * (1 + sb * 1.8)).toFixed(3) + ')';
-      g.lineWidth = lw * (0.7 + 0.5 * A.p[2]) * (1 + sb * 0.8);
+  // 2) cœur et veines rouges, vus à travers le verre
+  if(main){
+    g.globalCompositeOperation = 'lighter';
+    const cr = sc * ms * (0.6 + 0.08 * Math.sin(t * 2.6) + charge * 0.7);
+    const cg = g.createRadialGradient(pc[0], pc[1], 0, pc[0], pc[1], cr);
+    cg.addColorStop(0, 'rgba(255,215,235,' + (0.85 * a).toFixed(3) + ')');
+    cg.addColorStop(0.25, 'rgba(255,60,115,' + (0.5 * a).toFixed(3) + ')');
+    cg.addColorStop(0.6, 'rgba(120,40,220,' + (0.22 * a).toFixed(3) + ')');
+    cg.addColorStop(1, 'rgba(120,40,220,0)');
+    g.fillStyle = cg;
+    g.beginPath();
+    g.arc(pc[0], pc[1], cr, 0, 6.2832);
+    g.fill();
+    veins.forEach((vn, i) => {
+      const pts = vn.map(p => {
+        const r = esRot([p[0] * ms, p[1] * ms, p[2] * ms], rot[0], rot[1], rot[2]);
+        return esProj([r[0] + pos[0], r[1] + pos[1], r[2] + pos[2]], cx, cy, sc);
+      });
+      const pulse = 0.4 + 0.6 * Math.abs(Math.sin(t * 1.4 + i * 1.3));
+      for(let pass = 0; pass < 2; pass++){
+        g.strokeStyle = 'rgba(255,' + (pass ? 70 : 30) + ',' + (pass ? 110 : 80) + ',' + ((pass ? 0.75 : 0.22) * pulse * a).toFixed(3) + ')';
+        g.lineWidth = pass ? 1.1 : 3.4;
+        g.beginPath();
+        pts.forEach((p, k) => { if(k === 0) g.moveTo(p[0], p[1]); else g.lineTo(p[0], p[1]); });
+        g.stroke();
+      }
+    });
+  }
+  // 3) faces avant : verre éclairé qui reflète la nébuleuse
+  const es = sc * ms * 3.4;
+  faces.forEach((f) => {
+    if(f.nz > 0) return;
+    const A = pv[f.tr[0]].p;
+    const C = pv[f.tr[2]].p;
+    const fres = Math.pow(1 - Math.abs(f.nz), 1.6);
+    const lit = Math.max(0, f.nx * L[0] + f.ny * L[1] + f.nz * L[2]);
+    const spec = Math.pow(Math.max(0, (f.nx * hx + f.ny * hy + f.nz * hz) / hl), 26);
+    g.save();
+    path(f);
+    g.clip();
+    g.globalCompositeOperation = 'source-over';
+    const gr = g.createLinearGradient(A[0], A[1], C[0], C[1]);
+    gr.addColorStop(0, 'rgba(' + Math.round(34 + 70 * lit) + ',' + Math.round(18 + 46 * lit) + ',' + Math.round(80 + 120 * lit) + ',' + (0.5 * a).toFixed(3) + ')');
+    gr.addColorStop(1, 'rgba(10,5,26,' + (0.42 * a).toFixed(3) + ')');
+    g.fillStyle = gr;
+    g.fill();
+    g.globalCompositeOperation = 'lighter';
+    g.globalAlpha = (0.22 + 0.5 * fres) * a;
+    g.drawImage(env, pc[0] - es / 2 - f.nx * es * 0.45 + Math.sin(t * 0.15) * es * 0.05, pc[1] - es / 2 - f.ny * es * 0.45, es, es);
+    g.globalAlpha = 1;
+    if(spec > 0.02){
+      const B = pv[f.tr[1]].p;
+      const sg = g.createLinearGradient(A[0], A[1], (B[0] + C[0]) / 2, (B[1] + C[1]) / 2);
+      sg.addColorStop(0, 'rgba(255,250,255,' + (spec * 0.55 * a).toFixed(3) + ')');
+      sg.addColorStop(0.6, 'rgba(255,250,255,' + (spec * 0.12 * a).toFixed(3) + ')');
+      sg.addColorStop(1, 'rgba(255,250,255,0)');
+      g.fillStyle = sg;
+      g.fill();
+    }
+    g.fillStyle = 'rgba(200,185,255,' + (0.12 * fres * a).toFixed(3) + ')';
+    g.fill();
+    g.restore();
+  });
+  // 4) arêtes : blanches et lumineuses à l'avant, discrètes à l'arrière
+  const front = {};
+  faces.forEach((f) => {
+    if(f.nz > 0) return;
+    for(let q = 0; q < 3; q++){
+      const x = f.tr[q];
+      const y = f.tr[(q + 1) % 3];
+      front[Math.min(x, y) + '-' + Math.max(x, y)] = true;
+    }
+  });
+  g.globalCompositeOperation = 'lighter';
+  for(let pass = 0; pass < 2; pass++){
+    mesh.e.forEach((ed) => {
+      const isF = front[Math.min(ed[0], ed[1]) + '-' + Math.max(ed[0], ed[1])];
+      if(pass === 0 && !isF) return;
+      const A = pv[ed[0]].p;
+      const B = pv[ed[1]].p;
+      g.strokeStyle = pass === 0 ? 'rgba(190,170,255,' + (0.16 * a).toFixed(3) + ')' : isF ? 'rgba(246,242,255,' + (0.88 * a).toFixed(3) + ')' : 'rgba(170,150,255,' + (0.2 * a).toFixed(3) + ')';
+      g.lineWidth = pass === 0 ? 4 : isF ? 1.3 : 0.8;
       g.beginPath();
-      g.moveTo(A.p[0], A.p[1]);
-      g.lineTo(B.p[0], B.p[1]);
+      g.moveTo(A[0], A[1]);
+      g.lineTo(B[0], B[1]);
       g.stroke();
     });
   }
-  // gemme intérieure réduite (contre-rotation) et éclats aux sommets
-  const ip = mesh.v.map((p) => esProj(esRot(esRot([p[0] * 0.42, p[1] * 0.42, p[2] * 0.42], -rx * 1.6 + t * 0.4, -ry * 1.9, rz * 0.5), rx, ry, rz), cx, cy, sc));
-  g.strokeStyle = 'rgba(' + S[0] + ',' + S[1] + ',' + S[2] + ',' + (0.55 * a).toFixed(3) + ')';
-  g.lineWidth = 0.9;
-  mesh.e.forEach((ed) => {
-    g.beginPath();
-    g.moveTo(ip[ed[0]][0], ip[ed[0]][1]);
-    g.lineTo(ip[ed[1]][0], ip[ed[1]][1]);
-    g.stroke();
-  });
-  pv.forEach((q, i) => {
-    if(i % 2 === 0){
-      g.fillStyle = 'rgba(255,255,255,' + ((0.4 + 0.5 * Math.abs(Math.sin(t * 2 + i))) * a).toFixed(2) + ')';
-      g.fillRect(q.p[0] - 1.2, q.p[1] - 1.2, 2.4, 2.4);
-    }
-  });
-  // anneau d'énergie qui tourne dans le cristal
-  const rr = 0.78 - 0.3 * charge;
-  const ringPts = [];
-  for(let i = 0; i <= 72; i++){
-    const th = i / 72 * Math.PI * 2;
-    ringPts.push(esProj(esRot(esRot([Math.cos(th) * rr, 0, Math.sin(th) * rr], t * (1 + charge * 5), t * 0.7, 0.5), rx, ry, rz), cx, cy, sc));
+  // 5) éclats en étoile qui scintillent aux sommets
+  if(main){
+    pv.forEach((q, i) => {
+      const tw = Math.sin(t * 2.2 + i * 1.7);
+      if(tw < 0.55 || q.w[2] > pos[2]) return;
+      const s = (6 + 14 * (tw - 0.55) / 0.45) * (sc / 120);
+      const al = ((tw - 0.55) / 0.45 * a).toFixed(3);
+      const sg = g.createLinearGradient(q.p[0] - s, q.p[1], q.p[0] + s, q.p[1]);
+      sg.addColorStop(0, 'rgba(255,255,255,0)');
+      sg.addColorStop(0.5, 'rgba(255,255,255,' + al + ')');
+      sg.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = sg;
+      g.fillRect(q.p[0] - s, q.p[1] - 0.8, s * 2, 1.6);
+      const sv = g.createLinearGradient(q.p[0], q.p[1] - s, q.p[0], q.p[1] + s);
+      sv.addColorStop(0, 'rgba(255,255,255,0)');
+      sv.addColorStop(0.5, 'rgba(255,255,255,' + al + ')');
+      sv.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = sv;
+      g.fillRect(q.p[0] - 0.8, q.p[1] - s, 1.6, s * 2);
+    });
   }
-  for(let pass = 0; pass < 3; pass++){
-    g.strokeStyle = 'rgba(255,' + (60 + pass * 45) + ',' + (80 + pass * 10) + ',' + ((pass === 0 ? 0.14 : pass === 1 ? 0.4 : 1) * a).toFixed(3) + ')';
-    g.lineWidth = pass === 0 ? 9 : pass === 1 ? 4 : 1.6;
-    g.beginPath();
-    ringPts.forEach((p, i) => { if(i === 0) g.moveTo(p[0], p[1]); else g.lineTo(p[0], p[1]); });
-    g.stroke();
-  }
-  // noyau
-  const pulse = 0.85 + 0.15 * Math.sin(t * 3.4) + charge * 0.9;
-  const cr = sc * 0.62 * pulse;
-  const gr = g.createRadialGradient(cx, cy, 0, cx, cy, cr);
-  gr.addColorStop(0, 'rgba(255,255,255,' + (0.95 * a).toFixed(3) + ')');
-  gr.addColorStop(0.18, 'rgba(255,200,205,' + (0.7 * a).toFixed(3) + ')');
-  gr.addColorStop(0.5, 'rgba(' + P[0] + ',' + P[1] + ',' + P[2] + ',' + (0.3 * a).toFixed(3) + ')');
-  gr.addColorStop(1, 'rgba(' + P[0] + ',' + P[1] + ',' + P[2] + ',0)');
-  g.fillStyle = gr;
-  g.beginPath();
-  g.arc(cx, cy, cr, 0, 6.2832);
-  g.fill();
-  // plan de balayage qui traverse le cristal de bas en haut
-  const sy = cy + scan * sc * Math.cos(rx);
-  const sg = g.createLinearGradient(cx - sc * 1.3, sy, cx + sc * 1.3, sy);
-  sg.addColorStop(0, 'rgba(' + S[0] + ',' + S[1] + ',' + S[2] + ',0)');
-  sg.addColorStop(0.5, 'rgba(235,255,250,' + (0.9 * a).toFixed(3) + ')');
-  sg.addColorStop(1, 'rgba(' + S[0] + ',' + S[1] + ',' + S[2] + ',0)');
-  g.fillStyle = sg;
-  g.fillRect(cx - sc * 1.3, sy - 1, sc * 2.6, 2);
-  const sg2 = g.createLinearGradient(0, sy - sc * 0.22, 0, sy + sc * 0.04);
-  sg2.addColorStop(0, 'rgba(' + P[0] + ',' + P[1] + ',' + P[2] + ',0)');
-  sg2.addColorStop(1, 'rgba(' + P[0] + ',' + P[1] + ',' + P[2] + ',' + (0.12 * a).toFixed(3) + ')');
-  g.fillStyle = sg2;
-  g.fillRect(cx - sc * 1.1, sy - sc * 0.22, sc * 2.2, sc * 0.26);
-  g.globalCompositeOperation = 'source-over';
+  g.restore();
 }
 
 // Sol en perspective : quadrillage qui défile vers l'observateur, points lumineux de couleur, onde de balayage circulaire.
@@ -4438,135 +4554,7 @@ function esSpawnBurst(G, implode) {
   G.shake = 1;
 }
 
-/* ---- cadre de confinement, orbe sombre fissuré, ville numérique au fond ---- */
-// Cadre carré néon autour du bloc, repères en X, lignes de données qui débordent (comme sur l'image de référence).
-function esDrawFrame(g, cx, cy, sc, a, t, charge) {
-  const h = sc * (1.95 - 0.25 * charge);
-  g.save();
-  g.globalCompositeOperation = 'lighter';
-  g.lineJoin = 'miter';
-  g.strokeStyle = 'rgba(255,60,85,' + (0.9 * a).toFixed(3) + ')';
-  g.lineWidth = 2.4;
-  g.strokeRect(cx - h, cy - h, h * 2, h * 2);
-  g.strokeStyle = 'rgba(255,255,255,' + (0.45 * a).toFixed(3) + ')';
-  g.lineWidth = 1;
-  g.strokeRect(cx - h + 7, cy - h + 7, h * 2 - 14, h * 2 - 14);
-  g.strokeStyle = 'rgba(255,230,235,' + (0.95 * a).toFixed(3) + ')';
-  g.lineWidth = 4;
-  const L = h * 0.22;
-  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(q => {
-    g.beginPath();
-    g.moveTo(cx + q[0] * h, cy + q[1] * (h - L));
-    g.lineTo(cx + q[0] * h, cy + q[1] * h);
-    g.lineTo(cx + q[0] * (h - L), cy + q[1] * h);
-    g.stroke();
-  });
-  // lignes de données qui sortent du cadre
-  g.lineWidth = 1.6;
-  for(let i = 0; i < 4; i++){
-    const y = cy + (i - 1.5) * h * 0.55;
-    const ph = (t * 40 + i * 90) % 220;
-    g.strokeStyle = 'rgba(240,240,255,' + (0.35 * a).toFixed(3) + ')';
-    g.beginPath();
-    g.moveTo(cx - h - 400, y);
-    g.lineTo(cx - h, y);
-    g.moveTo(cx + h, y);
-    g.lineTo(cx + h + 400, y);
-    g.stroke();
-    g.strokeStyle = 'rgba(255,50,75,' + (0.8 * a).toFixed(3) + ')';
-    g.beginPath();
-    g.moveTo(cx - h - ph, y);
-    g.lineTo(cx - h - ph + 36, y);
-    g.moveTo(cx + h + ph, y);
-    g.lineTo(cx + h + ph - 36, y);
-    g.stroke();
-  }
-  g.restore();
-}
-
-// Orbe de verre : halo, corps translucide, tourbillons internes, croissant lumineux, noyau blanc et lueur en croix.
-function esDrawOrb(g, cx, cy, r, a, t, charge, S, cracks) {
-  g.save();
-  g.globalCompositeOperation = 'lighter';
-  const sc = S.join(',');
-  const h = g.createRadialGradient(cx, cy, r * 0.7, cx, cy, r * 2.6);
-  h.addColorStop(0, 'rgba(' + sc + ',' + (0.13 * a).toFixed(3) + ')');
-  h.addColorStop(1, 'rgba(' + sc + ',0)');
-  g.fillStyle = h;
-  g.beginPath();
-  g.arc(cx, cy, r * 2.6, 0, 6.2832);
-  g.fill();
-  const gb = g.createRadialGradient(cx - r * 0.15, cy - r * 0.1, r * 0.1, cx, cy, r);
-  gb.addColorStop(0, 'rgba(' + sc + ',' + (0.02 * a).toFixed(3) + ')');
-  gb.addColorStop(0.72, 'rgba(' + sc + ',' + (0.06 * a).toFixed(3) + ')');
-  gb.addColorStop(1, 'rgba(150,135,255,' + (0.26 * a).toFixed(3) + ')');
-  g.fillStyle = gb;
-  g.beginPath();
-  g.arc(cx, cy, r, 0, 6.2832);
-  g.fill();
-  g.save();
-  g.beginPath();
-  g.arc(cx, cy, r * 0.98, 0, 6.2832);
-  g.clip();
-  for(let k = 0; k < 7; k++){
-    g.strokeStyle = 'rgba(' + (k % 2 ? sc : '190,150,255') + ',' + (0.2 * a).toFixed(3) + ')';
-    g.lineWidth = 1.2;
-    g.beginPath();
-    g.ellipse(cx + Math.sin(t * 0.2 + k) * r * 0.1, cy + Math.cos(t * 0.17 + k) * r * 0.08, r * (0.5 + 0.12 * k), r * (0.16 + 0.06 * k), t * 0.15 * (k % 2 ? 1 : -1) + k, 0, 6.2832);
-    g.stroke();
-  }
-  // fissures : ombre noire puis lueur rouge qui pulse
-  g.globalCompositeOperation = 'source-over';
-  g.lineJoin = 'round';
-  cracks.forEach(c => {
-    g.strokeStyle = 'rgba(4,0,10,' + (0.6 * a).toFixed(3) + ')';
-    g.lineWidth = 3.2;
-    g.beginPath();
-    c.forEach((p, k) => { const x = cx + r * 0.1 + p[0] * r; const y = cy + r * 0.2 + p[1] * r; if(k === 0) g.moveTo(x, y); else g.lineTo(x, y); });
-    g.stroke();
-  });
-  g.globalCompositeOperation = 'lighter';
-  cracks.forEach((c, i) => {
-    g.strokeStyle = 'rgba(255,40,85,' + ((0.3 + 0.4 * Math.abs(Math.sin(t * 1.3 + i))) * a).toFixed(3) + ')';
-    g.lineWidth = 1;
-    g.beginPath();
-    c.forEach((p, k) => { const x = cx + r * 0.1 + p[0] * r; const y = cy + r * 0.2 + p[1] * r; if(k === 0) g.moveTo(x, y); else g.lineTo(x, y); });
-    g.stroke();
-  });
-  g.restore();
-  for(let pass = 0; pass < 3; pass++){
-    g.strokeStyle = 'rgba(' + (pass === 2 ? '255,255,255' : '170,160,255') + ',' + ((pass === 0 ? 0.22 : pass === 1 ? 0.5 : 1) * a).toFixed(3) + ')';
-    g.lineWidth = r * (pass === 0 ? 0.09 : pass === 1 ? 0.04 : 0.014);
-    g.beginPath();
-    g.arc(cx, cy, r * 1.005, -2.0, 0.6);
-    g.stroke();
-  }
-  g.strokeStyle = 'rgba(' + sc + ',' + (0.35 * a).toFixed(3) + ')';
-  g.lineWidth = 1.2;
-  g.beginPath();
-  g.arc(cx, cy, r * 0.93, 1.2, 3.2);
-  g.stroke();
-  const cr = r * (0.3 + 0.04 * Math.sin(t * 3) + charge * 0.7);
-  const ox = cx + r * 0.1;
-  const oy = cy + r * 0.2;
-  const cg = g.createRadialGradient(ox, oy, 0, ox, oy, cr);
-  cg.addColorStop(0, 'rgba(255,255,255,' + a.toFixed(3) + ')');
-  cg.addColorStop(0.2, 'rgba(255,205,225,' + (0.7 * a).toFixed(3) + ')');
-  cg.addColorStop(0.55, 'rgba(220,40,90,' + (0.22 * a).toFixed(3) + ')');
-  cg.addColorStop(1, 'rgba(120,0,40,0)');
-  g.fillStyle = cg;
-  g.beginPath();
-  g.arc(ox, oy, cr, 0, 6.2832);
-  g.fill();
-  const fl = g.createLinearGradient(ox - r * 1.1, oy, ox + r * 1.1, oy);
-  fl.addColorStop(0, 'rgba(255,255,255,0)');
-  fl.addColorStop(0.5, 'rgba(255,255,255,' + (0.8 * a).toFixed(3) + ')');
-  fl.addColorStop(1, 'rgba(255,255,255,0)');
-  g.fillStyle = fl;
-  g.fillRect(ox - r * 1.1, oy - 1, r * 2.2, 2);
-  g.restore();
-}
-
+/* ---- fond : dalles sombres et données qui glitchent, nuages ---- */
 // Fond du mode corrompu : dalles sombres et barres de données rouges / blanches qui se décalent par rangées.
 function esDrawCity(g, W, H, t, a, G) {
   g.save();
@@ -4626,6 +4614,7 @@ function esFxStart() {
       cloudA: esNoiseCanvas(300, 170, 11, [44, 22, 120], [30, 90, 150], 0.38, 0.78),
       cloudB: esNoiseCanvas(300, 170, 73, [95, 30, 150], [50, 40, 140], 0.45, 0.85),
       cloudC: esNoiseCanvas(300, 170, 131, [2, 0, 8], [14, 4, 22], 0.33, 0.72),
+      env: esMakeEnv(),
     };
   }
   const og = document.createElement('canvas');
@@ -4644,7 +4633,7 @@ function esFxStart() {
   const G = {
     W: 0, H: 0, dpr: 1, sc: 140, mx: 0, my: 0, shards: [], lines: [], sparks: [], waves: [], flash: 0, shake: 0, glitch: 0, nextGlitch: 1.5, glitchEnd: 0,
     rx: 0, ry: 0, rz: 0, ryC: 0.5, swapUntil: 0, time: 0, nextSurge: 6, surgeEnd: 0,
-    stars: [], bokeh: [], orbits: [], debris: [], bars: [], blocks: [], rowOff: [], cracks: [],
+    stars: [], bokeh: [], orbits: [], debris: [], bars: [], blocks: [], rowOff: [], veins: [], sats: [],
   };
   esG = G;
   const resize = () => {
@@ -4676,17 +4665,18 @@ function esFxStart() {
     const k = r();
     G.bars.push([r(), r(), 14 + r() * r() * 300, k < 0.5 ? 0 : k < 0.7 ? 1 : k < 0.88 ? 2 : 3, 1.5 + r() * 3.5, 0.5 + r() * 3, 0.25 + r() * 0.6]);
   }
-  for(let i = 0; i < 9; i++){
-    const pts = [[0, 0]];
-    let an = r() * 6.28;
-    let rad = 0;
-    while(rad < 0.95){
-      rad += 0.07 + r() * 0.1;
-      an += (r() - 0.5) * 0.8;
-      pts.push([Math.cos(an) * rad, Math.sin(an) * rad]);
+  // veines rouges à l'intérieur du cristal (marches aléatoires en 3D)
+  for(let i = 0; i < 7; i++){
+    let p = [(r() - 0.5) * 0.2, (r() - 0.5) * 1.2, (r() - 0.5) * 0.2];
+    const pts = [p];
+    for(let k = 0; k < 9; k++){
+      p = [Math.max(-0.45, Math.min(0.45, p[0] + (r() - 0.5) * 0.3)), Math.max(-1.5, Math.min(1.4, p[1] + (r() - 0.5) * 0.45)), Math.max(-0.45, Math.min(0.45, p[2] + (r() - 0.5) * 0.3))];
+      pts.push(p);
     }
-    G.cracks.push(pts);
+    G.veins.push(pts);
   }
+  // petits cristaux en orbite
+  for(let i = 0; i < 6; i++) G.sats.push({ mesh: esBuildShard(31 + i * 7), R: 1.7 + r() * 0.9, sp: (0.18 + r() * 0.25) * (i % 2 ? 1 : -1), ph: r() * 6.28, yo: (r() - 0.5) * 2.2, ms: 0.2 + r() * 0.2, s1: 0.4 + r(), s2: 0.3 + r(), s3: r() * 0.5 });
   for(let i = 0; i < 44; i++) G.blocks.push([r() * 0.95, r() * 0.95, 0.04 + r() * 0.2, 0.03 + r() * 0.16, 14 + Math.floor(r() * 18)]);
   stage.addEventListener('pointermove', ev => {
     const b = stage.getBoundingClientRect();
@@ -4825,11 +4815,31 @@ function esFxStart() {
       octx.setTransform(G.dpr, 0, 0, G.dpr, 0, 0);
       octx.clearRect(0, 0, W, H);
       if(aP > 0.02){
-        esDrawReticle(octx, ccx, ccy, G.sc * 1.75 * scale, t, alpha * aP * (mode === 'blackout' ? 0.4 : 1), Sc, Pc);
-        esDrawOrb(octx, ccx, ccy, G.sc * 1.5 * scale, alpha * aP, t, charge, Sc, G.cracks);
-        esDrawCrystal(octx, ccx, ccy, G.sc * 0.8 * scale, G.rx, G.ry, G.rz, alpha * aP, charge, t, Pc, Sc, 1.7 - ((t * 0.16) % 1) * 3.4);
+        esDrawReticle(octx, ccx, ccy, G.sc * 1.75 * scale, t, alpha * aP * 0.55 * (mode === 'blackout' ? 0.4 : 1), Sc, Pc);
+        // halo sombre derrière le cristal
+        const hg = octx.createRadialGradient(ccx, ccy, 0, ccx, ccy, G.sc * 2.4 * scale);
+        hg.addColorStop(0, 'rgba(120,60,255,' + (0.22 * alpha).toFixed(3) + ')');
+        hg.addColorStop(0.5, 'rgba(150,20,70,' + (0.1 * alpha).toFixed(3) + ')');
+        hg.addColorStop(1, 'rgba(0,0,0,0)');
+        octx.globalCompositeOperation = 'lighter';
+        octx.fillStyle = hg;
+        octx.fillRect(ccx - G.sc * 2.5 * scale, ccy - G.sc * 2.5 * scale, G.sc * 5 * scale, G.sc * 5 * scale);
+        octx.globalCompositeOperation = 'source-over';
+        const satPos = G.sats.map((sat) => {
+          const an = sat.ph + t * sat.sp * (1 + charge * 4);
+          const R2 = sat.R * (1 - 0.35 * charge);
+          return esRot([Math.cos(an) * R2, sat.yo + Math.sin(an * 0.7) * 0.15, Math.sin(an) * R2 * 0.6], 0.25, 0, 0.12);
+        });
+        G.sats.forEach((sat, i) => {
+          if(satPos[i][2] <= 0) return;
+          esDrawGlass(octx, sat.mesh, ccx, ccy, G.sc * 0.8 * scale, [t * sat.s1, t * sat.s2, sat.s3], satPos[i], sat.ms, alpha * aP, t, esCache.env, false, [], 0);
+        });
+        esDrawGlass(octx, esMeshCache, ccx, ccy, G.sc * 0.8 * scale, [G.rx, G.ry, G.rz], [0, 0, 0], 1, alpha * aP, t, esCache.env, true, G.veins, charge);
+        G.sats.forEach((sat, i) => {
+          if(satPos[i][2] > 0) return;
+          esDrawGlass(octx, sat.mesh, ccx, ccy, G.sc * 0.8 * scale, [t * sat.s1, t * sat.s2, sat.s3], satPos[i], sat.ms, alpha * aP, t, esCache.env, false, [], 0);
+        });
       }
-      esDrawFrame(octx, ccx, ccy, G.sc * 1.08 * scale, alpha * 0.3 * (mode === 'charge' ? 1.6 : 1), t, charge);
       if(t < G.surgeEnd){
         octx.globalCompositeOperation = 'lighter';
         for(let i = 0; i < 9; i++){
@@ -4903,15 +4913,14 @@ function esFxStart() {
       draw.push(s);
     }
     draw.sort((a, b) => b.p[2] - a.p[2]);
-    const cor = false;
     draw.forEach((s) => {
       const kk = Math.min(1, (1 - s.life / s.max) * 2.2);
       const pts = s.rel.map((q) => {
         const rr = esRot(q, s.r[0], s.r[1], s.r[2]);
         return esProj([rr[0] + s.p[0], rr[1] + s.p[1], rr[2] + s.p[2]], cx, cy, G.shardSc);
       });
-      fx.fillStyle = cor ? 'rgba(30,14,20,' + (0.9 * kk).toFixed(2) + ')' : 'rgba(' + esMix(Pc, Sc, (Math.sin(s.r[0]) + 1) / 2) + ',' + (0.2 * kk).toFixed(3) + ')';
-      fx.strokeStyle = s.glint && s.life % 14 < 4 ? 'rgba(255,255,255,' + kk.toFixed(2) + ')' : 'rgba(' + (cor ? '255,60,85' : Scs) + ',' + (0.9 * kk).toFixed(2) + ')';
+      fx.fillStyle = 'rgba(' + Math.round(40 + 50 * Math.abs(Math.sin(s.r[0]))) + ',24,' + Math.round(95 + 80 * Math.abs(Math.sin(s.r[1]))) + ',' + (0.5 * kk).toFixed(3) + ')';
+      fx.strokeStyle = s.glint && s.life % 14 < 4 ? 'rgba(255,255,255,' + kk.toFixed(2) + ')' : 'rgba(240,235,255,' + (0.9 * kk).toFixed(2) + ')';
       fx.lineWidth = 1.3;
       fx.beginPath();
       fx.moveTo(pts[0][0], pts[0][1]);
@@ -4956,7 +4965,7 @@ function esFxStart() {
       ctx.globalCompositeOperation = 'lighter';
       const gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * 0.75);
       gr.addColorStop(0, 'rgba(255,255,255,' + G.flash.toFixed(2) + ')');
-      gr.addColorStop(0.35, 'rgba(' + (cor ? '255,170,185' : '190,225,255') + ',' + (G.flash * 0.7).toFixed(2) + ')');
+      gr.addColorStop(0.35, 'rgba(205,190,255,' + (G.flash * 0.7).toFixed(2) + ')');
       gr.addColorStop(1, 'rgba(' + Scs + ',0)');
       ctx.fillStyle = gr;
       ctx.fillRect(0, 0, W, H);

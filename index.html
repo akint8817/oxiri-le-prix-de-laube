@@ -4188,6 +4188,29 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .es-img{ background-image: radial-gradient(circle at 28% 28%, hsl(var(--h) 70% 44% / .95), hsl(calc(var(--h) + 40) 60% 10%) 70%); }
 .es-shade{ background: linear-gradient(135deg, rgba(255,255,255,0.18) 0%, transparent 32%, transparent 58%, rgba(150,20,60,0.35) 100%), linear-gradient(0deg, rgba(2,1,8,0.7), transparent 55%); }
 .es-target span em, .es-hud-top #esBars{ color:#ff4d6d; text-shadow: 0 0 10px rgba(255,40,80,0.7); }
+
+/* fragments façon éidolons : vrais morceaux de verre brisé (arête claire épaisse, biseau, reflet, inclinaison en 3D, petits éclats autour) */
+.es-shards{ perspective: 1300px; }
+.es-stage:is([data-mode="burst"], [data-mode="shards"]) .es-shard{ transform: translate(var(--dx, 0px), var(--dy, 0px)) rotate(var(--dr, 0deg)) rotateX(var(--tx, 0deg)) rotateY(var(--ty, 0deg)); }
+.es-scan{ display:none; }
+.es-shard-float{ filter: drop-shadow(0 0 10px rgba(150,120,255,0.5)) drop-shadow(0 10px 22px rgba(0,0,0,0.7)); }
+.es-shade{ background: linear-gradient(128deg, rgba(255,255,255,0.3) 0%, rgba(255,255,255,0.07) 20%, transparent 38%, transparent 64%, rgba(130,95,255,0.24) 100%), linear-gradient(0deg, rgba(2,1,10,0.5), transparent 42%); }
+.es-edge .e1{ stroke: rgba(248,244,255,0.96); stroke-width:2.8; }
+.es-edge .e2{ stroke: color-mix(in srgb, var(--es) 70%, #fff); stroke-width:10; opacity:.45; filter: blur(4px); }
+.es-edge .e3{ stroke: rgba(255,255,255,0.35); stroke-width:1; fill:none; }
+.es-shard:has(.es-shard-in:hover) .es-edge .e1{ stroke:#fff; stroke-width:3.4; }
+.es-shard:has(.es-shard-in:hover) .es-edge .e2{ opacity:.95; }
+.es-minis{ position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; opacity:0; transition: opacity .6s ease .9s; }
+.es-stage:is([data-mode="burst"], [data-mode="shards"]) .es-minis{ opacity:1; }
+.es-stage:not([data-mode="burst"]):not([data-mode="shards"]) .es-minis{ transition-delay:0s; }
+.es-minis polygon{ fill: rgba(40,26,92,0.42); stroke: rgba(242,238,255,0.88); stroke-width:1.2; stroke-linejoin:round; transform-box: fill-box; transform-origin:center; animation: esMini 7s ease-in-out infinite alternate; filter: drop-shadow(0 0 4px rgba(150,120,255,0.7)); }
+@keyframes esMini{ from{ transform: translate(-4px, -6px) rotate(-7deg); } to{ transform: translate(5px, 7px) rotate(9deg); } }
+.es-label{ translate: -14px -50%; gap:10px; align-items:flex-end; }
+.es-ico{ display:grid; place-items:center; flex:none; width:40px; height:40px; border-radius:50%; background: radial-gradient(circle, rgba(34,22,68,0.92), rgba(10,6,24,0.94)); border:2px solid rgba(246,242,255,0.92); box-shadow: 0 0 14px rgba(160,130,255,0.75), inset 0 0 8px rgba(160,130,255,0.5); }
+.es-ico svg{ width:20px; height:20px; fill:#f6f2ff; filter: drop-shadow(0 0 4px #fff); }
+.es-label span{ font-family:'Barlow', 'Helvetica Neue', Arial, sans-serif; font-weight:600; letter-spacing:.02em; text-transform:none; font-size: clamp(13px, 1.05vw, 16px); line-height:1.25; }
+.es-label span em{ display:block; margin-bottom:2px; font-style:normal; font-family:'Orbitron', sans-serif; font-size:15px; font-weight:700; color:#fff; line-height:1; }
+@media (prefers-reduced-motion: reduce){ .es-minis polygon{ animation:none; } }
 @media (max-width:1000px){
   .fiche{ grid-template-columns:1fr; padding:20px; }
   .dz-id{ width:100%; max-width:440px; margin:0 auto; }
@@ -5211,6 +5234,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=160"></script>
+<script src="dist/main.js?v=161"></script>
 </body>
 </html>
