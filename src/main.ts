@@ -4835,9 +4835,45 @@ function esCrystalMesh(tipT: number, tipB: number, rings: number[][], N: number,
   return { v, f, e };
 }
 
-// Le grand cristal : prisme hexagonal irrégulier, longues pointes.
+// Le grand cristal : gemme taillée (couronne, ceinture, culasse), 7 anneaux de 8 sommets décalés d'un demi-pas -> 112 facettes.
 function esBuildMesh(): any {
-  return esCrystalMesh(-2.05, 1.85, [[-1.15, 0.55], [-0.35, 0.68], [0.55, 0.64], [1.2, 0.46]], 6, 1307, 0.12);
+  const N = 8;
+  const prof = [[-1.2, 0.4], [-0.82, 0.8], [-0.42, 1.02], [0, 1.1], [0.42, 0.96], [0.86, 0.68], [1.24, 0.36]];
+  const v: number[][] = [[0, -1.62, 0]];
+  prof.forEach((p, k) => {
+    for(let j = 0; j < N; j++){
+      const an = j * Math.PI * 2 / N + (k % 2) * Math.PI / N;
+      v.push([Math.cos(an) * p[1], p[0], Math.sin(an) * p[1]]);
+    }
+  });
+  v.push([0, 1.62, 0]);
+  const f: number[][] = [];
+  for(let j = 0; j < N; j++) f.push([0, 1 + j, 1 + (j + 1) % N]);
+  for(let k = 0; k < prof.length - 1; k++){
+    for(let j = 0; j < N; j++){
+      const j2 = (j + 1) % N;
+      const a = 1 + k * N + j;
+      const a2 = 1 + k * N + j2;
+      const b = 1 + (k + 1) * N + j;
+      const b2 = 1 + (k + 1) * N + j2;
+      f.push([a, b, a2]);
+      f.push([a2, b, b2]);
+    }
+  }
+  const last = v.length - 1;
+  const base = 1 + (prof.length - 1) * N;
+  for(let j = 0; j < N; j++) f.push([last, base + j, base + (j + 1) % N]);
+  const seen: Record<string, boolean> = {};
+  const e: number[][] = [];
+  f.forEach(t => {
+    for(let q = 0; q < 3; q++){
+      const a = t[q];
+      const b = t[(q + 1) % 3];
+      const key = Math.min(a, b) + '-' + Math.max(a, b);
+      if(!seen[key]){ seen[key] = true; e.push([a, b]); }
+    }
+  });
+  return { v, f, e };
 }
 
 // Petit éclat de cristal qui gravite autour.
@@ -5299,10 +5335,10 @@ function esFxStart(): void {
   }
   // veines rouges à l'intérieur du cristal (marches aléatoires en 3D)
   for(let i = 0; i < 7; i++){
-    let p = [(r() - 0.5) * 0.2, (r() - 0.5) * 1.2, (r() - 0.5) * 0.2];
+    let p = [(r() - 0.5) * 0.2, (r() - 0.5) * 0.8, (r() - 0.5) * 0.2];
     const pts: number[][] = [p];
     for(let k = 0; k < 9; k++){
-      p = [Math.max(-0.45, Math.min(0.45, p[0] + (r() - 0.5) * 0.3)), Math.max(-1.5, Math.min(1.4, p[1] + (r() - 0.5) * 0.45)), Math.max(-0.45, Math.min(0.45, p[2] + (r() - 0.5) * 0.3))];
+      p = [Math.max(-0.45, Math.min(0.45, p[0] + (r() - 0.5) * 0.3)), Math.max(-0.95, Math.min(0.95, p[1] + (r() - 0.5) * 0.4)), Math.max(-0.45, Math.min(0.45, p[2] + (r() - 0.5) * 0.3))];
       pts.push(p);
     }
     G.veins.push(pts);
