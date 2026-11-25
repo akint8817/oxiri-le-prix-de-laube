@@ -3637,8 +3637,7 @@ let apDoc = 'arsenal';
 function apDefaults(docId) {
   if(docId === 'chronologie') return { kicker: 'Archives temporelles · Oxiri', title: 'Chronologie du monde', tagline: "L'histoire n'est jamais écrite par ceux qui l'ont vécue. Elle est écrite par ceux qui ont survécu.", motif: 'chrono', color: SQ_ACCENTS.chrono };
   if(docId === 'organisations') return { kicker: 'Registre des pouvoirs · Oxiri', title: 'Organisations', tagline: 'Les grandes organisations qui façonnent le monde.', motif: 'org', color: SQ_ACCENTS.org };
-  if(docId === 'essencec') return { kicker: 'Savoir · Essence corrompue', title: "L'Essence corrompue", tagline: "Ce que la Chute a fait de l'énergie du monde.", motif: 'arm', color: '#ff3b4e' };
-  if(docId === 'essence') return { kicker: 'Savoir · Essence', title: "L'Essence", tagline: "L'énergie qui traverse le monde, et ce qu'elle en a fait.", motif: 'arm', color: '#8f7bff' };
+  if(docId === 'essence') return { kicker: 'Savoir · Essence', title: "L'Essence", tagline: "L'énergie du monde. Elle vient d'Oxiri, et elle s'en souvient.", motif: 'arm', color: '#8a5cff' };
   if(docId === 'archives') return { kicker: 'Halcyon · Département des Reliques', title: 'Archives des Artefacts Oxiriens', tagline: "Dossiers classifiés sur les artefacts nés de l'énergie d'Oxiri.", motif: 'arc', color: SQ_ACCENTS.arc };
   if(docId.indexOf('arme-') === 0){
     const w = findWeapon(docId.slice(5));
@@ -3773,38 +3772,24 @@ function renderObjetsPage() {
     </div>`;
 }
 
-/* ---------------- Page « Essence » : un cristal holographique néon flotte, glitche et se charge ; un clic l'écrase, le noir se fait, puis il explose
-   en éclats de verre et en fragments (façon éidolons) qui ouvrent chacun leur fiche. Rendu 3D maison sur canvas (fils néon, faces de verre, anneau d'énergie,
-   décalage RGB, éclats en vortex, lignes de vitesse), habillage HUD. Fragments, fond, couleur, titre et musique modifiables. ---------------- */
+/* ---------------- Page « Essence » : un cristal taillé flotte dans un orbe de verre sombre (l'Essence vient d'Oxiri : elle n'est jamais tout à fait pure) ;
+   un clic l'écrase, le noir se fait, puis il explose en éclats et en fragments (façon éidolons) qui ouvrent chacun leur fiche. Rendu 3D maison sur canvas
+   (nébuleuse et fumée noire, fils néon, faces de verre, fissures rouges, anneau d'énergie, décalage RGB, éclats en vortex), habillage HUD.
+   Fragments, fond, couleur, titre et musique modifiables. ---------------- */
 
 const ES_DEFAULTS = [
-  { id: 'd1', t: 'Origine', s: 'Le souffle du monde', img: '', order: 1,
-    body: "L'Essence est l'énergie qui traverse le monde. Les premières civilisations lui ont donné bien des noms : mana, éther, flux, souffle.\n\nElle existait avant les royaumes, avant les cités, avant même que l'humanité ne la découvre. Certaines traditions y voient le souffle d'Oxiri lui-même.\n\n> Texte provisoire : modifie ce fragment pour écrire la vraie origine de l'Essence." },
-  { id: 'd2', t: 'Nature', s: 'Ce qu\'elle est vraiment', img: '', order: 2,
-    body: "Une énergie diffuse, qui circule dans la terre, l'eau, les êtres vivants et les cristaux. Elle réagit aux émotions, aux souvenirs et à l'âme de celui qui la touche.\n\nTexte provisoire : décris ici comment l'Essence se manifeste, ce qu'on peut en voir et en ressentir." },
-  { id: 'd3', t: 'Usages', s: 'Une énergie qu\'on apprend à canaliser', img: '', order: 3,
-    body: "Pas une magie : une énergie qu'on apprend à canaliser et à exploiter. Des cristaux éclairent les rues, des trains à Essence relient les continents, des laboratoires l'étudient et des armes la combinent à la technologie.\n\nTexte provisoire." },
-  { id: 'd4', t: "Essence d'Oxiri", s: 'Plus ancienne, plus dangereuse', img: '', order: 4,
-    body: "Certains artefacts portent une énergie différente de l'Essence humaine, beaucoup plus ancienne : l'Essence d'Oxiri.\n\nIl est possible de la mélanger à l'Essence humaine. C'est ainsi que sont nés les artefacts oxiriens, puis les hybrides.\n\nTexte provisoire." },
+  { id: 'd1', t: 'Origine', s: "Elle vient d'Oxiri", img: '', order: 1,
+    body: "L'Essence n'est pas née du monde : elle vient d'Oxiri. Les premières civilisations l'ont appelée mana, éther, flux, souffle, sans savoir à qui elle appartenait.\n\nElle irrigue tout ce qui vit, mais elle garde quelque chose de sa source : une part d'ombre, une volonté qui n'est pas la nôtre.\n\n> Texte provisoire : réécris ce fragment avec la véritable origine de l'Essence." },
+  { id: 'd2', t: 'Nature', s: "Ce qu'elle est vraiment", img: '', order: 2,
+    body: "Une énergie diffuse qui circule dans la terre, l'eau, les êtres vivants et les cristaux. Elle réagit aux émotions, aux souvenirs, à l'âme de celui qui la touche. Et parfois, elle répond.\n\nTexte provisoire : décris comment l'Essence se manifeste, ce qu'on peut en voir et en ressentir." },
+  { id: 'd3', t: 'Usages', s: "Une énergie qu'on croit maîtriser", img: '', order: 3,
+    body: "On ne la crée pas : on la canalise. Des cristaux éclairent les rues, des trains à Essence relient les continents, des laboratoires l'étudient et des armes la combinent à la technologie.\n\nTexte provisoire." },
+  { id: 'd4', t: "L'empreinte d'Oxiri", s: 'Plus ancienne, plus dangereuse', img: '', order: 4,
+    body: "Plus on remonte vers sa source, plus l'Essence devient dense, sombre et instable. C'est cette Essence brute, presque intacte, qui a donné naissance aux artefacts oxiriens, puis aux hybrides.\n\nTexte provisoire." },
   { id: 'd5', t: 'Corruption', s: 'Quand les cristaux deviennent noirs', img: '', order: 5,
     body: "À la Chute, les cristaux d'Essence sont devenus noirs et les océans ont commencé à se vider de leur énergie. Puis sont apparues les Entropy.\n\nTexte provisoire : explique ici ce qu'est la corruption de l'Essence et ce qu'elle provoque." },
-  { id: 'd6', t: 'Limites', s: 'Ce qu\'elle coûte', img: '', order: 6,
-    body: "Toute utilisation de l'Essence a un prix. À rédiger : les limites, les risques, le rejet, ce qui arrive à ceux qui en abusent." },
-];
-
-const ES_DEFAULTS_C = [
-  { id: 'c1', t: 'La Chute', s: "Le jour où le ciel a changé", img: '', order: 1,
-    body: "Le ciel a changé. Les cristaux d'Essence sont devenus noirs. Les océans ont commencé à se vider de leur énergie.\n\nPuis les premières créatures sont apparues, les Entropy, et derrière elles… Oxiri.\n\n> Texte provisoire : réécris ce fragment pour raconter la naissance de la corruption." },
-  { id: 'c2', t: 'Cristaux noirs', s: 'Quand la lumière s\'éteint', img: '', order: 2,
-    body: "Un cristal noir ne diffuse plus l'Essence : il l'absorbe. Il rend le monde autour de lui plus froid, plus silencieux.\n\nTexte provisoire : décris les effets, la façon de les reconnaître, et ce qu'ils deviennent." },
-  { id: 'c3', t: 'Les Entropy', s: 'Des créatures sans logique', img: '', order: 3,
-    body: "Elles ne répondent à aucune logique biologique. Certaines ressemblent à des animaux, d'autres à des humains.\n\nTexte provisoire : explique leur lien avec l'Essence corrompue." },
-  { id: 'c4', t: 'Contagion', s: 'Ce qui se propage', img: '', order: 4,
-    body: "La corruption ne reste jamais là où elle est née. Elle gagne les terres, les machines, les êtres vivants.\n\nTexte provisoire." },
-  { id: 'c5', t: 'Hôtes', s: 'Ceux qui la portent', img: '', order: 5,
-    body: "Certains êtres survivent à la corruption, et s'y adaptent. À quel prix ?\n\nTexte provisoire : parle des hôtes, des hybrides touchés, de ceux qui résistent." },
-  { id: 'c6', t: 'Purification', s: 'Est-ce seulement possible ?', img: '', order: 6,
-    body: "Existe-t-il un moyen de purifier l'Essence ? Halcyon le prétend.\n\nTexte provisoire : à rédiger." },
+  { id: 'd6', t: 'Limites', s: "Ce qu'elle coûte", img: '', order: 6,
+    body: "Toute utilisation de l'Essence a un prix. Ceux qui en prennent trop finissent par entendre quelque chose qui n'est pas leur propre voix.\n\nTexte provisoire : les limites, les risques, le rejet." },
 ];
 
 let esMode = 'crystal';
@@ -3814,7 +3799,6 @@ let esEditId = '';
 let esModeT = 0;
 let esG = null;
 let esBooted = false;
-let esCorrupt = false;
 
 // Fragments : les 6 fragments d'origine (modifiables ou supprimables) + ceux ajoutés depuis le site, stockés un par document « esf-<id> ».
 function esFrags() {
@@ -3842,7 +3826,7 @@ function esFrags() {
 
 function esShardHtml(f, i, n) {
   const num = String(i + 1);
-  const hue = esCorrupt ? Math.round((345 + i * 9) % 360) : Math.round((165 + i * (130 / Math.max(n, 1))) % 360);
+  const hue = Math.round((248 + i * (90 / Math.max(n, 1))) % 360);
   const code = ('0000' + (tmHash(f.id + 'es') % 65536).toString(16).toUpperCase()).slice(-4);
   return `<div class="es-shard" data-id="${escAttr(f.id)}" style="--i:${i};--rev:${n - i};--h:${hue}">
     <div class="es-shard-float" style="--d:${(0.4 + (i % 3) * 0.3).toFixed(2)};animation-duration:${(5 + (i % 4) * 1.3).toFixed(1)}s;animation-delay:-${(i * 1.7).toFixed(1)}s">
@@ -3895,14 +3879,13 @@ function renderEssencePage() {
   const pd = cityPagesCache['essence'];
   const music = pd && pd.music ? musicBarHtml('essence', pd.music) : '';
   const tools = `
-    <div class="es-switch"><button type="button" data-m="p" class="${esCorrupt ? '' : 'on'}" onclick="esSetCorrupt(false)">Essence pure</button><button type="button" data-m="c" class="${esCorrupt ? 'on' : ''}" onclick="esSetCorrupt(true)">Essence corrompue</button></div>
     <button type="button" class="es-btn es-reform" onclick="esReform()">↺ Recomposer</button>
     ${logged ? `<button type="button" class="es-btn" onclick="openPageAppearance(esDoc())">Modifier la page</button>
     <button type="button" class="es-btn" onclick="esOpenEditor('')">+ Fragment</button>
     <button type="button" class="es-btn" onclick="openMusicEditor('page','essence')">♪ Musique</button>` : ''}`;
   return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / Essence</div>
-    <div class="es-page${esCorrupt ? ' corrupt' : ''}" style="--es:${ap.accent};--acc:${ap.accent}">
+    <div class="es-page" style="--es:${ap.accent};--acc:${ap.accent}">
       <div class="es-stage" id="esStage" data-mode="${esMode}" data-acc="${escAttr(ap.accent)}">
         ${ap.img ? `<div class="es-bgimg" style="background-image:url('${escAttr(ap.img)}')"></div>` : ''}
         <div class="es-nebula"></div>
@@ -4041,7 +4024,7 @@ function esLayout() {
 /* ---- moteur 3D sur canvas : cristal de 36 faces en verre, fils néon, anneau d'énergie, noyau ---- */
 function esHexRgb(hex) {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
-  const v = parseInt(m ? m[1] : '8f7bff', 16);
+  const v = parseInt(m ? m[1] : '8a5cff', 16);
   return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
 }
 
@@ -4135,125 +4118,6 @@ function esNoiseCanvas(w, h, seed, c1, c2, lo, hi) {
     }
   }
   g.putImageData(img, 0, 0);
-  return cv;
-}
-
-// Face de bloc blindé : métal sombre, panneaux subdivisés, bandes rouges lumineuses, évents, rayures, ligne d'arête éclairée.
-function esMakeFaceTex(seed, top) {
-  const N = 256;
-  const cv = document.createElement('canvas');
-  cv.width = N;
-  cv.height = N;
-  const g = cv.getContext('2d');
-  if(!g) return cv;
-  const r = tmSeeded(seed);
-  const bg = g.createLinearGradient(0, 0, N, N);
-  bg.addColorStop(0, '#1b0c12');
-  bg.addColorStop(1, '#0a0608');
-  g.fillStyle = bg;
-  g.fillRect(0, 0, N, N);
-  for(let i = 0; i < 900; i++){
-    g.fillStyle = 'rgba(255,255,255,' + (r() * 0.07).toFixed(3) + ')';
-    g.fillRect(r() * N, r() * N, 1 + r() * 3, 1 + r() * 2);
-  }
-  const stack = [[0, 0, N, N, 0]];
-  const leaves = [];
-  while(stack.length){
-    const p = stack.pop();
-    if(!p) break;
-    const w = p[2];
-    const h = p[3];
-    if(p[4] >= 4 || (w < 70 && h < 70) || (p[4] >= 2 && r() < 0.22)){ leaves.push(p); continue; }
-    if(w > h){
-      const c = w * (0.32 + r() * 0.36);
-      stack.push([p[0], p[1], c, h, p[4] + 1]);
-      stack.push([p[0] + c, p[1], w - c, h, p[4] + 1]);
-    } else {
-      const c = h * (0.32 + r() * 0.36);
-      stack.push([p[0], p[1], w, c, p[4] + 1]);
-      stack.push([p[0], p[1] + c, w, h - c, p[4] + 1]);
-    }
-  }
-  leaves.forEach(p => {
-    const x = p[0] + 2;
-    const y = p[1] + 2;
-    const w = p[2] - 4;
-    const h = p[3] - 4;
-    g.fillStyle = 'rgba(255,255,255,' + (0.015 + r() * 0.05).toFixed(3) + ')';
-    g.fillRect(x, y, w, h);
-    g.strokeStyle = 'rgba(255,255,255,' + (0.07 + r() * 0.13).toFixed(3) + ')';
-    g.lineWidth = 1;
-    g.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
-    const q = r();
-    if(q < 0.2){
-      g.fillStyle = 'rgba(255,55,80,0.95)';
-      g.shadowColor = 'rgba(255,40,70,0.9)';
-      g.shadowBlur = 8;
-      g.fillRect(x + 3, y + 3, w - 6, 2.5);
-      g.shadowBlur = 0;
-    } else if(q < 0.32){
-      g.strokeStyle = 'rgba(255,255,255,0.18)';
-      for(let k = 0; k < 5; k++){
-        g.beginPath();
-        g.moveTo(x + 6, y + 8 + k * 5);
-        g.lineTo(x + w - 6, y + 8 + k * 5);
-        g.stroke();
-      }
-    } else if(q < 0.4){
-      g.fillStyle = 'rgba(255,230,235,0.9)';
-      g.fillRect(x + w - 10, y + 5, 4, 4);
-    } else if(q < 0.46){
-      g.fillStyle = 'rgba(255,50,70,0.55)';
-      g.fillRect(x + 4, y + h - 8, w * 0.4, 3);
-    }
-  });
-  for(let i = 0; i < 46; i++){
-    const x = r() * N;
-    const y = r() * N;
-    const l = 10 + r() * 60;
-    const an = r() * 6.28;
-    g.strokeStyle = r() < 0.25 ? 'rgba(255,60,80,0.18)' : 'rgba(255,255,255,0.07)';
-    g.lineWidth = 0.7;
-    g.beginPath();
-    g.moveTo(x, y);
-    g.lineTo(x + Math.cos(an) * l, y + Math.sin(an) * l);
-    g.stroke();
-  }
-  if(!top){
-    g.fillStyle = 'rgba(255,235,240,0.85)';
-    g.fillRect(0, N * 0.2, N, 1.6);
-  } else {
-    const rg = g.createRadialGradient(N / 2, N / 2, 10, N / 2, N / 2, N * 0.37);
-    rg.addColorStop(0, 'rgba(0,0,0,0.93)');
-    rg.addColorStop(0.85, 'rgba(0,0,0,0.82)');
-    rg.addColorStop(1, 'rgba(0,0,0,0)');
-    g.fillStyle = rg;
-    g.beginPath();
-    g.arc(N / 2, N / 2, N * 0.38, 0, 6.2832);
-    g.fill();
-    g.strokeStyle = 'rgba(255,70,90,0.45)';
-    g.lineWidth = 1;
-    g.beginPath();
-    g.moveTo(N / 2, N * 0.18);
-    g.lineTo(N / 2, N * 0.82);
-    g.moveTo(N * 0.18, N / 2);
-    g.lineTo(N * 0.82, N / 2);
-    g.stroke();
-    g.strokeStyle = 'rgba(255,70,90,0.95)';
-    g.shadowColor = 'rgba(255,40,70,0.9)';
-    g.shadowBlur = 10;
-    g.lineWidth = 5;
-    const xs = [[N * 0.5, N * 0.07], [N * 0.5, N * 0.93], [N * 0.07, N * 0.5], [N * 0.93, N * 0.5]];
-    xs.forEach(q => {
-      g.beginPath();
-      g.moveTo(q[0] - 12, q[1] - 12);
-      g.lineTo(q[0] + 12, q[1] + 12);
-      g.moveTo(q[0] + 12, q[1] - 12);
-      g.lineTo(q[0] - 12, q[1] + 12);
-      g.stroke();
-    });
-    g.shadowBlur = 0;
-  }
   return cv;
 }
 
@@ -4574,90 +4438,7 @@ function esSpawnBurst(G, implode) {
   G.shake = 1;
 }
 
-/* ---- mode corrompu : bloc blindé noir à anneau rouge, cadre néon, ville numérique qui glitche ---- */
-function esDrawCube(g, cx, cy, sc, rx, ry, rz, a, t, charge, tex) {
-  const hx = 1.25;
-  const hy = 0.72;
-  const hz = 1.25;
-  const faces = [
-    { p: [-hx, -hy, -hz], u: [2 * hx, 0, 0], v: [0, 0, 2 * hz], t: 0, top: true },
-    { p: [-hx, -hy, hz], u: [2 * hx, 0, 0], v: [0, 2 * hy, 0], t: 1, top: false },
-    { p: [hx, -hy, -hz], u: [-2 * hx, 0, 0], v: [0, 2 * hy, 0], t: 2, top: false },
-    { p: [-hx, -hy, -hz], u: [0, 0, 2 * hz], v: [0, 2 * hy, 0], t: 3, top: false },
-    { p: [hx, -hy, hz], u: [0, 0, -2 * hz], v: [0, 2 * hy, 0], t: 4, top: false },
-  ];
-  const list = faces.map(f => {
-    const p0 = esRot(f.p, rx, ry, rz);
-    const pu = esRot([f.p[0] + f.u[0], f.p[1] + f.u[1], f.p[2] + f.u[2]], rx, ry, rz);
-    const pv = esRot([f.p[0] + f.v[0], f.p[1] + f.v[1], f.p[2] + f.v[2]], rx, ry, rz);
-    const ur = [pu[0] - p0[0], pu[1] - p0[1], pu[2] - p0[2]];
-    const vr = [pv[0] - p0[0], pv[1] - p0[1], pv[2] - p0[2]];
-    let nx = ur[1] * vr[2] - ur[2] * vr[1];
-    let ny = ur[2] * vr[0] - ur[0] * vr[2];
-    let nz = ur[0] * vr[1] - ur[1] * vr[0];
-    const mid = [p0[0] + (ur[0] + vr[0]) / 2, p0[1] + (ur[1] + vr[1]) / 2, p0[2] + (ur[2] + vr[2]) / 2];
-    if(nx * mid[0] + ny * mid[1] + nz * mid[2] < 0){ nx = -nx; ny = -ny; nz = -nz; }
-    const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
-    return { f, p0, pu, pv, nx: nx / len, ny: ny / len, nz: nz / len, z: mid[2] };
-  }).filter(o => o.nz < 0);
-  list.sort((p, q) => q.z - p.z);
-  // lueur rouge qui déborde sous le bloc
-  const sp = g.createRadialGradient(cx, cy + sc * 0.9, sc * 0.2, cx, cy + sc * 0.9, sc * 2.6);
-  sp.addColorStop(0, 'rgba(255,40,70,' + (0.32 * a).toFixed(3) + ')');
-  sp.addColorStop(1, 'rgba(255,40,70,0)');
-  g.fillStyle = sp;
-  g.fillRect(cx - sc * 3, cy - sc * 2, sc * 6, sc * 5);
-  list.forEach(o => {
-    const A = esProj(o.p0, cx, cy, sc);
-    const B = esProj(o.pu, cx, cy, sc);
-    const C = esProj(o.pv, cx, cy, sc);
-    g.save();
-    g.transform((B[0] - A[0]) / 256, (B[1] - A[1]) / 256, (C[0] - A[0]) / 256, (C[1] - A[1]) / 256, A[0], A[1]);
-    g.globalAlpha = a;
-    g.drawImage(tex[o.f.t], 0, 0);
-    const lit = Math.max(0, -o.nx * 0.35 - o.ny * 0.8 - o.nz * 0.5);
-    g.fillStyle = 'rgba(0,0,0,' + (0.6 - lit * 0.45).toFixed(2) + ')';
-    g.fillRect(0, 0, 256, 256);
-    if(o.f.top){
-      g.translate(128, 128);
-      g.globalCompositeOperation = 'lighter';
-      const spin = t * (0.5 + charge * 5);
-      for(let i = 0; i < 12; i++){
-        const a0 = spin + i * 0.5236;
-        g.strokeStyle = i % 4 === 0 ? 'rgba(255,255,255,0.95)' : 'rgba(255,70,90,0.95)';
-        g.lineWidth = 12 + (i % 3) * 3;
-        g.beginPath();
-        g.arc(0, 0, 76, a0, a0 + 0.38);
-        g.stroke();
-      }
-      g.strokeStyle = 'rgba(255,170,180,0.8)';
-      g.lineWidth = 2;
-      g.beginPath();
-      g.arc(0, 0, 60, -spin * 1.4, -spin * 1.4 + 4.2);
-      g.stroke();
-      g.strokeStyle = 'rgba(255,60,80,0.35)';
-      g.lineWidth = 1;
-      g.beginPath();
-      g.arc(0, 0, 92, 0, 6.2832);
-      g.stroke();
-    }
-    g.restore();
-    // arêtes lumineuses
-    g.save();
-    g.globalCompositeOperation = 'lighter';
-    g.strokeStyle = o.f.top ? 'rgba(255,235,240,' + (0.85 * a).toFixed(2) + ')' : 'rgba(255,70,95,' + (0.8 * a).toFixed(2) + ')';
-    g.lineWidth = 1.4;
-    g.beginPath();
-    g.moveTo(A[0], A[1]);
-    g.lineTo(B[0], B[1]);
-    g.lineTo(B[0] + C[0] - A[0], B[1] + C[1] - A[1]);
-    g.lineTo(C[0], C[1]);
-    g.closePath();
-    g.stroke();
-    g.restore();
-  });
-}
-
+/* ---- cadre de confinement, orbe sombre fissuré, ville numérique au fond ---- */
 // Cadre carré néon autour du bloc, repères en X, lignes de données qui débordent (comme sur l'image de référence).
 function esDrawFrame(g, cx, cy, sc, a, t, charge) {
   const h = sc * (1.95 - 0.25 * charge);
@@ -4704,7 +4485,7 @@ function esDrawFrame(g, cx, cy, sc, a, t, charge) {
 }
 
 // Orbe de verre : halo, corps translucide, tourbillons internes, croissant lumineux, noyau blanc et lueur en croix.
-function esDrawOrb(g, cx, cy, r, a, t, charge, S) {
+function esDrawOrb(g, cx, cy, r, a, t, charge, S, cracks) {
   g.save();
   g.globalCompositeOperation = 'lighter';
   const sc = S.join(',');
@@ -4718,7 +4499,7 @@ function esDrawOrb(g, cx, cy, r, a, t, charge, S) {
   const gb = g.createRadialGradient(cx - r * 0.15, cy - r * 0.1, r * 0.1, cx, cy, r);
   gb.addColorStop(0, 'rgba(' + sc + ',' + (0.02 * a).toFixed(3) + ')');
   gb.addColorStop(0.72, 'rgba(' + sc + ',' + (0.06 * a).toFixed(3) + ')');
-  gb.addColorStop(1, 'rgba(200,230,255,' + (0.3 * a).toFixed(3) + ')');
+  gb.addColorStop(1, 'rgba(150,135,255,' + (0.26 * a).toFixed(3) + ')');
   g.fillStyle = gb;
   g.beginPath();
   g.arc(cx, cy, r, 0, 6.2832);
@@ -4734,9 +4515,27 @@ function esDrawOrb(g, cx, cy, r, a, t, charge, S) {
     g.ellipse(cx + Math.sin(t * 0.2 + k) * r * 0.1, cy + Math.cos(t * 0.17 + k) * r * 0.08, r * (0.5 + 0.12 * k), r * (0.16 + 0.06 * k), t * 0.15 * (k % 2 ? 1 : -1) + k, 0, 6.2832);
     g.stroke();
   }
+  // fissures : ombre noire puis lueur rouge qui pulse
+  g.globalCompositeOperation = 'source-over';
+  g.lineJoin = 'round';
+  cracks.forEach(c => {
+    g.strokeStyle = 'rgba(4,0,10,' + (0.6 * a).toFixed(3) + ')';
+    g.lineWidth = 3.2;
+    g.beginPath();
+    c.forEach((p, k) => { const x = cx + r * 0.1 + p[0] * r; const y = cy + r * 0.2 + p[1] * r; if(k === 0) g.moveTo(x, y); else g.lineTo(x, y); });
+    g.stroke();
+  });
+  g.globalCompositeOperation = 'lighter';
+  cracks.forEach((c, i) => {
+    g.strokeStyle = 'rgba(255,40,85,' + ((0.3 + 0.4 * Math.abs(Math.sin(t * 1.3 + i))) * a).toFixed(3) + ')';
+    g.lineWidth = 1;
+    g.beginPath();
+    c.forEach((p, k) => { const x = cx + r * 0.1 + p[0] * r; const y = cy + r * 0.2 + p[1] * r; if(k === 0) g.moveTo(x, y); else g.lineTo(x, y); });
+    g.stroke();
+  });
   g.restore();
   for(let pass = 0; pass < 3; pass++){
-    g.strokeStyle = 'rgba(' + (pass === 2 ? '255,255,255' : '190,225,255') + ',' + ((pass === 0 ? 0.22 : pass === 1 ? 0.5 : 1) * a).toFixed(3) + ')';
+    g.strokeStyle = 'rgba(' + (pass === 2 ? '255,255,255' : '170,160,255') + ',' + ((pass === 0 ? 0.22 : pass === 1 ? 0.5 : 1) * a).toFixed(3) + ')';
     g.lineWidth = r * (pass === 0 ? 0.09 : pass === 1 ? 0.04 : 0.014);
     g.beginPath();
     g.arc(cx, cy, r * 1.005, -2.0, 0.6);
@@ -4752,9 +4551,9 @@ function esDrawOrb(g, cx, cy, r, a, t, charge, S) {
   const oy = cy + r * 0.2;
   const cg = g.createRadialGradient(ox, oy, 0, ox, oy, cr);
   cg.addColorStop(0, 'rgba(255,255,255,' + a.toFixed(3) + ')');
-  cg.addColorStop(0.2, 'rgba(235,245,255,' + (0.7 * a).toFixed(3) + ')');
-  cg.addColorStop(0.55, 'rgba(' + sc + ',' + (0.16 * a).toFixed(3) + ')');
-  cg.addColorStop(1, 'rgba(' + sc + ',0)');
+  cg.addColorStop(0.2, 'rgba(255,205,225,' + (0.7 * a).toFixed(3) + ')');
+  cg.addColorStop(0.55, 'rgba(220,40,90,' + (0.22 * a).toFixed(3) + ')');
+  cg.addColorStop(1, 'rgba(120,0,40,0)');
   g.fillStyle = cg;
   g.beginPath();
   g.arc(ox, oy, cr, 0, 6.2832);
@@ -4824,9 +4623,9 @@ function esFxStart() {
   if(!esMeshCache) esMeshCache = esBuildMesh();
   if(!esCache){
     esCache = {
-      cloudA: esNoiseCanvas(300, 170, 11, [70, 40, 170], [40, 170, 190], 0.38, 0.78),
-      cloudB: esNoiseCanvas(300, 170, 73, [130, 50, 200], [60, 90, 220], 0.45, 0.85),
-      tex: [esMakeFaceTex(101, true), esMakeFaceTex(202, false), esMakeFaceTex(303, false), esMakeFaceTex(404, false), esMakeFaceTex(505, false)],
+      cloudA: esNoiseCanvas(300, 170, 11, [44, 22, 120], [30, 90, 150], 0.38, 0.78),
+      cloudB: esNoiseCanvas(300, 170, 73, [95, 30, 150], [50, 40, 140], 0.45, 0.85),
+      cloudC: esNoiseCanvas(300, 170, 131, [2, 0, 8], [14, 4, 22], 0.33, 0.72),
     };
   }
   const og = document.createElement('canvas');
@@ -4841,11 +4640,11 @@ function esFxStart() {
   if(!fgx) return;
   const fx = fgx;
   const P0 = esHexRgb(stage.dataset.acc || '');
-  const S0 = [96, 214, 255];
+  const S0 = [120, 150, 255];
   const G = {
     W: 0, H: 0, dpr: 1, sc: 140, mx: 0, my: 0, shards: [], lines: [], sparks: [], waves: [], flash: 0, shake: 0, glitch: 0, nextGlitch: 1.5, glitchEnd: 0,
-    rx: 0, ry: 0, rz: 0, ryC: 0.5, cm: esCorrupt ? 1 : 0, swapUntil: 0, time: 0, nextSurge: 6, surgeEnd: 0,
-    stars: [], bokeh: [], orbits: [], debris: [], bars: [], blocks: [], rowOff: [],
+    rx: 0, ry: 0, rz: 0, ryC: 0.5, swapUntil: 0, time: 0, nextSurge: 6, surgeEnd: 0,
+    stars: [], bokeh: [], orbits: [], debris: [], bars: [], blocks: [], rowOff: [], cracks: [],
   };
   esG = G;
   const resize = () => {
@@ -4877,6 +4676,17 @@ function esFxStart() {
     const k = r();
     G.bars.push([r(), r(), 14 + r() * r() * 300, k < 0.5 ? 0 : k < 0.7 ? 1 : k < 0.88 ? 2 : 3, 1.5 + r() * 3.5, 0.5 + r() * 3, 0.25 + r() * 0.6]);
   }
+  for(let i = 0; i < 9; i++){
+    const pts = [[0, 0]];
+    let an = r() * 6.28;
+    let rad = 0;
+    while(rad < 0.95){
+      rad += 0.07 + r() * 0.1;
+      an += (r() - 0.5) * 0.8;
+      pts.push([Math.cos(an) * rad, Math.sin(an) * rad]);
+    }
+    G.cracks.push(pts);
+  }
   for(let i = 0; i < 44; i++) G.blocks.push([r() * 0.95, r() * 0.95, 0.04 + r() * 0.2, 0.03 + r() * 0.16, 14 + Math.floor(r() * 18)]);
   stage.addEventListener('pointermove', ev => {
     const b = stage.getBoundingClientRect();
@@ -4905,12 +4715,9 @@ function esFxStart() {
     const cx = W / 2;
     const cy = H / 2;
     const k = W / 1000;
-    G.cm += ((esCorrupt ? 1 : 0) - G.cm) * Math.min(1, dt * 3);
-    const cm = G.cm;
-    const aP = 1 - cm;
-    const aC = cm;
-    const Pc = esMixArr(P0, [255, 52, 74], cm);
-    const Sc = esMixArr(S0, [255, 150, 165], cm);
+    const aP = 1;
+    const Pc = P0;
+    const Sc = S0;
     const Pcs = esRgb(Pc);
     const Scs = esRgb(Sc);
     let charge = 0;
@@ -4921,7 +4728,7 @@ function esFxStart() {
       G.glitchEnd = t + 0.14 + Math.random() * 0.3;
       G.nextGlitch = t + (mode === 'charge' ? 0.12 : 2.2 + Math.random() * 3);
     }
-    if(t > G.nextSurge && cm < 0.5 && mode === 'crystal'){ G.surgeEnd = t + 0.45; G.nextSurge = t + 8 + Math.random() * 6; }
+    if(t > G.nextSurge && mode === 'crystal'){ G.surgeEnd = t + 0.45; G.nextSurge = t + 8 + Math.random() * 6; }
     if(t > G.glitchEnd) G.glitch = mode === 'charge' ? 0.35 + charge * 0.5 : 0;
     if(t < G.swapUntil) G.glitch = 1;
     if(t < G.surgeEnd) G.glitch = Math.max(G.glitch, 0.75);
@@ -4933,20 +4740,22 @@ function esFxStart() {
       esDrawCloud(bctx, esCache.cloudA, W, H, t, 1.0 * aP, 0, 1.25);
       esDrawCloud(bctx, esCache.cloudB, W, H, t, 0.85 * aP, 3, 1.5);
     }
-    if(aC > 0.02){
-      const fgr = bctx.createRadialGradient(cx, H * 0.62, 0, cx, H * 0.62, Math.max(W, H) * 0.7);
-      fgr.addColorStop(0, 'rgba(255,40,70,' + (0.3 * aC).toFixed(3) + ')');
-      fgr.addColorStop(1, 'rgba(255,40,70,0)');
-      bctx.fillStyle = fgr;
-      bctx.fillRect(0, 0, W, H);
-      esDrawCity(bctx, W, H, t, aC, G);
-      bctx.globalCompositeOperation = 'lighter';
-    }
+    // fumée noire, lueur rouge au sol et traces de données : l'Essence vient d'Oxiri, elle n'est jamais tout à fait pure
+    bctx.globalCompositeOperation = 'source-over';
+    esDrawCloud(bctx, esCache.cloudC, W, H, t, 0.75, 5, 1.4);
+    bctx.globalCompositeOperation = 'lighter';
+    const fgr = bctx.createRadialGradient(cx, H * 0.98, 0, cx, H * 0.98, Math.max(W, H) * 0.6);
+    fgr.addColorStop(0, 'rgba(160,20,55,0.24)');
+    fgr.addColorStop(1, 'rgba(160,20,55,0)');
+    bctx.fillStyle = fgr;
+    bctx.fillRect(0, 0, W, H);
+    esDrawCity(bctx, W, H, t, 0.14, G);
+    bctx.globalCompositeOperation = 'lighter';
     for(let i = 0; i < G.stars.length; i++){
       const s = G.stars[i];
       const x = ((s[0] * W + t * 3 * s[2] - G.mx * 40 * s[2]) % W + W) % W;
       const y = ((s[1] * H + t * 1.2 * s[2] - G.my * 26 * s[2]) % H + H) % H;
-      const a = (0.25 + 0.6 * Math.abs(Math.sin(t * 1.2 * s[4] + s[3]))) * s[2] * (1 - 0.6 * cm);
+      const a = (0.25 + 0.6 * Math.abs(Math.sin(t * 1.2 * s[4] + s[3]))) * s[2] * 0.7;
       bctx.fillStyle = 'rgba(' + (i % 5 === 0 ? Pcs : '225,235,255') + ',' + a.toFixed(2) + ')';
       bctx.fillRect(x, y, s[2] > 0.8 ? 2 : 1.2, s[2] > 0.8 ? 2 : 1.2);
     }
@@ -4992,7 +4801,7 @@ function esFxStart() {
       bctx.fill();
     }
     const showObj = mode === 'crystal' || mode === 'charge' || mode === 'blackout';
-    if(showObj) esDrawFloor(bctx, W, H, t, (0.35 + 0.65 * cm) * (mode === 'blackout' ? 0.4 : Math.min(1, tm / 1.2 + (mode === 'crystal' ? 0 : 1))), Pc, Sc, cx, cy + G.sc * 1.75);
+    if(showObj) esDrawFloor(bctx, W, H, t, 0.45 * (mode === 'blackout' ? 0.4 : Math.min(1, tm / 1.2 + (mode === 'crystal' ? 0 : 1))), Pc, Sc, cx, cy + G.sc * 1.75);
     bctx.globalCompositeOperation = 'source-over';
     // ---------- objet et effets ----------
     ctx.setTransform(G.dpr, 0, 0, G.dpr, 0, 0);
@@ -5017,13 +4826,10 @@ function esFxStart() {
       octx.clearRect(0, 0, W, H);
       if(aP > 0.02){
         esDrawReticle(octx, ccx, ccy, G.sc * 1.75 * scale, t, alpha * aP * (mode === 'blackout' ? 0.4 : 1), Sc, Pc);
-        esDrawOrb(octx, ccx, ccy, G.sc * 1.5 * scale, alpha * aP, t, charge, Sc);
+        esDrawOrb(octx, ccx, ccy, G.sc * 1.5 * scale, alpha * aP, t, charge, Sc, G.cracks);
         esDrawCrystal(octx, ccx, ccy, G.sc * 0.8 * scale, G.rx, G.ry, G.rz, alpha * aP, charge, t, Pc, Sc, 1.7 - ((t * 0.16) % 1) * 3.4);
       }
-      if(aC > 0.02){
-        esDrawFrame(octx, ccx, ccy, G.sc * scale, alpha * aC, t, charge);
-        esDrawCube(octx, ccx, ccy, G.sc * 0.78 * scale, 0.62 + G.my * 0.3, 0.55 + Math.sin(t * 0.3) * 0.45 + G.ryC * (charge > 0 ? 1 : 0) + G.mx * 0.4, G.mx * 0.12, alpha * aC, t, charge, esCache.tex);
-      }
+      esDrawFrame(octx, ccx, ccy, G.sc * 1.08 * scale, alpha * 0.3 * (mode === 'charge' ? 1.6 : 1), t, charge);
       if(t < G.surgeEnd){
         octx.globalCompositeOperation = 'lighter';
         for(let i = 0; i < 9; i++){
@@ -5097,7 +4903,7 @@ function esFxStart() {
       draw.push(s);
     }
     draw.sort((a, b) => b.p[2] - a.p[2]);
-    const cor = cm > 0.5;
+    const cor = false;
     draw.forEach((s) => {
       const kk = Math.min(1, (1 - s.life / s.max) * 2.2);
       const pts = s.rel.map((q) => {
@@ -5172,10 +4978,10 @@ function esFxStart() {
     b4x.drawImage(canvas, 0, 0, b4.width, b4.height);
     ctx.globalCompositeOperation = 'lighter';
     ctx.filter = 'blur(5px)';
-    ctx.globalAlpha = 0.42;
+    ctx.globalAlpha = 0.34;
     ctx.drawImage(b2, 0, 0, W, H);
     ctx.filter = 'blur(3px)';
-    ctx.globalAlpha = 0.5;
+    ctx.globalAlpha = 0.42;
     ctx.drawImage(b4, 0, 0, W, H);
     ctx.filter = 'none';
     ctx.globalAlpha = 1;
@@ -5185,64 +4991,16 @@ function esFxStart() {
   requestAnimationFrame(frame);
 }
 
-// Bascule entre l'essence pure et l'essence corrompue : glitch de scène, changement de palette, de titre et de fragments.
 function esDoc() {
-  return esCorrupt ? 'essencec' : 'essence';
+  return 'essence';
 }
 
 function esPrefix() {
-  return esCorrupt ? 'esg-' : 'esf-';
+  return 'esf-';
 }
 
 function esDefaults() {
-  return esCorrupt ? ES_DEFAULTS_C : ES_DEFAULTS;
-}
-
-function esApplyHeader() {
-  const st = document.getElementById('esStage');
-  if(!st) return;
-  const ap = apOf(esDoc());
-  const k = document.querySelector('.es-kicker');
-  const h = document.querySelector('.es-title h1');
-  const p = document.querySelector('.es-title p');
-  if(k) k.textContent = ap.kicker;
-  if(h) h.textContent = ap.title;
-  if(p) p.textContent = ap.tagline;
-  let bi = st.querySelector('.es-bgimg');
-  if(ap.img){
-    if(!bi){
-      bi = document.createElement('div');
-      bi.className = 'es-bgimg';
-      st.insertBefore(bi, st.firstChild);
-    }
-    bi.style.backgroundImage = 'url("' + ap.img.replace(/"/g, '%22') + '")';
-  } else if(bi){
-    bi.remove();
-  }
-}
-
-function esSetCorrupt(on) {
-  if(on === esCorrupt) return;
-  const st = document.getElementById('esStage');
-  const page = document.querySelector('.es-page');
-  if(!st || !page) return;
-  esCorrupt = on;
-  if(esG) esG.swapUntil = esG.time + 0.75;
-  st.classList.add('es-swap');
-  esCloseDetail(true);
-  window.setTimeout(() => {
-    if(!document.body.contains(st)) return;
-    page.classList.toggle('corrupt', on);
-    document.querySelectorAll('.es-switch button').forEach(b => b.classList.toggle('on', (b.dataset.m === 'c') === on));
-    esApplyHeader();
-    const box = document.getElementById('esShards');
-    if(box){
-      const fr = esFrags();
-      box.innerHTML = fr.map((f, i) => esShardHtml(f, i, fr.length)).join('');
-      esLayout();
-    }
-  }, 330);
-  window.setTimeout(() => st.classList.remove('es-swap'), 850);
+  return ES_DEFAULTS;
 }
 
 function esSetMode(m, silent = false) {

@@ -3963,7 +3963,7 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 @media (max-width:900px){ .ar-nav{ grid-template-columns:1fr; } .ar-nav-idx{ order:-1; } }
 @media (prefers-reduced-motion: reduce){ .sq-arc .sq-omega, .sq-arc .sq-sweep, .ar-ban-track, .ar-redacts i, .ar-meter.unk i{ animation:none; } .ar-stamp{ opacity:1; } .ar-meter i.on{ transform: skewX(-20deg); } }
 /* ---- Page « Essence » : cristal holographique néon (canvas 3D) -> charge, noir, explosion en éclats de verre -> fragments (éidolons) -> fiches ; habillage HUD ---- */
-.es-page{ font-family:'Barlow', 'Helvetica Neue', Arial, sans-serif; --es:#8f7bff; --es2:#60d6ff; }
+.es-page{ font-family:'Barlow', 'Helvetica Neue', Arial, sans-serif; --es:#8a5cff; --es2:#7fa6ff; }
 .es-page h1, .es-page h2{ font-family:inherit; }
 .es-stage{ --mx:0; --my:0; --k:1; position:relative; height: calc(100vh - 150px); min-height:580px; max-height:920px; overflow:hidden; isolation:isolate; background:#02030a; border:1px solid color-mix(in srgb, var(--es2) 28%, transparent); box-shadow: 0 0 40px rgba(212,92,255,0.12), inset 0 0 60px rgba(0,0,0,0.6); }
 .es-nebula{ position:absolute; inset:-10%; z-index:1; translate: calc(var(--mx) * -18px) calc(var(--my) * -12px);
@@ -4179,28 +4179,15 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 }
 @media (prefers-reduced-motion: reduce){ .es-target, .es-nav, .es-nav i, .es-conf i, .es-gauges, .es-boot, .es-boot div{ animation:none; } .es-boot div{ opacity:1; } }
 
-/* mode corrompu et bascule pure / corrompue */
+/* l'Essence vient d'Oxiri : scène plus sombre, fumée noire, accents rouges */
 .es-bg{ position:absolute; inset:0; z-index:2; pointer-events:none; }
-.es-page.corrupt{ --es:#ff3b4e !important; --es2:#ff9aa6 !important; }
-.es-page.corrupt .es-nebula{ background: radial-gradient(ellipse at 50% 62%, rgba(150,12,36,0.5), transparent 62%), radial-gradient(ellipse at 20% 20%, rgba(90,10,40,0.35), transparent 55%), #04020a; }
-.es-page.corrupt .es-stage{ border-color: rgba(255,60,85,0.4); box-shadow: 0 0 40px rgba(255,40,70,0.18), inset 0 0 60px rgba(0,0,0,0.6); }
-.es-page.corrupt .es-title h1{ text-shadow: 3px 0 rgba(255,255,255,0.35), -3px 0 rgba(255,40,70,0.65), 0 0 34px rgba(255,40,70,0.55); }
-.es-switch{ display:flex; border:1px solid color-mix(in srgb, var(--es2) 45%, transparent); backdrop-filter: blur(6px); }
-.es-switch button{ cursor:pointer; padding:8px 12px; border:0; border-radius:0; background: rgba(6,6,24,0.74); color: color-mix(in srgb, var(--es2) 75%, #fff); font-family:'Share Tech Mono', monospace; font-size:10.5px; letter-spacing:.14em; text-transform:uppercase; transition: background .2s, color .2s; }
-.es-switch button + button{ border-left:1px solid color-mix(in srgb, var(--es2) 30%, transparent); }
-.es-switch button.on{ color:#fff; background: color-mix(in srgb, var(--es) 30%, #05060f); box-shadow: inset 0 -2px var(--es); }
-.es-switch button:hover:not(.on){ color:#fff; }
-.es-stage.es-swap{ animation: esSwap .85s steps(1); }
-@keyframes esSwap{
-  0%{ filter:none; transform:none; }
-  14%{ filter: hue-rotate(80deg) saturate(2); transform: translate(-8px, 3px) skewX(2deg); }
-  28%{ filter: invert(.15); transform: translate(9px, -4px); }
-  42%{ filter: hue-rotate(-60deg); transform: translate(-4px, 2px) skewX(-2deg); }
-  58%{ filter: brightness(1.7); transform:none; }
-  75%{ filter: hue-rotate(30deg); transform: translate(3px, 0); }
-  100%{ filter:none; transform:none; }
-}
-@media (max-width:820px){ .es-switch button{ padding:7px 9px; font-size:9.5px; } }
+.es-stage{ background:#010006; border-color: color-mix(in srgb, var(--es2) 22%, transparent); box-shadow: 0 0 40px rgba(120,20,60,0.18), inset 0 0 80px rgba(0,0,0,0.8); }
+.es-nebula{ background: radial-gradient(ellipse at 50% 52%, rgba(70,30,150,0.32), transparent 60%), radial-gradient(ellipse at 50% 104%, rgba(120,10,40,0.3), transparent 55%), radial-gradient(ellipse at 50% 50%, #07041a, #010006 72%); }
+.es-vig{ background: radial-gradient(ellipse at 50% 50%, transparent 34%, rgba(0,0,0,0.86) 100%), repeating-linear-gradient(0deg, rgba(255,255,255,0.02) 0 1px, transparent 1px 3px); }
+.es-title h1{ text-shadow: 3px 0 rgba(120,150,255,0.4), -3px 0 rgba(255,40,80,0.5), 0 0 34px color-mix(in srgb, var(--es) 60%, transparent); }
+.es-img{ background-image: radial-gradient(circle at 28% 28%, hsl(var(--h) 70% 44% / .95), hsl(calc(var(--h) + 40) 60% 10%) 70%); }
+.es-shade{ background: linear-gradient(135deg, rgba(255,255,255,0.18) 0%, transparent 32%, transparent 58%, rgba(150,20,60,0.35) 100%), linear-gradient(0deg, rgba(2,1,8,0.7), transparent 55%); }
+.es-target span em, .es-hud-top #esBars{ color:#ff4d6d; text-shadow: 0 0 10px rgba(255,40,80,0.7); }
 @media (max-width:1000px){
   .fiche{ grid-template-columns:1fr; padding:20px; }
   .dz-id{ width:100%; max-width:440px; margin:0 auto; }
@@ -5224,6 +5211,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=159"></script>
+<script src="dist/main.js?v=160"></script>
 </body>
 </html>
