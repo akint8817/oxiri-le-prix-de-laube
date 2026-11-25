@@ -1234,7 +1234,7 @@ function initFirestoreSync(): void {
     const m: Record<string, { music?: string | null; musicTitle?: string | null; blocks?: PoiBlock[] | null; images?: string[] | null; imageCaps?: string[] | null; zones?: Record<string, HyZoneOv> | null; elements?: HyElement[] | null; elementsC?: HyElement[] | null; ars?: ArsDoc | null; title?: string | null; tagline?: string | null; kicker?: string | null; heroImg?: string | null; accent?: string | null; motif?: string | null }> = {};
     snap.forEach((doc: any) => { m[doc.id] = doc.data(); });
     cityPagesCache = m;
-    if(document.querySelector('.city')) render();
+    if(document.querySelector('.city, .es-page')) render();
   }, (err: any) => console.error('Firestore (cityPages) :', err));
 
   db.collection('novelancePois').onSnapshot((snap: any) => {
@@ -4268,6 +4268,7 @@ let apDoc = 'arsenal';
 function apDefaults(docId: string): ApDef {
   if(docId === 'chronologie') return { kicker: 'Archives temporelles · Oxiri', title: 'Chronologie du monde', tagline: "L'histoire n'est jamais écrite par ceux qui l'ont vécue. Elle est écrite par ceux qui ont survécu.", motif: 'chrono', color: SQ_ACCENTS.chrono };
   if(docId === 'organisations') return { kicker: 'Registre des pouvoirs · Oxiri', title: 'Organisations', tagline: 'Les grandes organisations qui façonnent le monde.', motif: 'org', color: SQ_ACCENTS.org };
+  if(docId === 'essence') return { kicker: 'Savoir · Essence', title: "L'Essence", tagline: "L'énergie qui traverse le monde, et ce qu'elle en a fait.", motif: 'arm', color: '#7ad9ff' };
   if(docId === 'archives') return { kicker: 'Halcyon · Département des Reliques', title: 'Archives des Artefacts Oxiriens', tagline: "Dossiers classifiés sur les artefacts nés de l'énergie d'Oxiri.", motif: 'arc', color: SQ_ACCENTS.arc };
   if(docId.indexOf('arme-') === 0){
     const w = findWeapon(docId.slice(5));
@@ -4400,6 +4401,525 @@ function renderObjetsPage(): string {
         ${obConsoleHtml()}
       </section>${blocksSec}
     </div>`;
+}
+
+/* ---------------- Page « Essence » : un cristal flotte au milieu de l'écran ; un clic le fait exploser en fragments (façon éidolons),
+   chaque fragment ouvre sa fiche. Fragments modifiables (titre, image, texte, ordre), fond / couleur / titre / musique modifiables. ---------------- */
+interface EsFrag { id: string; t: string; s: string; img: string; body: string; order: number; }
+interface EsPart { x: number; y: number; vx: number; vy: number; life: number; max: number; kind: number; size: number; rot: number; vr: number; }
+
+const ES_DEFAULTS: EsFrag[] = [
+  { id: 'd1', t: 'Origine', s: 'Le souffle du monde', img: '', order: 1,
+    body: "L'Essence est l'énergie qui traverse le monde. Les premières civilisations lui ont donné bien des noms : mana, éther, flux, souffle.\n\nElle existait avant les royaumes, avant les cités, avant même que l'humanité ne la découvre. Certaines traditions y voient le souffle d'Oxiri lui-même.\n\n> Texte provisoire : modifie ce fragment pour écrire la vraie origine de l'Essence." },
+  { id: 'd2', t: 'Nature', s: 'Ce qu\'elle est vraiment', img: '', order: 2,
+    body: "Une énergie diffuse, qui circule dans la terre, l'eau, les êtres vivants et les cristaux. Elle réagit aux émotions, aux souvenirs et à l'âme de celui qui la touche.\n\nTexte provisoire : décris ici comment l'Essence se manifeste, ce qu'on peut en voir et en ressentir." },
+  { id: 'd3', t: 'Usages', s: 'Une énergie qu\'on apprend à canaliser', img: '', order: 3,
+    body: "Pas une magie : une énergie qu'on apprend à canaliser et à exploiter. Des cristaux éclairent les rues, des trains à Essence relient les continents, des laboratoires l'étudient et des armes la combinent à la technologie.\n\nTexte provisoire." },
+  { id: 'd4', t: "Essence d'Oxiri", s: 'Plus ancienne, plus dangereuse', img: '', order: 4,
+    body: "Certains artefacts portent une énergie différente de l'Essence humaine, beaucoup plus ancienne : l'Essence d'Oxiri.\n\nIl est possible de la mélanger à l'Essence humaine. C'est ainsi que sont nés les artefacts oxiriens, puis les hybrides.\n\nTexte provisoire." },
+  { id: 'd5', t: 'Corruption', s: 'Quand les cristaux deviennent noirs', img: '', order: 5,
+    body: "À la Chute, les cristaux d'Essence sont devenus noirs et les océans ont commencé à se vider de leur énergie. Puis sont apparues les Entropy.\n\nTexte provisoire : explique ici ce qu'est la corruption de l'Essence et ce qu'elle provoque." },
+  { id: 'd6', t: 'Limites', s: 'Ce qu\'elle coûte', img: '', order: 6,
+    body: "Toute utilisation de l'Essence a un prix. À rédiger : les limites, les risques, le rejet, ce qui arrive à ceux qui en abusent." },
+];
+
+let esMode = 'crystal';
+let esOpenId = '';
+let esFxBurst: any = null;
+let esImg = '';
+let esEditId = '';
+
+// Fragments : les 6 fragments d'origine (modifiables ou supprimables) + ceux ajoutés depuis le site, stockés un par document « esf-<id> ».
+function esFrags(): EsFrag[] {
+  const docs: Record<string, any> = {};
+  Object.keys(cityPagesCache).forEach(k => { if(k.indexOf('esf-') === 0) docs[k.slice(4)] = cityPagesCache[k]; });
+  const out: EsFrag[] = [];
+  ES_DEFAULTS.forEach(d => {
+    const o = docs[d.id];
+    if(o && o.deleted) return;
+    out.push({
+      id: d.id, t: (o && o.t) || d.t, s: o && o.s !== undefined && o.s !== null ? o.s : d.s,
+      img: (o && o.img) || d.img, body: (o && o.body) || d.body, order: o && typeof o.order === 'number' ? o.order : d.order,
+    });
+  });
+  Object.keys(docs).forEach(id => {
+    if(ES_DEFAULTS.some(d => d.id === id)) return;
+    const o = docs[id];
+    if(!o || o.deleted) return;
+    out.push({ id, t: o.t || 'Fragment', s: o.s || '', img: o.img || '', body: o.body || '', order: typeof o.order === 'number' ? o.order : 100 });
+  });
+  out.sort((a, b) => a.order - b.order);
+  return out;
+}
+
+// Cristal en 3D pur CSS : bipyramide hexagonale de 12 faces translucides qui tourne ; chaque face a ses propres vecteurs d'éclatement.
+function esCrystalHtml(): string {
+  const R = 74;
+  const A = 122;
+  const a = R * Math.sqrt(3) / 2;
+  const S = Math.sqrt(A * A + a * a);
+  const beta = Math.atan2(a, A) * 180 / Math.PI;
+  const r = tmSeeded(7421);
+  let faces = '';
+  for(let k = 0; k < 12; k++){
+    const top = k < 6;
+    const i = k % 6;
+    const l = 0.4 + 0.5 * Math.abs(Math.sin((i * 60 + (top ? 20 : 80)) * Math.PI / 180));
+    const fx = Math.round((r() - 0.5) * 900);
+    const fy = Math.round((r() - 0.5) * 700 + (top ? -160 : 160));
+    const fz = Math.round((r() - 0.3) * 700);
+    faces += `<i class="f ${top ? 't' : 'b'}" style="--r:${i * 60}deg;--l:${l.toFixed(2)};--fx:${fx}px;--fy:${fy}px;--fz:${fz}px;--fr:${Math.round((r() - 0.5) * 540)}deg;--dl:-${(r() * 4).toFixed(2)}s"></i>`;
+  }
+  return `<div class="es-gem" style="--R:${R}px;--S:${S.toFixed(1)}px;--a:${a.toFixed(1)}px;--beta:${beta.toFixed(2)}deg">${faces}</div>`;
+}
+
+function esShardHtml(f: EsFrag, i: number, n: number): string {
+  const num = String(i + 1);
+  const hue = Math.round((200 + i * (160 / Math.max(n, 1))) % 360);
+  return `<div class="es-shard" data-id="${escAttr(f.id)}" style="--i:${i};--rev:${n - i};--h:${hue}">
+    <div class="es-shard-float" style="--d:${(0.4 + (i % 3) * 0.3).toFixed(2)};animation-duration:${(5 + (i % 4) * 1.3).toFixed(1)}s;animation-delay:-${(i * 1.7).toFixed(1)}s">
+      <div class="es-shard-in" onclick="esOpen('${escAttr(f.id)}')">
+        <div class="es-img"${f.img ? ` style="background-image:url('${escAttr(f.img)}')"` : ''}><b class="es-wm">${num}</b></div>
+        <div class="es-shade"></div>
+      </div>
+      <svg class="es-edge" aria-hidden="true"><polygon points=""/></svg>
+      <div class="es-label"><b>${num}</b><span>${esc(f.t)}</span></div>
+    </div>
+  </div>`;
+}
+
+function renderEssencePage(): string {
+  const ap = apOf('essence');
+  const logged = isLoggedIn();
+  const frags = esFrags();
+  const pd = cityPagesCache['essence'];
+  const music = pd && pd.music ? musicBarHtml('essence', pd.music) : '';
+  const tools = `
+    <button type="button" class="es-btn es-reform" onclick="esReform()">↺ Recomposer le cristal</button>
+    ${logged ? `<button type="button" class="es-btn" onclick="openPageAppearance('essence')">Modifier la page</button>
+    <button type="button" class="es-btn" onclick="esOpenEditor('')">+ Fragment</button>
+    <button type="button" class="es-btn" onclick="openMusicEditor('page','essence')">♪ Musique</button>` : ''}`;
+  return `
+    <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / Essence</div>
+    <div class="es-page" style="--es:${ap.accent};--acc:${ap.accent}">
+      <div class="es-stage" id="esStage" data-mode="${esMode}" data-acc="${escAttr(ap.accent)}">
+        ${ap.img ? `<div class="es-bgimg" style="background-image:url('${escAttr(ap.img)}')"></div>` : ''}
+        <div class="es-nebula"></div>
+        <canvas class="es-fx" id="esFx"></canvas>
+        <div class="es-vig"></div>
+        <header class="es-title">
+          <span class="es-kicker">${esc(ap.kicker)}</span>
+          <h1>${esc(ap.title)}</h1>
+          <p>${esc(ap.tagline)}</p>
+        </header>
+        <div class="es-beams"></div>
+        <div class="es-crystal" id="esCrystal" onclick="esBurst()" role="button" aria-label="Briser le cristal">
+          <div class="es-crystal-s" id="esCrystalS">
+            <div class="es-orbit o1"><i></i></div><div class="es-orbit o2"><i></i></div>
+            <div class="es-tilt">${esCrystalHtml()}</div>
+            <div class="es-core"></div>
+          </div>
+        </div>
+        <div class="es-ring r1"></div><div class="es-ring r2"></div>
+        <div class="es-flash"></div>
+        <div class="es-shards" id="esShards">${frags.map((f, i) => esShardHtml(f, i, frags.length)).join('')}</div>
+        ${frags.length ? '' : '<p class="es-none">Aucun fragment : ajoute-en un depuis « + Fragment ».</p>'}
+        <div class="es-hint"><span class="h-c">Touche le cristal</span><span class="h-s">Choisis un fragment</span></div>
+        <div class="es-tools">${tools}</div>
+        ${music ? `<div class="es-music">${music}</div>` : ''}
+        <div class="es-detail" id="esDetail"></div>
+      </div>
+    </div>`;
+}
+
+/* ---- mise en page des fragments : cellules de Voronoï autour du centre, rétrécies pour laisser un joint sombre ---- */
+function esClip(poly: number[][], nx: number, ny: number, c: number): number[][] {
+  const out: number[][] = [];
+  for(let i = 0; i < poly.length; i++){
+    const p = poly[i];
+    const q = poly[(i + 1) % poly.length];
+    const dp = nx * p[0] + ny * p[1] - c;
+    const dq = nx * q[0] + ny * q[1] - c;
+    if(dp <= 0) out.push(p);
+    if((dp < 0 && dq > 0) || (dp > 0 && dq < 0)){
+      const t = dp / (dp - dq);
+      out.push([p[0] + (q[0] - p[0]) * t, p[1] + (q[1] - p[1]) * t]);
+    }
+  }
+  return out;
+}
+
+function esLayout(): void {
+  const st = document.getElementById('esStage');
+  if(!st) return;
+  const W = st.clientWidth;
+  const H = st.clientHeight;
+  const els = Array.from(st.querySelectorAll<HTMLElement>('.es-shard'));
+  const n = els.length;
+  if(!n || !W || !H) return;
+  const k = Math.max(0.62, Math.min(1.5, Math.min(W, H) / 640));
+  st.style.setProperty('--k', k.toFixed(3));
+  const r = tmSeeded(5309 + n);
+  const cx = W / 2;
+  const cy = H / 2;
+  const seeds: number[][] = [];
+  for(let i = 0; i < n; i++){
+    const a = (i / n) * Math.PI * 2 - Math.PI / 2 + (r() - 0.5) * (Math.PI / n) * 0.7;
+    const rad = 0.26 + r() * 0.1;
+    seeds.push([cx + Math.cos(a) * W * rad * 1.15, cy + Math.sin(a) * H * rad * 1.25]);
+  }
+  const m = 10;
+  els.forEach((el, i) => {
+    let poly: number[][] = [[m, m], [W - m, m], [W - m, H - m], [m, H - m]];
+    for(let j = 0; j < n; j++){
+      if(j === i) continue;
+      const nx = seeds[j][0] - seeds[i][0];
+      const ny = seeds[j][1] - seeds[i][1];
+      const c = nx * (seeds[i][0] + seeds[j][0]) / 2 + ny * (seeds[i][1] + seeds[j][1]) / 2;
+      poly = esClip(poly, nx, ny, c);
+      if(poly.length < 3) break;
+    }
+    if(poly.length < 3) return;
+    let gx = 0;
+    let gy = 0;
+    poly.forEach(p => { gx += p[0]; gy += p[1]; });
+    gx /= poly.length;
+    gy /= poly.length;
+    const f = 0.9;
+    poly = poly.map(p => [gx + (p[0] - gx) * f, gy + (p[1] - gy) * f]);
+    let x0 = 1e9;
+    let y0 = 1e9;
+    let x1 = -1e9;
+    let y1 = -1e9;
+    poly.forEach(p => { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); });
+    const bw = x1 - x0;
+    const bh = y1 - y0;
+    const pts = poly.map(p => (p[0] - x0).toFixed(1) + ',' + (p[1] - y0).toFixed(1));
+    const ox = gx - x0;
+    const oy = gy - y0;
+    const rr = tmSeeded(911 + i * 17);
+    el.style.left = x0 + 'px';
+    el.style.top = y0 + 'px';
+    el.style.width = bw + 'px';
+    el.style.height = bh + 'px';
+    el.style.transformOrigin = ox.toFixed(1) + 'px ' + oy.toFixed(1) + 'px';
+    el.style.setProperty('--ix', (cx - gx).toFixed(1) + 'px');
+    el.style.setProperty('--iy', (cy - gy).toFixed(1) + 'px');
+    el.style.setProperty('--ir', Math.round((rr() - 0.5) * 540) + 'deg');
+    el.style.setProperty('--dx', ((rr() - 0.5) * 10).toFixed(1) + 'px');
+    el.style.setProperty('--dy', ((rr() - 0.5) * 10).toFixed(1) + 'px');
+    el.style.setProperty('--dr', ((rr() - 0.5) * 2.4).toFixed(2) + 'deg');
+    const inner = el.querySelector<HTMLElement>('.es-shard-in');
+    if(inner) inner.style.clipPath = 'polygon(' + pts.map(p => p.replace(',', 'px ') + 'px').join(',') + ')';
+    const svg = el.querySelector<SVGElement>('.es-edge');
+    if(svg){
+      svg.setAttribute('width', String(bw));
+      svg.setAttribute('height', String(bh));
+      const pg = svg.querySelector('polygon');
+      if(pg) pg.setAttribute('points', pts.join(' '));
+    }
+    const lab = el.querySelector<HTMLElement>('.es-label');
+    if(lab){ lab.style.left = ox.toFixed(1) + 'px'; lab.style.top = (oy + (bh - oy) * 0.4).toFixed(1) + 'px'; }
+  });
+}
+
+/* ---- fond animé : étoiles qui scintillent + éclats projetés par l'explosion (ou aspirés à la recomposition) ---- */
+function esHexRgb(hex: string): string {
+  const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
+  if(!m) return '122,217,255';
+  const v = parseInt(m[1], 16);
+  return ((v >> 16) & 255) + ',' + ((v >> 8) & 255) + ',' + (v & 255);
+}
+
+function esFxStart(): void {
+  const cv = document.querySelector<HTMLCanvasElement>('#esFx');
+  const st = document.getElementById('esStage');
+  if(!cv || !st) return;
+  const g = cv.getContext('2d');
+  if(!g) return;
+  const stage: HTMLElement = st;
+  const canvas: HTMLCanvasElement = cv;
+  const ctx: CanvasRenderingContext2D = g;
+  const rgb = esHexRgb(st.dataset.acc || '');
+  let W = 0;
+  let H = 0;
+  let dpr = 1;
+  let mx = 0;
+  let my = 0;
+  function resize(): void {
+    dpr = Math.min(2, window.devicePixelRatio || 1);
+    W = stage.clientWidth;
+    H = stage.clientHeight;
+    canvas.width = Math.max(1, Math.round(W * dpr));
+    canvas.height = Math.max(1, Math.round(H * dpr));
+    canvas.style.width = W + 'px';
+    canvas.style.height = H + 'px';
+  }
+  resize();
+  const stars: number[][] = [];
+  for(let i = 0; i < 240; i++) stars.push([Math.random(), Math.random(), 0.2 + Math.random() * 0.8, Math.random() * 6.28, 0.4 + Math.random() * 1.6]);
+  const parts: EsPart[] = [];
+  function spawn(implode: boolean): void {
+    const cx = W / 2;
+    const cy = H / 2;
+    for(let i = 0; i < 230; i++){
+      const kind = i < 130 ? 0 : i < 190 ? 1 : 2;
+      const ang = Math.random() * Math.PI * 2;
+      const sp = kind === 0 ? 7 + Math.random() * 16 : kind === 1 ? 3 + Math.random() * 9 : 1 + Math.random() * 4;
+      const dist = implode ? 120 + Math.random() * Math.min(W, H) * 0.6 : 0;
+      parts.push({
+        x: cx + Math.cos(ang) * dist, y: cy + Math.sin(ang) * dist,
+        vx: implode ? -Math.cos(ang) * sp * 0.55 : Math.cos(ang) * sp, vy: implode ? -Math.sin(ang) * sp * 0.55 : Math.sin(ang) * sp,
+        life: 0, max: 40 + Math.random() * 60, kind, size: kind === 0 ? 1 + Math.random() * 1.6 : kind === 1 ? 4 + Math.random() * 9 : 2 + Math.random() * 3,
+        rot: Math.random() * 6.28, vr: (Math.random() - 0.5) * 0.3,
+      });
+    }
+  }
+  esFxBurst = spawn;
+  st.addEventListener('pointermove', ev => {
+    const b = st.getBoundingClientRect();
+    mx = (ev.clientX - b.left) / b.width - 0.5;
+    my = (ev.clientY - b.top) / b.height - 0.5;
+    st.style.setProperty('--mx', mx.toFixed(3));
+    st.style.setProperty('--my', my.toFixed(3));
+  });
+  const onResize = () => { resize(); esLayout(); };
+  window.addEventListener('resize', onResize);
+  let t = 0;
+  function frame(): void {
+    if(document.querySelector('#esFx') !== cv){ window.removeEventListener('resize', onResize); return; }
+    t += 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, W, H);
+    ctx.globalCompositeOperation = 'lighter';
+    for(let i = 0; i < stars.length; i++){
+      const s = stars[i];
+      const x = ((s[0] * W + t * 0.05 * s[2] * 4 - mx * 40 * s[2]) % W + W) % W;
+      const y = ((s[1] * H + t * 0.02 * s[2] - my * 26 * s[2]) % H + H) % H;
+      const a = (0.25 + 0.6 * Math.abs(Math.sin(t * 0.02 * s[4] + s[3]))) * s[2];
+      ctx.fillStyle = 'rgba(' + (i % 5 === 0 ? rgb : '225,235,255') + ',' + a.toFixed(2) + ')';
+      const sz = s[2] > 0.8 ? 2 : 1.2;
+      ctx.fillRect(x, y, sz, sz);
+    }
+    for(let i = parts.length - 1; i >= 0; i--){
+      const p = parts[i];
+      p.life += 1;
+      if(p.life > p.max){ parts.splice(i, 1); continue; }
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vx *= 0.955;
+      p.vy *= 0.955;
+      p.rot += p.vr;
+      const k = 1 - p.life / p.max;
+      if(p.kind === 0){
+        ctx.strokeStyle = 'rgba(' + rgb + ',' + (k * 0.9).toFixed(2) + ')';
+        ctx.lineWidth = p.size;
+        ctx.beginPath();
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x - p.vx * 2.4, p.y - p.vy * 2.4);
+        ctx.stroke();
+      } else if(p.kind === 1){
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rot);
+        ctx.fillStyle = 'rgba(255,255,255,' + (k * 0.35).toFixed(2) + ')';
+        ctx.strokeStyle = 'rgba(' + rgb + ',' + (k * 0.9).toFixed(2) + ')';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, -p.size);
+        ctx.lineTo(p.size * 0.8, p.size * 0.7);
+        ctx.lineTo(-p.size * 0.9, p.size * 0.5);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+      } else {
+        ctx.fillStyle = 'rgba(' + rgb + ',' + (k * 0.5).toFixed(2) + ')';
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.size * k, 0, 6.283);
+        ctx.fill();
+      }
+    }
+    ctx.globalCompositeOperation = 'source-over';
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+}
+
+/* ---- scénario : charge -> explosion -> fragments (et retour) ---- */
+function esBurst(): void {
+  const st = document.getElementById('esStage');
+  if(!st || st.dataset.mode !== 'crystal') return;
+  st.dataset.mode = 'charge';
+  window.setTimeout(() => {
+    if(!document.body.contains(st)) return;
+    st.dataset.mode = 'burst';
+    esMode = 'shards';
+    if(esFxBurst) esFxBurst(false);
+    st.classList.add('es-shake');
+    window.setTimeout(() => st.classList.remove('es-shake'), 650);
+  }, 460);
+  window.setTimeout(() => { if(document.body.contains(st) && st.dataset.mode === 'burst') st.dataset.mode = 'shards'; }, 2800);
+}
+
+function esReform(): void {
+  const st = document.getElementById('esStage');
+  if(!st || (st.dataset.mode !== 'shards' && st.dataset.mode !== 'burst')) return;
+  esCloseDetail(true);
+  st.dataset.mode = 'crystal';
+  esMode = 'crystal';
+  if(esFxBurst) esFxBurst(true);
+}
+
+/* ---- fiche d'un fragment ---- */
+function esDetailHtml(f: EsFrag, i: number, n: number): string {
+  const prev = esFrags()[(i - 1 + n) % n];
+  const next = esFrags()[(i + 1) % n];
+  const body = renderRichBody(parseWriteBody(f.body)) || '<p>Pas encore de texte.</p>';
+  return `<div class="es-d-in">
+    <button type="button" class="es-x" onclick="esCloseDetail()" aria-label="Fermer">✕</button>
+    <div class="es-d-media"><div class="es-d-img"${f.img ? ` style="background-image:url('${escAttr(f.img)}')"` : ''}><b>${i + 1}</b></div><span class="es-d-glint"></span></div>
+    <div class="es-d-panel">
+      <span class="es-d-num">Fragment ${String(i + 1).padStart(2, '0')} / ${String(n).padStart(2, '0')}</span>
+      <h2>${esc(f.t)}</h2>
+      ${f.s ? `<em>${esc(f.s)}</em>` : ''}
+      <div class="es-d-body">${body}</div>
+      <div class="es-d-nav">
+        <button type="button" onclick="esOpen('${escAttr(prev.id)}')">← ${esc(prev.t)}</button>
+        ${isLoggedIn() ? `<button type="button" class="ed" onclick="esOpenEditor('${escAttr(f.id)}')">✎ Modifier</button>` : ''}
+        <button type="button" onclick="esOpen('${escAttr(next.id)}')">${esc(next.t)} →</button>
+      </div>
+    </div>
+  </div>`;
+}
+
+function esOpen(id: string): void {
+  const st = document.getElementById('esStage');
+  const box = document.getElementById('esDetail');
+  if(!st || !box) return;
+  const list = esFrags();
+  const i = list.findIndex(f => f.id === id);
+  if(i < 0) return;
+  esOpenId = id;
+  box.innerHTML = esDetailHtml(list[i], i, list.length);
+  box.classList.remove('open');
+  void box.offsetWidth;
+  box.classList.add('open');
+  st.classList.add('es-focus');
+}
+
+function esCloseDetail(silent: boolean = false): void {
+  const st = document.getElementById('esStage');
+  const box = document.getElementById('esDetail');
+  esOpenId = '';
+  if(st) st.classList.remove('es-focus');
+  if(box){
+    box.classList.remove('open');
+    if(silent) box.innerHTML = '';
+  }
+}
+
+/* ---- édition d'un fragment ---- */
+function esRefreshPreview(): void {
+  const el = document.getElementById('esPrev');
+  if(el) el.innerHTML = esImg ? `<img src="${esImg}" alt=""><button type="button" onclick="esRemoveImage()">Retirer l'image</button>` : '';
+}
+
+function esRemoveImage(): void { esImg = ''; esRefreshPreview(); }
+
+function esPickImage(input: HTMLInputElement): void {
+  const f = input.files && input.files[0];
+  input.value = '';
+  if(!f) return;
+  nvCompressImage(f).then(url => { esImg = url; esRefreshPreview(); }).catch(() => alert('Image illisible.'));
+}
+
+function esOpenEditor(id: string): void {
+  if(!isLoggedIn()) return;
+  const list = esFrags();
+  const cur = list.find(f => f.id === id);
+  esEditId = id;
+  esImg = cur ? cur.img : '';
+  nvCloseForm();
+  const box = pageEditHost();
+  const isDefault = ES_DEFAULTS.some(d => d.id === id);
+  box.innerHTML = `
+    <button type="button" class="nv-card-x" onclick="nvCloseForm()">✕</button>
+    <div class="nv-ed-title">${cur ? 'Modifier le fragment' : 'Nouveau fragment'}</div>
+    <label>Titre</label>
+    <input id="esfT" type="text" value="${escAttr(cur ? cur.t : '')}" placeholder="Ex : Origine">
+    <label>Sous-titre <em>(petite phrase sous le titre)</em></label>
+    <input id="esfS" type="text" value="${escAttr(cur ? cur.s : '')}">
+    <label>Image <em>(affichée dans le fragment, réduite automatiquement)</em></label>
+    <div class="ars-prev" id="esPrev">${esImg ? `<img src="${esImg}" alt=""><button type="button" onclick="esRemoveImage()">Retirer l'image</button>` : ''}</div>
+    <input id="esfFile" type="file" accept="image/*" onchange="esPickImage(this)">
+    <label>Texte <em>(# titre, - liste, &gt; citation, **gras**)</em></label>
+    <textarea id="esfB" rows="9">${esc(cur ? cur.body : '')}</textarea>
+    <label>Ordre <em>(le plus petit en premier)</em></label>
+    <input id="esfO" type="number" value="${cur ? cur.order : (list.length ? list[list.length - 1].order + 1 : 1)}">
+    <div class="nv-ed-actions">
+      <button type="button" class="primary" onclick="esSaveFrag()">Enregistrer</button>
+      <button type="button" onclick="nvCloseForm()">Annuler</button>
+      ${cur ? `<button type="button" class="danger" onclick="esDeleteFrag()">Supprimer</button>` : ''}
+      ${cur && isDefault ? `<button type="button" onclick="esRestoreFrag()">Rétablir</button>` : ''}
+    </div>`;
+  box.classList.add('open');
+}
+
+function esSaveFrag(): void {
+  if(!isLoggedIn()) return;
+  const t = esVal('esfT');
+  if(!t){ alert('Donne au moins un titre au fragment.'); return; }
+  const id = esEditId || ('n' + Date.now().toString(36));
+  const ord = Number(esVal('esfO'));
+  writeCityPatch('esf-' + id, { t, s: esVal('esfS'), img: esImg || null, body: esVal('esfB'), order: isFinite(ord) ? ord : 100, deleted: false })
+    .then(() => { nvCloseForm(); if(esOpenId) window.setTimeout(() => esOpen(esOpenId), 80); })
+    .catch(err => alert('Enregistrement impossible : ' + (err && err.message ? err.message : err)));
+}
+
+function esVal(id: string): string {
+  const el = document.querySelector<HTMLInputElement>('#' + id);
+  return ((el && el.value) || '').trim();
+}
+
+function esDeleteFrag(): void {
+  if(!isLoggedIn() || !esEditId) return;
+  if(!confirm('Supprimer ce fragment ?')) return;
+  writeCityPatch('esf-' + esEditId, { deleted: true })
+    .then(() => { nvCloseForm(); esCloseDetail(true); })
+    .catch(err => alert('Suppression impossible : ' + (err && err.message ? err.message : err)));
+}
+
+function esRestoreFrag(): void {
+  if(!isLoggedIn() || !esEditId) return;
+  writeCityPatch('esf-' + esEditId, { t: null, s: null, img: null, body: null, order: null, deleted: false })
+    .then(() => nvCloseForm())
+    .catch(err => alert('Impossible : ' + (err && err.message ? err.message : err)));
+}
+
+function initEssencePage(): void {
+  esLayout();
+  esFxStart();
+  const st = document.getElementById('esStage');
+  if(!st) return;
+  if(esMode === 'shards'){
+    // retour sur la page (ou re-rendu après une synchro) : les fragments sont déjà en place, sans rejouer l'explosion
+    st.classList.add('es-instant');
+    window.setTimeout(() => st.classList.remove('es-instant'), 60);
+  }
+  if(esOpenId) esOpen(esOpenId);
+  function onKey(ev: KeyboardEvent): void {
+    if(!document.getElementById('esStage')){ window.removeEventListener('keydown', onKey); return; }
+    const ae = document.activeElement;
+    if(ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return;
+    if(ev.key === 'Escape') esCloseDetail();
+    if(esOpenId && (ev.key === 'ArrowRight' || ev.key === 'ArrowLeft')){
+      const list = esFrags();
+      const i = list.findIndex(f => f.id === esOpenId);
+      if(i >= 0) esOpen(list[(i + (ev.key === 'ArrowRight' ? 1 : -1) + list.length) % list.length].id);
+    }
+  }
+  window.addEventListener('keydown', onKey);
 }
 
 function renderCategory(cat: string): string {
@@ -10990,6 +11510,18 @@ function render(): void {
 
   if(route === 'home'){
     content.innerHTML = renderHome();
+  } else if(route === 'essence'){
+    const oldEsPlayer = document.getElementById('em-essence');
+    content.innerHTML = renderEssencePage();
+    initEssencePage();
+    const newEsPlayer = document.getElementById('em-essence');
+    let esPreserved = false;
+    if(oldEsPlayer && newEsPlayer && oldEsPlayer.dataset.kind === newEsPlayer.dataset.kind){
+      const oldSrc = oldEsPlayer.querySelector('iframe,audio')?.getAttribute('src');
+      const newSrc = newEsPlayer.querySelector('iframe,audio')?.getAttribute('src');
+      if(oldSrc && oldSrc === newSrc){ newEsPlayer.replaceWith(oldEsPlayer); esPreserved = true; }
+    }
+    if(!esPreserved) initEntryMusicPlayers();
   } else if(route === 'carte'){
     openMapOverlay();
   } else if(route === 'novelance'){
