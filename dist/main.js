@@ -3637,7 +3637,8 @@ let apDoc = 'arsenal';
 function apDefaults(docId) {
   if(docId === 'chronologie') return { kicker: 'Archives temporelles · Oxiri', title: 'Chronologie du monde', tagline: "L'histoire n'est jamais écrite par ceux qui l'ont vécue. Elle est écrite par ceux qui ont survécu.", motif: 'chrono', color: SQ_ACCENTS.chrono };
   if(docId === 'organisations') return { kicker: 'Registre des pouvoirs · Oxiri', title: 'Organisations', tagline: 'Les grandes organisations qui façonnent le monde.', motif: 'org', color: SQ_ACCENTS.org };
-  if(docId === 'essence') return { kicker: 'Savoir · Essence', title: "L'Essence", tagline: "L'énergie qui traverse le monde, et ce qu'elle en a fait.", motif: 'arm', color: '#2ff3d6' };
+  if(docId === 'essencec') return { kicker: 'Savoir · Essence corrompue', title: "L'Essence corrompue", tagline: "Ce que la Chute a fait de l'énergie du monde.", motif: 'arm', color: '#ff3b4e' };
+  if(docId === 'essence') return { kicker: 'Savoir · Essence', title: "L'Essence", tagline: "L'énergie qui traverse le monde, et ce qu'elle en a fait.", motif: 'arm', color: '#8f7bff' };
   if(docId === 'archives') return { kicker: 'Halcyon · Département des Reliques', title: 'Archives des Artefacts Oxiriens', tagline: "Dossiers classifiés sur les artefacts nés de l'énergie d'Oxiri.", motif: 'arc', color: SQ_ACCENTS.arc };
   if(docId.indexOf('arme-') === 0){
     const w = findWeapon(docId.slice(5));
@@ -3791,6 +3792,21 @@ const ES_DEFAULTS = [
     body: "Toute utilisation de l'Essence a un prix. À rédiger : les limites, les risques, le rejet, ce qui arrive à ceux qui en abusent." },
 ];
 
+const ES_DEFAULTS_C = [
+  { id: 'c1', t: 'La Chute', s: "Le jour où le ciel a changé", img: '', order: 1,
+    body: "Le ciel a changé. Les cristaux d'Essence sont devenus noirs. Les océans ont commencé à se vider de leur énergie.\n\nPuis les premières créatures sont apparues, les Entropy, et derrière elles… Oxiri.\n\n> Texte provisoire : réécris ce fragment pour raconter la naissance de la corruption." },
+  { id: 'c2', t: 'Cristaux noirs', s: 'Quand la lumière s\'éteint', img: '', order: 2,
+    body: "Un cristal noir ne diffuse plus l'Essence : il l'absorbe. Il rend le monde autour de lui plus froid, plus silencieux.\n\nTexte provisoire : décris les effets, la façon de les reconnaître, et ce qu'ils deviennent." },
+  { id: 'c3', t: 'Les Entropy', s: 'Des créatures sans logique', img: '', order: 3,
+    body: "Elles ne répondent à aucune logique biologique. Certaines ressemblent à des animaux, d'autres à des humains.\n\nTexte provisoire : explique leur lien avec l'Essence corrompue." },
+  { id: 'c4', t: 'Contagion', s: 'Ce qui se propage', img: '', order: 4,
+    body: "La corruption ne reste jamais là où elle est née. Elle gagne les terres, les machines, les êtres vivants.\n\nTexte provisoire." },
+  { id: 'c5', t: 'Hôtes', s: 'Ceux qui la portent', img: '', order: 5,
+    body: "Certains êtres survivent à la corruption, et s'y adaptent. À quel prix ?\n\nTexte provisoire : parle des hôtes, des hybrides touchés, de ceux qui résistent." },
+  { id: 'c6', t: 'Purification', s: 'Est-ce seulement possible ?', img: '', order: 6,
+    body: "Existe-t-il un moyen de purifier l'Essence ? Halcyon le prétend.\n\nTexte provisoire : à rédiger." },
+];
+
 let esMode = 'crystal';
 let esOpenId = '';
 let esImg = '';
@@ -3798,13 +3814,15 @@ let esEditId = '';
 let esModeT = 0;
 let esG = null;
 let esBooted = false;
+let esCorrupt = false;
 
 // Fragments : les 6 fragments d'origine (modifiables ou supprimables) + ceux ajoutés depuis le site, stockés un par document « esf-<id> ».
 function esFrags() {
   const docs = {};
-  Object.keys(cityPagesCache).forEach(k => { if(k.indexOf('esf-') === 0) docs[k.slice(4)] = cityPagesCache[k]; });
+  const pf = esPrefix();
+  Object.keys(cityPagesCache).forEach(k => { if(k.indexOf(pf) === 0) docs[k.slice(pf.length)] = cityPagesCache[k]; });
   const out = [];
-  ES_DEFAULTS.forEach(d => {
+  esDefaults().forEach(d => {
     const o = docs[d.id];
     if(o && o.deleted) return;
     out.push({
@@ -3813,7 +3831,7 @@ function esFrags() {
     });
   });
   Object.keys(docs).forEach(id => {
-    if(ES_DEFAULTS.some(d => d.id === id)) return;
+    if(esDefaults().some(d => d.id === id)) return;
     const o = docs[id];
     if(!o || o.deleted) return;
     out.push({ id, t: o.t || 'Fragment', s: o.s || '', img: o.img || '', body: o.body || '', order: typeof o.order === 'number' ? o.order : 100 });
@@ -3824,7 +3842,7 @@ function esFrags() {
 
 function esShardHtml(f, i, n) {
   const num = String(i + 1);
-  const hue = Math.round((165 + i * (130 / Math.max(n, 1))) % 360);
+  const hue = esCorrupt ? Math.round((345 + i * 9) % 360) : Math.round((165 + i * (130 / Math.max(n, 1))) % 360);
   const code = ('0000' + (tmHash(f.id + 'es') % 65536).toString(16).toUpperCase()).slice(-4);
   return `<div class="es-shard" data-id="${escAttr(f.id)}" style="--i:${i};--rev:${n - i};--h:${hue}">
     <div class="es-shard-float" style="--d:${(0.4 + (i % 3) * 0.3).toFixed(2)};animation-duration:${(5 + (i % 4) * 1.3).toFixed(1)}s;animation-delay:-${(i * 1.7).toFixed(1)}s">
@@ -3871,22 +3889,24 @@ function esHexLine() {
 }
 
 function renderEssencePage() {
-  const ap = apOf('essence');
+  const ap = apOf(esDoc());
   const logged = isLoggedIn();
   const frags = esFrags();
   const pd = cityPagesCache['essence'];
   const music = pd && pd.music ? musicBarHtml('essence', pd.music) : '';
   const tools = `
-    <button type="button" class="es-btn es-reform" onclick="esReform()">↺ Recomposer le cristal</button>
-    ${logged ? `<button type="button" class="es-btn" onclick="openPageAppearance('essence')">Modifier la page</button>
+    <div class="es-switch"><button type="button" data-m="p" class="${esCorrupt ? '' : 'on'}" onclick="esSetCorrupt(false)">Essence pure</button><button type="button" data-m="c" class="${esCorrupt ? 'on' : ''}" onclick="esSetCorrupt(true)">Essence corrompue</button></div>
+    <button type="button" class="es-btn es-reform" onclick="esReform()">↺ Recomposer</button>
+    ${logged ? `<button type="button" class="es-btn" onclick="openPageAppearance(esDoc())">Modifier la page</button>
     <button type="button" class="es-btn" onclick="esOpenEditor('')">+ Fragment</button>
     <button type="button" class="es-btn" onclick="openMusicEditor('page','essence')">♪ Musique</button>` : ''}`;
   return `
     <div class="crumbs"><span onclick="navigate('home')" style="cursor:pointer">Accueil</span> / Essence</div>
-    <div class="es-page" style="--es:${ap.accent};--acc:${ap.accent}">
+    <div class="es-page${esCorrupt ? ' corrupt' : ''}" style="--es:${ap.accent};--acc:${ap.accent}">
       <div class="es-stage" id="esStage" data-mode="${esMode}" data-acc="${escAttr(ap.accent)}">
         ${ap.img ? `<div class="es-bgimg" style="background-image:url('${escAttr(ap.img)}')"></div>` : ''}
         <div class="es-nebula"></div>
+        <canvas class="es-bg" id="esBg"></canvas>
         <div class="es-vig"></div>
         <div class="es-hud" aria-hidden="true">
           <i class="c tl"></i><i class="c tr"></i><i class="c bl"></i><i class="c br"></i>
@@ -3900,10 +3920,10 @@ function renderEssencePage() {
           <p>${esc(ap.tagline)}</p>
         </header>
         <div class="es-calls" aria-hidden="true">
-          <div class="es-call l" style="--cx:-275;--cy:-78"><small>Noyau</small><b id="esC1">0x7F3A · STABLE</b></div>
+          <div class="es-call l" style="--cx:-270;--cy:-10"><small>Noyau</small><b id="esC1">0x7F3A · STABLE</b></div>
           <div class="es-call r" style="--cx:250;--cy:-110"><small>Fréquence</small><b id="esC2">432.7 THz</b></div>
-          <div class="es-call l" style="--cx:-262;--cy:172"><small>Flux d'essence</small><b id="esC3">0.87 ± 0.03</b></div>
-          <div class="es-call r" style="--cx:258;--cy:178"><small>Intégrité</small><b id="esC4">▮▮▮▮▯ 87 %</b></div>
+          <div class="es-call l" style="--cx:-260;--cy:130"><small>Flux d'essence</small><b id="esC3">0.87 ± 0.03</b></div>
+          <div class="es-call r" style="--cx:255;--cy:160"><small>Intégrité</small><b id="esC4">▮▮▮▮▯ 87 %</b></div>
         </div>
         <div class="es-target" aria-hidden="true"><i class="a"></i><i class="b"></i><i class="c"></i><i class="d"></i><b>TARGET</b><span>ESS-CORE // LOCK <em id="esLock">97</em> %</span></div>
         <div class="es-nav a l" aria-hidden="true"><span>NAV ACTIVE</span><i></i></div>
@@ -4021,7 +4041,7 @@ function esLayout() {
 /* ---- moteur 3D sur canvas : cristal de 36 faces en verre, fils néon, anneau d'énergie, noyau ---- */
 function esHexRgb(hex) {
   const m = /^#?([0-9a-f]{6})$/i.exec(hex || '');
-  const v = parseInt(m ? m[1] : '2ff3d6', 16);
+  const v = parseInt(m ? m[1] : '8f7bff', 16);
   return [(v >> 16) & 255, (v >> 8) & 255, v & 255];
 }
 
@@ -4057,22 +4077,214 @@ function esProj(v, cx, cy, sc) {
 }
 
 // Maillage : sommet haut, anneau haut, anneau médian décalé de 30°, anneau bas, sommet bas -> 36 triangles.
-function esBuildMesh() {
-  const v = [[0, -1.55, 0]];
-  for(let i = 0; i < 6; i++) v.push([Math.cos(i * Math.PI / 3) * 0.72, -0.52, Math.sin(i * Math.PI / 3) * 0.72]);
-  for(let i = 0; i < 6; i++) v.push([Math.cos(i * Math.PI / 3 + Math.PI / 6) * 1.0, 0, Math.sin(i * Math.PI / 3 + Math.PI / 6) * 1.0]);
-  for(let i = 0; i < 6; i++) v.push([Math.cos(i * Math.PI / 3) * 0.72, 0.52, Math.sin(i * Math.PI / 3) * 0.72]);
-  v.push([0, 1.55, 0]);
-  const f = [];
-  for(let i = 0; i < 6; i++){
-    const j = (i + 1) % 6;
-    f.push([0, 1 + i, 1 + j]);
-    f.push([1 + i, 7 + i, 1 + j]);
-    f.push([1 + j, 7 + i, 7 + j]);
-    f.push([7 + i, 13 + j, 13 + i]);
-    f.push([7 + i, 7 + j, 13 + j]);
-    f.push([19, 13 + i, 13 + j]);
+/* ---- bruit, textures procédurales, maillage du cristal taillé ---- */
+function esMixArr(a, b, t) {
+  return [a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, a[2] + (b[2] - a[2]) * t];
+}
+
+function esHash(n) {
+  const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+  return x - Math.floor(x);
+}
+
+function esVN(x, y, s) {
+  const xi = Math.floor(x);
+  const yi = Math.floor(y);
+  const xf = x - xi;
+  const yf = y - yi;
+  const a = esHash(xi * 57.3 + yi * 131.7 + s);
+  const b = esHash((xi + 1) * 57.3 + yi * 131.7 + s);
+  const c = esHash(xi * 57.3 + (yi + 1) * 131.7 + s);
+  const d = esHash((xi + 1) * 57.3 + (yi + 1) * 131.7 + s);
+  const u = xf * xf * (3 - 2 * xf);
+  const v = yf * yf * (3 - 2 * yf);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+
+function esFbm(x, y, s) {
+  let v = 0;
+  let a = 0.5;
+  let f = 1;
+  for(let i = 0; i < 5; i++){
+    v += a * esVN(x * f, y * f, s + i * 17);
+    f *= 2;
+    a *= 0.5;
   }
+  return v;
+}
+
+// Nuage volumétrique (bruit fractal) : couleur c1 -> c2, opacité entre les seuils lo et hi.
+function esNoiseCanvas(w, h, seed, c1, c2, lo, hi) {
+  const cv = document.createElement('canvas');
+  cv.width = w;
+  cv.height = h;
+  const g = cv.getContext('2d');
+  if(!g) return cv;
+  const img = g.createImageData(w, h);
+  for(let y = 0; y < h; y++){
+    for(let x = 0; x < w; x++){
+      const n = esFbm(x / w * 4.2, y / h * 3.2, seed);
+      const m = esFbm(x / w * 3 + 9, y / h * 2.4 + 4, seed + 50);
+      let al = (n - lo) / (hi - lo);
+      al = al < 0 ? 0 : al > 1 ? 1 : al * al * (3 - 2 * al);
+      const k = (y * w + x) * 4;
+      img.data[k] = c1[0] + (c2[0] - c1[0]) * m;
+      img.data[k + 1] = c1[1] + (c2[1] - c1[1]) * m;
+      img.data[k + 2] = c1[2] + (c2[2] - c1[2]) * m;
+      img.data[k + 3] = al * 230;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return cv;
+}
+
+// Face de bloc blindé : métal sombre, panneaux subdivisés, bandes rouges lumineuses, évents, rayures, ligne d'arête éclairée.
+function esMakeFaceTex(seed, top) {
+  const N = 256;
+  const cv = document.createElement('canvas');
+  cv.width = N;
+  cv.height = N;
+  const g = cv.getContext('2d');
+  if(!g) return cv;
+  const r = tmSeeded(seed);
+  const bg = g.createLinearGradient(0, 0, N, N);
+  bg.addColorStop(0, '#1b0c12');
+  bg.addColorStop(1, '#0a0608');
+  g.fillStyle = bg;
+  g.fillRect(0, 0, N, N);
+  for(let i = 0; i < 900; i++){
+    g.fillStyle = 'rgba(255,255,255,' + (r() * 0.07).toFixed(3) + ')';
+    g.fillRect(r() * N, r() * N, 1 + r() * 3, 1 + r() * 2);
+  }
+  const stack = [[0, 0, N, N, 0]];
+  const leaves = [];
+  while(stack.length){
+    const p = stack.pop();
+    if(!p) break;
+    const w = p[2];
+    const h = p[3];
+    if(p[4] >= 4 || (w < 70 && h < 70) || (p[4] >= 2 && r() < 0.22)){ leaves.push(p); continue; }
+    if(w > h){
+      const c = w * (0.32 + r() * 0.36);
+      stack.push([p[0], p[1], c, h, p[4] + 1]);
+      stack.push([p[0] + c, p[1], w - c, h, p[4] + 1]);
+    } else {
+      const c = h * (0.32 + r() * 0.36);
+      stack.push([p[0], p[1], w, c, p[4] + 1]);
+      stack.push([p[0], p[1] + c, w, h - c, p[4] + 1]);
+    }
+  }
+  leaves.forEach(p => {
+    const x = p[0] + 2;
+    const y = p[1] + 2;
+    const w = p[2] - 4;
+    const h = p[3] - 4;
+    g.fillStyle = 'rgba(255,255,255,' + (0.015 + r() * 0.05).toFixed(3) + ')';
+    g.fillRect(x, y, w, h);
+    g.strokeStyle = 'rgba(255,255,255,' + (0.07 + r() * 0.13).toFixed(3) + ')';
+    g.lineWidth = 1;
+    g.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
+    const q = r();
+    if(q < 0.2){
+      g.fillStyle = 'rgba(255,55,80,0.95)';
+      g.shadowColor = 'rgba(255,40,70,0.9)';
+      g.shadowBlur = 8;
+      g.fillRect(x + 3, y + 3, w - 6, 2.5);
+      g.shadowBlur = 0;
+    } else if(q < 0.32){
+      g.strokeStyle = 'rgba(255,255,255,0.18)';
+      for(let k = 0; k < 5; k++){
+        g.beginPath();
+        g.moveTo(x + 6, y + 8 + k * 5);
+        g.lineTo(x + w - 6, y + 8 + k * 5);
+        g.stroke();
+      }
+    } else if(q < 0.4){
+      g.fillStyle = 'rgba(255,230,235,0.9)';
+      g.fillRect(x + w - 10, y + 5, 4, 4);
+    } else if(q < 0.46){
+      g.fillStyle = 'rgba(255,50,70,0.55)';
+      g.fillRect(x + 4, y + h - 8, w * 0.4, 3);
+    }
+  });
+  for(let i = 0; i < 46; i++){
+    const x = r() * N;
+    const y = r() * N;
+    const l = 10 + r() * 60;
+    const an = r() * 6.28;
+    g.strokeStyle = r() < 0.25 ? 'rgba(255,60,80,0.18)' : 'rgba(255,255,255,0.07)';
+    g.lineWidth = 0.7;
+    g.beginPath();
+    g.moveTo(x, y);
+    g.lineTo(x + Math.cos(an) * l, y + Math.sin(an) * l);
+    g.stroke();
+  }
+  if(!top){
+    g.fillStyle = 'rgba(255,235,240,0.85)';
+    g.fillRect(0, N * 0.2, N, 1.6);
+  } else {
+    const rg = g.createRadialGradient(N / 2, N / 2, 10, N / 2, N / 2, N * 0.37);
+    rg.addColorStop(0, 'rgba(0,0,0,0.93)');
+    rg.addColorStop(0.85, 'rgba(0,0,0,0.82)');
+    rg.addColorStop(1, 'rgba(0,0,0,0)');
+    g.fillStyle = rg;
+    g.beginPath();
+    g.arc(N / 2, N / 2, N * 0.38, 0, 6.2832);
+    g.fill();
+    g.strokeStyle = 'rgba(255,70,90,0.45)';
+    g.lineWidth = 1;
+    g.beginPath();
+    g.moveTo(N / 2, N * 0.18);
+    g.lineTo(N / 2, N * 0.82);
+    g.moveTo(N * 0.18, N / 2);
+    g.lineTo(N * 0.82, N / 2);
+    g.stroke();
+    g.strokeStyle = 'rgba(255,70,90,0.95)';
+    g.shadowColor = 'rgba(255,40,70,0.9)';
+    g.shadowBlur = 10;
+    g.lineWidth = 5;
+    const xs = [[N * 0.5, N * 0.07], [N * 0.5, N * 0.93], [N * 0.07, N * 0.5], [N * 0.93, N * 0.5]];
+    xs.forEach(q => {
+      g.beginPath();
+      g.moveTo(q[0] - 12, q[1] - 12);
+      g.lineTo(q[0] + 12, q[1] + 12);
+      g.moveTo(q[0] + 12, q[1] - 12);
+      g.lineTo(q[0] - 12, q[1] + 12);
+      g.stroke();
+    });
+    g.shadowBlur = 0;
+  }
+  return cv;
+}
+
+// Maillage : gemme taillée à 9 anneaux de 8 sommets décalés (couronne, ceinture, culasse) -> 112 facettes.
+function esBuildMesh() {
+  const N = 8;
+  const prof = [[-1.2, 0.4], [-0.82, 0.8], [-0.42, 1.02], [0, 1.1], [0.42, 0.96], [0.86, 0.68], [1.24, 0.36]];
+  const v = [[0, -1.62, 0]];
+  prof.forEach((p, k) => {
+    for(let j = 0; j < N; j++){
+      const an = j * Math.PI * 2 / N + (k % 2) * Math.PI / N;
+      v.push([Math.cos(an) * p[1], p[0], Math.sin(an) * p[1]]);
+    }
+  });
+  v.push([0, 1.62, 0]);
+  const f = [];
+  for(let j = 0; j < N; j++) f.push([0, 1 + j, 1 + (j + 1) % N]);
+  for(let k = 0; k < prof.length - 1; k++){
+    for(let j = 0; j < N; j++){
+      const j2 = (j + 1) % N;
+      const a = 1 + k * N + j;
+      const a2 = 1 + k * N + j2;
+      const b = 1 + (k + 1) * N + j;
+      const b2 = 1 + (k + 1) * N + j2;
+      f.push([a, b, a2]);
+      f.push([a2, b, b2]);
+    }
+  }
+  const last = v.length - 1;
+  const base = 1 + (prof.length - 1) * N;
+  for(let j = 0; j < N; j++) f.push([last, base + j, base + (j + 1) % N]);
   const seen = {};
   const e = [];
   f.forEach(t => {
@@ -4157,13 +4369,22 @@ function esDrawCrystal(g, cx, cy, sc, rx, ry, rz, a, charge, t, P, S, scan) {
       g.stroke();
     });
   }
-  // octaèdre intérieur (contre-rotation)
-  const oct = [[0, -0.55, 0], [0.5, 0, 0], [0, 0, 0.5], [-0.5, 0, 0], [0, 0, -0.5], [0, 0.55, 0]];
-  const oe = [[0, 1], [0, 2], [0, 3], [0, 4], [5, 1], [5, 2], [5, 3], [5, 4], [1, 2], [2, 3], [3, 4], [4, 1]];
-  const op = oct.map(p => esProj(esRot(esRot(p, -rx * 1.6 + t * 0.4, -ry * 1.9, rz * 0.5), rx, ry, rz), cx, cy, sc));
-  g.strokeStyle = 'rgba(' + S[0] + ',' + S[1] + ',' + S[2] + ',' + (0.8 * a).toFixed(3) + ')';
-  g.lineWidth = 1.2;
-  oe.forEach(q => { g.beginPath(); g.moveTo(op[q[0]][0], op[q[0]][1]); g.lineTo(op[q[1]][0], op[q[1]][1]); g.stroke(); });
+  // gemme intérieure réduite (contre-rotation) et éclats aux sommets
+  const ip = mesh.v.map((p) => esProj(esRot(esRot([p[0] * 0.42, p[1] * 0.42, p[2] * 0.42], -rx * 1.6 + t * 0.4, -ry * 1.9, rz * 0.5), rx, ry, rz), cx, cy, sc));
+  g.strokeStyle = 'rgba(' + S[0] + ',' + S[1] + ',' + S[2] + ',' + (0.55 * a).toFixed(3) + ')';
+  g.lineWidth = 0.9;
+  mesh.e.forEach((ed) => {
+    g.beginPath();
+    g.moveTo(ip[ed[0]][0], ip[ed[0]][1]);
+    g.lineTo(ip[ed[1]][0], ip[ed[1]][1]);
+    g.stroke();
+  });
+  pv.forEach((q, i) => {
+    if(i % 2 === 0){
+      g.fillStyle = 'rgba(255,255,255,' + ((0.4 + 0.5 * Math.abs(Math.sin(t * 2 + i))) * a).toFixed(2) + ')';
+      g.fillRect(q.p[0] - 1.2, q.p[1] - 1.2, 2.4, 2.4);
+    }
+  });
   // anneau d'énergie qui tourne dans le cristal
   const rr = 0.78 - 0.3 * charge;
   const ringPts = [];
@@ -4353,52 +4574,310 @@ function esSpawnBurst(G, implode) {
   G.shake = 1;
 }
 
+/* ---- mode corrompu : bloc blindé noir à anneau rouge, cadre néon, ville numérique qui glitche ---- */
+function esDrawCube(g, cx, cy, sc, rx, ry, rz, a, t, charge, tex) {
+  const hx = 1.25;
+  const hy = 0.72;
+  const hz = 1.25;
+  const faces = [
+    { p: [-hx, -hy, -hz], u: [2 * hx, 0, 0], v: [0, 0, 2 * hz], t: 0, top: true },
+    { p: [-hx, -hy, hz], u: [2 * hx, 0, 0], v: [0, 2 * hy, 0], t: 1, top: false },
+    { p: [hx, -hy, -hz], u: [-2 * hx, 0, 0], v: [0, 2 * hy, 0], t: 2, top: false },
+    { p: [-hx, -hy, -hz], u: [0, 0, 2 * hz], v: [0, 2 * hy, 0], t: 3, top: false },
+    { p: [hx, -hy, hz], u: [0, 0, -2 * hz], v: [0, 2 * hy, 0], t: 4, top: false },
+  ];
+  const list = faces.map(f => {
+    const p0 = esRot(f.p, rx, ry, rz);
+    const pu = esRot([f.p[0] + f.u[0], f.p[1] + f.u[1], f.p[2] + f.u[2]], rx, ry, rz);
+    const pv = esRot([f.p[0] + f.v[0], f.p[1] + f.v[1], f.p[2] + f.v[2]], rx, ry, rz);
+    const ur = [pu[0] - p0[0], pu[1] - p0[1], pu[2] - p0[2]];
+    const vr = [pv[0] - p0[0], pv[1] - p0[1], pv[2] - p0[2]];
+    let nx = ur[1] * vr[2] - ur[2] * vr[1];
+    let ny = ur[2] * vr[0] - ur[0] * vr[2];
+    let nz = ur[0] * vr[1] - ur[1] * vr[0];
+    const mid = [p0[0] + (ur[0] + vr[0]) / 2, p0[1] + (ur[1] + vr[1]) / 2, p0[2] + (ur[2] + vr[2]) / 2];
+    if(nx * mid[0] + ny * mid[1] + nz * mid[2] < 0){ nx = -nx; ny = -ny; nz = -nz; }
+    const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+    return { f, p0, pu, pv, nx: nx / len, ny: ny / len, nz: nz / len, z: mid[2] };
+  }).filter(o => o.nz < 0);
+  list.sort((p, q) => q.z - p.z);
+  // lueur rouge qui déborde sous le bloc
+  const sp = g.createRadialGradient(cx, cy + sc * 0.9, sc * 0.2, cx, cy + sc * 0.9, sc * 2.6);
+  sp.addColorStop(0, 'rgba(255,40,70,' + (0.32 * a).toFixed(3) + ')');
+  sp.addColorStop(1, 'rgba(255,40,70,0)');
+  g.fillStyle = sp;
+  g.fillRect(cx - sc * 3, cy - sc * 2, sc * 6, sc * 5);
+  list.forEach(o => {
+    const A = esProj(o.p0, cx, cy, sc);
+    const B = esProj(o.pu, cx, cy, sc);
+    const C = esProj(o.pv, cx, cy, sc);
+    g.save();
+    g.transform((B[0] - A[0]) / 256, (B[1] - A[1]) / 256, (C[0] - A[0]) / 256, (C[1] - A[1]) / 256, A[0], A[1]);
+    g.globalAlpha = a;
+    g.drawImage(tex[o.f.t], 0, 0);
+    const lit = Math.max(0, -o.nx * 0.35 - o.ny * 0.8 - o.nz * 0.5);
+    g.fillStyle = 'rgba(0,0,0,' + (0.6 - lit * 0.45).toFixed(2) + ')';
+    g.fillRect(0, 0, 256, 256);
+    if(o.f.top){
+      g.translate(128, 128);
+      g.globalCompositeOperation = 'lighter';
+      const spin = t * (0.5 + charge * 5);
+      for(let i = 0; i < 12; i++){
+        const a0 = spin + i * 0.5236;
+        g.strokeStyle = i % 4 === 0 ? 'rgba(255,255,255,0.95)' : 'rgba(255,70,90,0.95)';
+        g.lineWidth = 12 + (i % 3) * 3;
+        g.beginPath();
+        g.arc(0, 0, 76, a0, a0 + 0.38);
+        g.stroke();
+      }
+      g.strokeStyle = 'rgba(255,170,180,0.8)';
+      g.lineWidth = 2;
+      g.beginPath();
+      g.arc(0, 0, 60, -spin * 1.4, -spin * 1.4 + 4.2);
+      g.stroke();
+      g.strokeStyle = 'rgba(255,60,80,0.35)';
+      g.lineWidth = 1;
+      g.beginPath();
+      g.arc(0, 0, 92, 0, 6.2832);
+      g.stroke();
+    }
+    g.restore();
+    // arêtes lumineuses
+    g.save();
+    g.globalCompositeOperation = 'lighter';
+    g.strokeStyle = o.f.top ? 'rgba(255,235,240,' + (0.85 * a).toFixed(2) + ')' : 'rgba(255,70,95,' + (0.8 * a).toFixed(2) + ')';
+    g.lineWidth = 1.4;
+    g.beginPath();
+    g.moveTo(A[0], A[1]);
+    g.lineTo(B[0], B[1]);
+    g.lineTo(B[0] + C[0] - A[0], B[1] + C[1] - A[1]);
+    g.lineTo(C[0], C[1]);
+    g.closePath();
+    g.stroke();
+    g.restore();
+  });
+}
+
+// Cadre carré néon autour du bloc, repères en X, lignes de données qui débordent (comme sur l'image de référence).
+function esDrawFrame(g, cx, cy, sc, a, t, charge) {
+  const h = sc * (1.95 - 0.25 * charge);
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  g.lineJoin = 'miter';
+  g.strokeStyle = 'rgba(255,60,85,' + (0.9 * a).toFixed(3) + ')';
+  g.lineWidth = 2.4;
+  g.strokeRect(cx - h, cy - h, h * 2, h * 2);
+  g.strokeStyle = 'rgba(255,255,255,' + (0.45 * a).toFixed(3) + ')';
+  g.lineWidth = 1;
+  g.strokeRect(cx - h + 7, cy - h + 7, h * 2 - 14, h * 2 - 14);
+  g.strokeStyle = 'rgba(255,230,235,' + (0.95 * a).toFixed(3) + ')';
+  g.lineWidth = 4;
+  const L = h * 0.22;
+  [[-1, -1], [1, -1], [-1, 1], [1, 1]].forEach(q => {
+    g.beginPath();
+    g.moveTo(cx + q[0] * h, cy + q[1] * (h - L));
+    g.lineTo(cx + q[0] * h, cy + q[1] * h);
+    g.lineTo(cx + q[0] * (h - L), cy + q[1] * h);
+    g.stroke();
+  });
+  // lignes de données qui sortent du cadre
+  g.lineWidth = 1.6;
+  for(let i = 0; i < 4; i++){
+    const y = cy + (i - 1.5) * h * 0.55;
+    const ph = (t * 40 + i * 90) % 220;
+    g.strokeStyle = 'rgba(240,240,255,' + (0.35 * a).toFixed(3) + ')';
+    g.beginPath();
+    g.moveTo(cx - h - 400, y);
+    g.lineTo(cx - h, y);
+    g.moveTo(cx + h, y);
+    g.lineTo(cx + h + 400, y);
+    g.stroke();
+    g.strokeStyle = 'rgba(255,50,75,' + (0.8 * a).toFixed(3) + ')';
+    g.beginPath();
+    g.moveTo(cx - h - ph, y);
+    g.lineTo(cx - h - ph + 36, y);
+    g.moveTo(cx + h + ph, y);
+    g.lineTo(cx + h + ph - 36, y);
+    g.stroke();
+  }
+  g.restore();
+}
+
+// Orbe de verre : halo, corps translucide, tourbillons internes, croissant lumineux, noyau blanc et lueur en croix.
+function esDrawOrb(g, cx, cy, r, a, t, charge, S) {
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  const sc = S.join(',');
+  const h = g.createRadialGradient(cx, cy, r * 0.7, cx, cy, r * 2.6);
+  h.addColorStop(0, 'rgba(' + sc + ',' + (0.13 * a).toFixed(3) + ')');
+  h.addColorStop(1, 'rgba(' + sc + ',0)');
+  g.fillStyle = h;
+  g.beginPath();
+  g.arc(cx, cy, r * 2.6, 0, 6.2832);
+  g.fill();
+  const gb = g.createRadialGradient(cx - r * 0.15, cy - r * 0.1, r * 0.1, cx, cy, r);
+  gb.addColorStop(0, 'rgba(' + sc + ',' + (0.02 * a).toFixed(3) + ')');
+  gb.addColorStop(0.72, 'rgba(' + sc + ',' + (0.06 * a).toFixed(3) + ')');
+  gb.addColorStop(1, 'rgba(200,230,255,' + (0.3 * a).toFixed(3) + ')');
+  g.fillStyle = gb;
+  g.beginPath();
+  g.arc(cx, cy, r, 0, 6.2832);
+  g.fill();
+  g.save();
+  g.beginPath();
+  g.arc(cx, cy, r * 0.98, 0, 6.2832);
+  g.clip();
+  for(let k = 0; k < 7; k++){
+    g.strokeStyle = 'rgba(' + (k % 2 ? sc : '190,150,255') + ',' + (0.2 * a).toFixed(3) + ')';
+    g.lineWidth = 1.2;
+    g.beginPath();
+    g.ellipse(cx + Math.sin(t * 0.2 + k) * r * 0.1, cy + Math.cos(t * 0.17 + k) * r * 0.08, r * (0.5 + 0.12 * k), r * (0.16 + 0.06 * k), t * 0.15 * (k % 2 ? 1 : -1) + k, 0, 6.2832);
+    g.stroke();
+  }
+  g.restore();
+  for(let pass = 0; pass < 3; pass++){
+    g.strokeStyle = 'rgba(' + (pass === 2 ? '255,255,255' : '190,225,255') + ',' + ((pass === 0 ? 0.22 : pass === 1 ? 0.5 : 1) * a).toFixed(3) + ')';
+    g.lineWidth = r * (pass === 0 ? 0.09 : pass === 1 ? 0.04 : 0.014);
+    g.beginPath();
+    g.arc(cx, cy, r * 1.005, -2.0, 0.6);
+    g.stroke();
+  }
+  g.strokeStyle = 'rgba(' + sc + ',' + (0.35 * a).toFixed(3) + ')';
+  g.lineWidth = 1.2;
+  g.beginPath();
+  g.arc(cx, cy, r * 0.93, 1.2, 3.2);
+  g.stroke();
+  const cr = r * (0.3 + 0.04 * Math.sin(t * 3) + charge * 0.7);
+  const ox = cx + r * 0.1;
+  const oy = cy + r * 0.2;
+  const cg = g.createRadialGradient(ox, oy, 0, ox, oy, cr);
+  cg.addColorStop(0, 'rgba(255,255,255,' + a.toFixed(3) + ')');
+  cg.addColorStop(0.2, 'rgba(235,245,255,' + (0.7 * a).toFixed(3) + ')');
+  cg.addColorStop(0.55, 'rgba(' + sc + ',' + (0.16 * a).toFixed(3) + ')');
+  cg.addColorStop(1, 'rgba(' + sc + ',0)');
+  g.fillStyle = cg;
+  g.beginPath();
+  g.arc(ox, oy, cr, 0, 6.2832);
+  g.fill();
+  const fl = g.createLinearGradient(ox - r * 1.1, oy, ox + r * 1.1, oy);
+  fl.addColorStop(0, 'rgba(255,255,255,0)');
+  fl.addColorStop(0.5, 'rgba(255,255,255,' + (0.8 * a).toFixed(3) + ')');
+  fl.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = fl;
+  g.fillRect(ox - r * 1.1, oy - 1, r * 2.2, 2);
+  g.restore();
+}
+
+// Fond du mode corrompu : dalles sombres et barres de données rouges / blanches qui se décalent par rangées.
+function esDrawCity(g, W, H, t, a, G) {
+  g.save();
+  g.globalCompositeOperation = 'source-over';
+  G.blocks.forEach((b) => {
+    g.fillStyle = 'rgba(' + b[4] + ',' + b[4] + ',' + (b[4] + 6) + ',' + (0.55 * a).toFixed(2) + ')';
+    g.fillRect(b[0] * W, b[1] * H, b[2] * W, b[3] * H);
+    g.strokeStyle = 'rgba(255,255,255,' + (0.05 * a).toFixed(3) + ')';
+    g.strokeRect(b[0] * W + 0.5, b[1] * H + 0.5, b[2] * W, b[3] * H);
+  });
+  g.globalCompositeOperation = 'lighter';
+  if(Math.random() < 0.35) G.rowOff[Math.floor(Math.random() * G.rowOff.length)] = (Math.random() - 0.5) * 180;
+  for(let i = 0; i < G.rowOff.length; i++) G.rowOff[i] *= 0.9;
+  G.bars.forEach((b) => {
+    const row = Math.floor(b[1] * G.rowOff.length);
+    const x = b[0] * W + G.rowOff[row];
+    const y = b[1] * H;
+    const bl = 0.55 + 0.45 * Math.abs(Math.sin(t * b[5] + b[0] * 9));
+    const col = b[3] === 0 ? '255,40,70' : b[3] === 1 ? '240,240,255' : b[3] === 2 ? '150,20,45' : '255,120,60';
+    g.fillStyle = 'rgba(' + col + ',' + (b[6] * bl * a).toFixed(3) + ')';
+    g.fillRect(x, y, b[2], b[4]);
+  });
+  g.restore();
+}
+
+// Nuage : image de bruit étirée sur la scène, dérivant lentement.
+function esDrawCloud(g, cv, W, H, t, a, k, sc) {
+  const w = W * sc;
+  const h = H * sc;
+  g.globalAlpha = a;
+  g.drawImage(cv, -(w - W) / 2 + Math.sin(t * 0.05 + k) * W * 0.05, -(h - H) / 2 + Math.cos(t * 0.04 + k * 2) * H * 0.05, w, h);
+  g.globalAlpha = 1;
+}
+
+let esCache = null;
+
+function esRgb(c) {
+  return Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]);
+}
+
 function esFxStart() {
   const cv = document.querySelector('#esFx');
+  const cvb = document.querySelector('#esBg');
   const st = document.getElementById('esStage');
-  if(!cv || !st) return;
+  if(!cv || !cvb || !st) return;
   const g0 = cv.getContext('2d');
-  if(!g0) return;
+  const gb0 = cvb.getContext('2d');
+  if(!g0 || !gb0) return;
   const stage = st;
   const canvas = cv;
+  const bgc = cvb;
   const ctx = g0;
+  const bctx = gb0;
   if(!esMeshCache) esMeshCache = esBuildMesh();
+  if(!esCache){
+    esCache = {
+      cloudA: esNoiseCanvas(300, 170, 11, [70, 40, 170], [40, 170, 190], 0.38, 0.78),
+      cloudB: esNoiseCanvas(300, 170, 73, [130, 50, 200], [60, 90, 220], 0.45, 0.85),
+      tex: [esMakeFaceTex(101, true), esMakeFaceTex(202, false), esMakeFaceTex(303, false), esMakeFaceTex(404, false), esMakeFaceTex(505, false)],
+    };
+  }
   const og = document.createElement('canvas');
   const octx = og.getContext('2d');
-  const fg = document.createElement('canvas');
-  const fgx = fg.getContext('2d');
   const b2 = document.createElement('canvas');
   const b2x = b2.getContext('2d');
   const b4 = document.createElement('canvas');
   const b4x = b4.getContext('2d');
-  if(!octx || !fgx || !b2x || !b4x) return;
+  if(!octx || !b2x || !b4x) return;
+  const fg = document.createElement('canvas');
+  const fgx = fg.getContext('2d');
+  if(!fgx) return;
   const fx = fgx;
-  const P = esHexRgb(stage.dataset.acc || '');
-  const S = [96, 214, 255];
-  const G = { W: 0, H: 0, dpr: 1, sc: 140, mx: 0, my: 0, shards: [], lines: [], sparks: [], waves: [], flash: 0, shake: 0, glitch: 0, nextGlitch: 1.5, glitchEnd: 0, rx: 0, ry: 0, rz: 0, mat: 0, stars: [], streaks: [], bokeh: [] };
+  const P0 = esHexRgb(stage.dataset.acc || '');
+  const S0 = [96, 214, 255];
+  const G = {
+    W: 0, H: 0, dpr: 1, sc: 140, mx: 0, my: 0, shards: [], lines: [], sparks: [], waves: [], flash: 0, shake: 0, glitch: 0, nextGlitch: 1.5, glitchEnd: 0,
+    rx: 0, ry: 0, rz: 0, ryC: 0.5, cm: esCorrupt ? 1 : 0, swapUntil: 0, time: 0, nextSurge: 6, surgeEnd: 0,
+    stars: [], bokeh: [], orbits: [], debris: [], bars: [], blocks: [], rowOff: [],
+  };
   esG = G;
   const resize = () => {
     G.dpr = Math.min(2, window.devicePixelRatio || 1);
     G.W = stage.clientWidth;
     G.H = stage.clientHeight;
-    canvas.width = Math.max(1, Math.round(G.W * G.dpr));
-    canvas.height = Math.max(1, Math.round(G.H * G.dpr));
+    const pw = Math.max(1, Math.round(G.W * G.dpr));
+    const ph = Math.max(1, Math.round(G.H * G.dpr));
+    [canvas, bgc, og, fg].forEach(c => { c.width = pw; c.height = ph; });
     canvas.style.width = G.W + 'px';
     canvas.style.height = G.H + 'px';
-    og.width = canvas.width;
-    og.height = canvas.height;
-    fg.width = canvas.width;
-    fg.height = canvas.height;
+    bgc.style.width = G.W + 'px';
+    bgc.style.height = G.H + 'px';
     b2.width = Math.max(1, Math.ceil(G.W / 2));
     b2.height = Math.max(1, Math.ceil(G.H / 2));
     b4.width = Math.max(1, Math.ceil(G.W / 4));
     b4.height = Math.max(1, Math.ceil(G.H / 4));
     G.sc = Math.max(70, Math.min(G.W, G.H) * 0.2);
+    G.rowOff = [];
+    for(let i = 0; i < Math.ceil(G.H / 6); i++) G.rowOff.push(0);
   };
   resize();
+  const r = tmSeeded(8821);
   for(let i = 0; i < 260; i++) G.stars.push([Math.random(), Math.random(), 0.2 + Math.random() * 0.8, Math.random() * 6.28, 0.4 + Math.random() * 1.6]);
-  for(let i = 0; i < 16; i++) G.streaks.push([Math.random(), Math.random(), 120 + Math.random() * 360, 0.15 + Math.random() * 0.35, 0.2 + Math.random() * 0.9]);
   for(let i = 0; i < 16; i++) G.bokeh.push([Math.random(), Math.random(), 24 + Math.random() * 80, 0.025 + Math.random() * 0.06, 6 + Math.random() * 14, i % 3]);
+  for(let i = 0; i < 70; i++) G.orbits.push({ rx: 120 + r() * 560, ry: 26 + r() * 150, tilt: -0.55 + r() * 0.5, a0: r() * 6.28, sp: (0.12 + r() * 0.45) * (r() < 0.5 ? 1 : -1), len: 0.35 + r() * 1.3, w: 0.6 + r() * 1.7, al: 0.15 + r() * 0.5, c: r() < 0.6 ? 0 : 1, oy: (r() - 0.2) * 90 });
+  for(let i = 0; i < 260; i++) G.debris.push({ rx: 60 + r() * 520, ry: 20 + r() * 160, tilt: -0.55 + r() * 0.5, a: r() * 6.28, sp: (0.05 + r() * 0.3) * (r() < 0.5 ? 1 : -1), sz: 0.6 + r() * 2, tw: r() * 6.28, oy: (r() - 0.2) * 90 });
+  for(let i = 0; i < 320; i++){
+    const k = r();
+    G.bars.push([r(), r(), 14 + r() * r() * 300, k < 0.5 ? 0 : k < 0.7 ? 1 : k < 0.88 ? 2 : 3, 1.5 + r() * 3.5, 0.5 + r() * 3, 0.25 + r() * 0.6]);
+  }
+  for(let i = 0; i < 44; i++) G.blocks.push([r() * 0.95, r() * 0.95, 0.04 + r() * 0.2, 0.03 + r() * 0.16, 14 + Math.floor(r() * 18)]);
   stage.addEventListener('pointermove', ev => {
     const b = stage.getBoundingClientRect();
     G.mx = (ev.clientX - b.left) / b.width - 0.5;
@@ -4417,6 +4896,7 @@ function esFxStart() {
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
     t += dt;
+    G.time = t;
     const stp = dt * 60;
     const mode = stage.dataset.mode || 'crystal';
     const tm = (now - esModeT) / 1000;
@@ -4424,80 +4904,134 @@ function esFxStart() {
     const H = G.H;
     const cx = W / 2;
     const cy = H / 2;
-    // glitch : rafales aléatoires (continues pendant la charge)
+    const k = W / 1000;
+    G.cm += ((esCorrupt ? 1 : 0) - G.cm) * Math.min(1, dt * 3);
+    const cm = G.cm;
+    const aP = 1 - cm;
+    const aC = cm;
+    const Pc = esMixArr(P0, [255, 52, 74], cm);
+    const Sc = esMixArr(S0, [255, 150, 165], cm);
+    const Pcs = esRgb(Pc);
+    const Scs = esRgb(Sc);
     let charge = 0;
     if(mode === 'charge') charge = Math.min(1, tm / 0.9);
+    // glitch : rafales aléatoires, continu pendant la charge, total lors du changement de mode, « poussées de corruption » en mode pur
     if(t > G.nextGlitch && mode !== 'burst' && mode !== 'shards'){
       G.glitch = 0.5 + Math.random() * 0.5;
       G.glitchEnd = t + 0.14 + Math.random() * 0.3;
       G.nextGlitch = t + (mode === 'charge' ? 0.12 : 2.2 + Math.random() * 3);
     }
+    if(t > G.nextSurge && cm < 0.5 && mode === 'crystal'){ G.surgeEnd = t + 0.45; G.nextSurge = t + 8 + Math.random() * 6; }
     if(t > G.glitchEnd) G.glitch = mode === 'charge' ? 0.35 + charge * 0.5 : 0;
+    if(t < G.swapUntil) G.glitch = 1;
+    if(t < G.surgeEnd) G.glitch = Math.max(G.glitch, 0.75);
+    // ---------- fond ----------
+    bctx.setTransform(G.dpr, 0, 0, G.dpr, 0, 0);
+    bctx.clearRect(0, 0, W, H);
+    bctx.globalCompositeOperation = 'lighter';
+    if(aP > 0.02){
+      esDrawCloud(bctx, esCache.cloudA, W, H, t, 1.0 * aP, 0, 1.25);
+      esDrawCloud(bctx, esCache.cloudB, W, H, t, 0.85 * aP, 3, 1.5);
+    }
+    if(aC > 0.02){
+      const fgr = bctx.createRadialGradient(cx, H * 0.62, 0, cx, H * 0.62, Math.max(W, H) * 0.7);
+      fgr.addColorStop(0, 'rgba(255,40,70,' + (0.3 * aC).toFixed(3) + ')');
+      fgr.addColorStop(1, 'rgba(255,40,70,0)');
+      bctx.fillStyle = fgr;
+      bctx.fillRect(0, 0, W, H);
+      esDrawCity(bctx, W, H, t, aC, G);
+      bctx.globalCompositeOperation = 'lighter';
+    }
+    for(let i = 0; i < G.stars.length; i++){
+      const s = G.stars[i];
+      const x = ((s[0] * W + t * 3 * s[2] - G.mx * 40 * s[2]) % W + W) % W;
+      const y = ((s[1] * H + t * 1.2 * s[2] - G.my * 26 * s[2]) % H + H) % H;
+      const a = (0.25 + 0.6 * Math.abs(Math.sin(t * 1.2 * s[4] + s[3]))) * s[2] * (1 - 0.6 * cm);
+      bctx.fillStyle = 'rgba(' + (i % 5 === 0 ? Pcs : '225,235,255') + ',' + a.toFixed(2) + ')';
+      bctx.fillRect(x, y, s[2] > 0.8 ? 2 : 1.2, s[2] > 0.8 ? 2 : 1.2);
+    }
+    if(aP > 0.02){
+      const oy0 = cy + G.sc * 0.5;
+      for(let i = 0; i < G.orbits.length; i++){
+        const o = G.orbits[i];
+        const head = o.a0 + t * o.sp;
+        const dir = o.sp > 0 ? 1 : -1;
+        bctx.lineWidth = o.w;
+        for(let s = 0; s < 8; s++){
+          const e1 = head - dir * o.len * s / 8;
+          const e2 = head - dir * o.len * (s + 1) / 8;
+          bctx.strokeStyle = 'rgba(' + (o.c === 0 ? '210,230,255' : '190,150,255') + ',' + (o.al * (1 - s / 8) * aP).toFixed(3) + ')';
+          bctx.beginPath();
+          bctx.ellipse(cx, oy0 + o.oy * k, o.rx * k, o.ry * k, o.tilt, Math.min(e1, e2), Math.max(e1, e2));
+          bctx.stroke();
+        }
+      }
+      for(let i = 0; i < G.debris.length; i++){
+        const d = G.debris[i];
+        const an = d.a + t * d.sp;
+        const ex = Math.cos(an) * d.rx * k;
+        const ey = Math.sin(an) * d.ry * k;
+        const c = Math.cos(d.tilt);
+        const s = Math.sin(d.tilt);
+        const al = (0.3 + 0.7 * Math.abs(Math.sin(t * 2 + d.tw))) * aP;
+        bctx.fillStyle = 'rgba(' + (i % 4 === 0 ? '255,255,255' : '200,225,255') + ',' + al.toFixed(2) + ')';
+        bctx.fillRect(cx + ex * c - ey * s, oy0 + d.oy * k + ex * s + ey * c, d.sz, d.sz);
+      }
+    }
+    for(let i = 0; i < G.bokeh.length; i++){
+      const bk = G.bokeh[i];
+      const bx = ((bk[0] * (W + 200) + t * bk[4] - G.mx * 60 * (bk[2] / 80)) % (W + 200)) - 100;
+      const by = ((bk[1] * (H + 200) - t * bk[4] * 0.4 + 4000) % (H + 200)) - 100;
+      const bg = bctx.createRadialGradient(bx, by, 0, bx, by, bk[2]);
+      const bc = bk[5] === 0 ? Pcs : bk[5] === 1 ? Scs : '255,255,255';
+      bg.addColorStop(0, 'rgba(' + bc + ',' + bk[3].toFixed(3) + ')');
+      bg.addColorStop(1, 'rgba(' + bc + ',0)');
+      bctx.fillStyle = bg;
+      bctx.beginPath();
+      bctx.arc(bx, by, bk[2], 0, 6.2832);
+      bctx.fill();
+    }
+    const showObj = mode === 'crystal' || mode === 'charge' || mode === 'blackout';
+    if(showObj) esDrawFloor(bctx, W, H, t, (0.35 + 0.65 * cm) * (mode === 'blackout' ? 0.4 : Math.min(1, tm / 1.2 + (mode === 'crystal' ? 0 : 1))), Pc, Sc, cx, cy + G.sc * 1.75);
+    bctx.globalCompositeOperation = 'source-over';
+    // ---------- objet et effets ----------
     ctx.setTransform(G.dpr, 0, 0, G.dpr, 0, 0);
     ctx.globalCompositeOperation = 'source-over';
     ctx.clearRect(0, 0, W, H);
     ctx.save();
     if(G.shake > 0.02){ ctx.translate((Math.random() - 0.5) * 22 * G.shake, (Math.random() - 0.5) * 22 * G.shake); G.shake *= Math.pow(0.9, stp); }
-    ctx.globalCompositeOperation = 'lighter';
-    // étoiles
-    for(let i = 0; i < G.stars.length; i++){
-      const s = G.stars[i];
-      const x = ((s[0] * W + t * 3 * s[2] - G.mx * 40 * s[2]) % W + W) % W;
-      const y = ((s[1] * H + t * 1.2 * s[2] - G.my * 26 * s[2]) % H + H) % H;
-      const a = (0.25 + 0.6 * Math.abs(Math.sin(t * 1.2 * s[4] + s[3]))) * s[2];
-      ctx.fillStyle = 'rgba(' + (i % 5 === 0 ? P.join(',') : '225,235,255') + ',' + a.toFixed(2) + ')';
-      ctx.fillRect(x, y, s[2] > 0.8 ? 2 : 1.2, s[2] > 0.8 ? 2 : 1.2);
-    }
-    // traînées de lumière en diagonale (débris, comme dans la bande-annonce)
-    ctx.lineWidth = 1;
-    for(let i = 0; i < G.streaks.length; i++){
-      const s = G.streaks[i];
-      const x = ((s[0] * (W + 400) + t * 90 * s[4]) % (W + 400)) - 200;
-      const y = ((s[1] * (H + 200) - t * 22 * s[4] + 4000) % (H + 200)) - 100;
-      const gr = ctx.createLinearGradient(x, y, x - s[2], y + s[2] * 0.22);
-      gr.addColorStop(0, 'rgba(255,255,255,' + (s[3] * 0.55).toFixed(2) + ')');
-      gr.addColorStop(1, 'rgba(' + S.join(',') + ',0)');
-      ctx.strokeStyle = gr;
-      ctx.beginPath();
-      ctx.moveTo(x, y);
-      ctx.lineTo(x - s[2], y + s[2] * 0.22);
-      ctx.stroke();
-    }
-    // bokeh (lumières floues de premier plan) et sol en perspective
-    for(let i = 0; i < G.bokeh.length; i++){
-      const bk = G.bokeh[i];
-      const bx = ((bk[0] * (W + 200) + t * bk[4] - G.mx * 60 * (bk[2] / 80)) % (W + 200)) - 100;
-      const by = ((bk[1] * (H + 200) - t * bk[4] * 0.4 + 4000) % (H + 200)) - 100;
-      const bg = ctx.createRadialGradient(bx, by, 0, bx, by, bk[2]);
-      const bc = bk[5] === 0 ? P.join(',') : bk[5] === 1 ? S.join(',') : '255,255,255';
-      bg.addColorStop(0, 'rgba(' + bc + ',' + bk[3].toFixed(3) + ')');
-      bg.addColorStop(1, 'rgba(' + bc + ',0)');
-      ctx.fillStyle = bg;
-      ctx.beginPath();
-      ctx.arc(bx, by, bk[2], 0, 6.2832);
-      ctx.fill();
-    }
-    const floorOn = mode === 'crystal' || mode === 'charge' || mode === 'blackout';
-    if(floorOn) esDrawFloor(ctx, W, H, t, mode === 'blackout' ? 0.4 : Math.min(1, tm / 1.2 + (mode === 'crystal' ? 0 : 1)), P, S, cx, cy + G.sc * 1.75);
-    // cristal
-    const showCrystal = mode === 'crystal' || mode === 'charge' || mode === 'blackout';
-    if(showCrystal){
+    if(showObj){
       let mat = mode === 'crystal' ? Math.min(1, tm / 1.7) : 1;
       mat = 1 - Math.pow(1 - mat, 3);
       let scale = 0.45 + 0.55 * mat;
       let alpha = mat;
       if(mode === 'charge') scale = 1 - 0.1 * charge + (Math.random() - 0.5) * 0.02 * charge;
-      if(mode === 'blackout'){ const k = Math.min(1, tm / 0.26); scale = 0.9 * (1 - k * k); alpha = 1 - k * 0.4; }
+      if(mode === 'blackout'){ const kk = Math.min(1, tm / 0.26); scale = 0.9 * (1 - kk * kk); alpha = 1 - kk * 0.4; }
       G.rx = -0.32 + G.my * -0.5 + Math.sin(t * 0.5) * 0.12;
       G.ry += dt * (0.55 + charge * 6);
+      G.ryC += dt * (0.18 + charge * 5);
       G.rz = G.mx * 0.3;
-      const fy = Math.sin(t * 1.05) * 14 * G.sc / 140;
       const ccx = cx;
-      const ccy = cy + fy;
+      const ccy = cy + Math.sin(t * 1.05) * 14 * G.sc / 140;
       octx.setTransform(G.dpr, 0, 0, G.dpr, 0, 0);
       octx.clearRect(0, 0, W, H);
-      esDrawReticle(octx, ccx, ccy, G.sc * 1.55 * scale, t, alpha * (mode === 'blackout' ? 0.4 : 1), S, P);
-      esDrawCrystal(octx, ccx, ccy, G.sc * scale, G.rx, G.ry, G.rz, alpha, charge, t, P, S, 1.7 - ((t * 0.16) % 1) * 3.4);
+      if(aP > 0.02){
+        esDrawReticle(octx, ccx, ccy, G.sc * 1.75 * scale, t, alpha * aP * (mode === 'blackout' ? 0.4 : 1), Sc, Pc);
+        esDrawOrb(octx, ccx, ccy, G.sc * 1.5 * scale, alpha * aP, t, charge, Sc);
+        esDrawCrystal(octx, ccx, ccy, G.sc * 0.8 * scale, G.rx, G.ry, G.rz, alpha * aP, charge, t, Pc, Sc, 1.7 - ((t * 0.16) % 1) * 3.4);
+      }
+      if(aC > 0.02){
+        esDrawFrame(octx, ccx, ccy, G.sc * scale, alpha * aC, t, charge);
+        esDrawCube(octx, ccx, ccy, G.sc * 0.78 * scale, 0.62 + G.my * 0.3, 0.55 + Math.sin(t * 0.3) * 0.45 + G.ryC * (charge > 0 ? 1 : 0) + G.mx * 0.4, G.mx * 0.12, alpha * aC, t, charge, esCache.tex);
+      }
+      if(t < G.surgeEnd){
+        octx.globalCompositeOperation = 'lighter';
+        for(let i = 0; i < 9; i++){
+          octx.fillStyle = 'rgba(255,50,80,' + (0.3 + Math.random() * 0.4).toFixed(2) + ')';
+          octx.fillRect(ccx + (Math.random() - 0.5) * G.sc * 3.2, ccy + (Math.random() - 0.5) * G.sc * 3, 20 + Math.random() * 140, 2 + Math.random() * 7);
+        }
+        octx.globalCompositeOperation = 'source-over';
+      }
       G.csc = G.sc * scale;
       const gl = G.glitch;
       ctx.globalCompositeOperation = 'lighter';
@@ -4515,40 +5049,36 @@ function esFxStart() {
         for(let b = 0; b < bands; b++){
           const by = Math.random() * H;
           const bh = 4 + Math.random() * 28;
-          const off = (Math.random() - 0.5) * 70 * gl;
-          ctx.drawImage(og, 0, by * G.dpr, W * G.dpr, bh * G.dpr, off, by, W, bh);
+          ctx.drawImage(og, 0, by * G.dpr, W * G.dpr, bh * G.dpr, (Math.random() - 0.5) * 70 * gl, by, W, bh);
         }
       } else {
         ctx.drawImage(og, 0, 0, W * G.dpr, H * G.dpr, 0, 0, W, H);
       }
     }
-    // obscurité avant l'explosion (le « silence » de la bande-annonce)
     ctx.globalCompositeOperation = 'source-over';
     if(mode === 'blackout'){
       ctx.fillStyle = 'rgba(0,0,6,' + Math.min(0.88, tm / 0.2).toFixed(2) + ')';
       ctx.fillRect(0, 0, W, H);
     }
-    ctx.globalCompositeOperation = 'lighter';
+    // ----- explosion : lignes de vitesse, éclats de verre (ou de métal), étincelles, ondes de choc -----
     fx.setTransform(G.dpr, 0, 0, G.dpr, 0, 0);
     fx.clearRect(0, 0, W, H);
     fx.globalCompositeOperation = 'lighter';
-    // lignes de vitesse
     for(let i = G.lines.length - 1; i >= 0; i--){
       const l = G.lines[i];
       l.life += stp;
       if(l.life > l.max){ G.lines.splice(i, 1); continue; }
       l.r += l.v * stp;
       l.v *= Math.pow(0.93, stp);
-      const k = 1 - l.life / l.max;
-      const r0 = Math.max(0, l.r - l.len * k);
-      fx.strokeStyle = 'rgba(' + (i % 3 === 0 ? S.join(',') : '235,245,255') + ',' + (k * 0.85).toFixed(2) + ')';
+      const kk = 1 - l.life / l.max;
+      const r0 = Math.max(0, l.r - l.len * kk);
+      fx.strokeStyle = 'rgba(' + (i % 3 === 0 ? Scs : '235,245,255') + ',' + (kk * 0.85).toFixed(2) + ')';
       fx.lineWidth = l.w;
       fx.beginPath();
       fx.moveTo(cx + Math.cos(l.an) * r0, cy + Math.sin(l.an) * r0);
       fx.lineTo(cx + Math.cos(l.an) * l.r, cy + Math.sin(l.an) * l.r);
       fx.stroke();
     }
-    // éclats de verre en vortex (3D)
     const draw = [];
     for(let i = G.shards.length - 1; i >= 0; i--){
       const s = G.shards[i];
@@ -4567,14 +5097,15 @@ function esFxStart() {
       draw.push(s);
     }
     draw.sort((a, b) => b.p[2] - a.p[2]);
+    const cor = cm > 0.5;
     draw.forEach((s) => {
-      const k = Math.min(1, (1 - s.life / s.max) * 2.2);
+      const kk = Math.min(1, (1 - s.life / s.max) * 2.2);
       const pts = s.rel.map((q) => {
-        const r = esRot(q, s.r[0], s.r[1], s.r[2]);
-        return esProj([r[0] * 1.0 + s.p[0], r[1] + s.p[1], r[2] + s.p[2]], cx, cy, G.shardSc);
+        const rr = esRot(q, s.r[0], s.r[1], s.r[2]);
+        return esProj([rr[0] + s.p[0], rr[1] + s.p[1], rr[2] + s.p[2]], cx, cy, G.shardSc);
       });
-      fx.fillStyle = 'rgba(' + esMix(P, S, (Math.sin(s.r[0]) + 1) / 2) + ',' + (0.2 * k).toFixed(3) + ')';
-      fx.strokeStyle = s.glint && s.life % 14 < 4 ? 'rgba(255,255,255,' + k.toFixed(2) + ')' : 'rgba(' + S.join(',') + ',' + (0.85 * k).toFixed(2) + ')';
+      fx.fillStyle = cor ? 'rgba(30,14,20,' + (0.9 * kk).toFixed(2) + ')' : 'rgba(' + esMix(Pc, Sc, (Math.sin(s.r[0]) + 1) / 2) + ',' + (0.2 * kk).toFixed(3) + ')';
+      fx.strokeStyle = s.glint && s.life % 14 < 4 ? 'rgba(255,255,255,' + kk.toFixed(2) + ')' : 'rgba(' + (cor ? '255,60,85' : Scs) + ',' + (0.9 * kk).toFixed(2) + ')';
       fx.lineWidth = 1.3;
       fx.beginPath();
       fx.moveTo(pts[0][0], pts[0][1]);
@@ -4584,7 +5115,6 @@ function esFxStart() {
       fx.fill();
       fx.stroke();
     });
-    // étincelles
     for(let i = G.sparks.length - 1; i >= 0; i--){
       const p = G.sparks[i];
       p.life += stp;
@@ -4593,22 +5123,21 @@ function esFxStart() {
       p.y += p.vy * stp;
       p.vx *= Math.pow(0.955, stp);
       p.vy *= Math.pow(0.955, stp);
-      const k = 1 - p.life / p.max;
-      fx.strokeStyle = 'rgba(' + (i % 2 ? S.join(',') : '255,200,240') + ',' + (k * 0.9).toFixed(2) + ')';
+      const kk = 1 - p.life / p.max;
+      fx.strokeStyle = 'rgba(' + (i % 2 ? Scs : '255,200,240') + ',' + (kk * 0.9).toFixed(2) + ')';
       fx.lineWidth = p.w;
       fx.beginPath();
       fx.moveTo(p.x, p.y);
       fx.lineTo(p.x - p.vx * 2.4, p.y - p.vy * 2.4);
       fx.stroke();
     }
-    // ondes de choc
     for(let i = G.waves.length - 1; i >= 0; i--){
       const w = G.waves[i];
       w.r += w.v * stp;
       w.v *= Math.pow(0.965, stp);
       w.a *= Math.pow(0.95, stp);
       if(w.a < 0.02){ G.waves.splice(i, 1); continue; }
-      fx.strokeStyle = 'rgba(' + S.join(',') + ',' + w.a.toFixed(2) + ')';
+      fx.strokeStyle = 'rgba(' + Scs + ',' + w.a.toFixed(2) + ')';
       fx.lineWidth = w.w * w.a + 1;
       fx.beginPath();
       fx.arc(cx, cy, w.r, 0, 6.2832);
@@ -4617,16 +5146,24 @@ function esFxStart() {
     ctx.globalCompositeOperation = 'lighter';
     ctx.drawImage(fg, 0, 0, W * G.dpr, H * G.dpr, 0, 0, W, H);
     ctx.restore();
-    // éclair blanc-bleu de l'explosion
     if(G.flash > 0.02){
       ctx.globalCompositeOperation = 'lighter';
       const gr = ctx.createRadialGradient(cx, cy, 0, cx, cy, Math.max(W, H) * 0.75);
       gr.addColorStop(0, 'rgba(255,255,255,' + G.flash.toFixed(2) + ')');
-      gr.addColorStop(0.35, 'rgba(190,225,255,' + (G.flash * 0.7).toFixed(2) + ')');
-      gr.addColorStop(1, 'rgba(' + S.join(',') + ',0)');
+      gr.addColorStop(0.35, 'rgba(' + (cor ? '255,170,185' : '190,225,255') + ',' + (G.flash * 0.7).toFixed(2) + ')');
+      gr.addColorStop(1, 'rgba(' + Scs + ',0)');
       ctx.fillStyle = gr;
       ctx.fillRect(0, 0, W, H);
       G.flash *= Math.pow(0.9, stp);
+    }
+    // tranches décalées pendant le changement de mode
+    if(t < G.swapUntil){
+      ctx.globalCompositeOperation = 'source-over';
+      for(let b = 0; b < 7; b++){
+        const by = Math.random() * H;
+        const bh = 6 + Math.random() * 40;
+        ctx.drawImage(canvas, 0, by * G.dpr, W * G.dpr, bh * G.dpr, (Math.random() - 0.5) * 120, by, W, bh);
+      }
     }
     // bloom : copies floues à basse résolution ajoutées en lumière (halo néon)
     b2x.clearRect(0, 0, b2.width, b2.height);
@@ -4635,10 +5172,10 @@ function esFxStart() {
     b4x.drawImage(canvas, 0, 0, b4.width, b4.height);
     ctx.globalCompositeOperation = 'lighter';
     ctx.filter = 'blur(5px)';
-    ctx.globalAlpha = 0.7;
+    ctx.globalAlpha = 0.42;
     ctx.drawImage(b2, 0, 0, W, H);
     ctx.filter = 'blur(3px)';
-    ctx.globalAlpha = 0.85;
+    ctx.globalAlpha = 0.5;
     ctx.drawImage(b4, 0, 0, W, H);
     ctx.filter = 'none';
     ctx.globalAlpha = 1;
@@ -4646,6 +5183,66 @@ function esFxStart() {
     requestAnimationFrame(frame);
   };
   requestAnimationFrame(frame);
+}
+
+// Bascule entre l'essence pure et l'essence corrompue : glitch de scène, changement de palette, de titre et de fragments.
+function esDoc() {
+  return esCorrupt ? 'essencec' : 'essence';
+}
+
+function esPrefix() {
+  return esCorrupt ? 'esg-' : 'esf-';
+}
+
+function esDefaults() {
+  return esCorrupt ? ES_DEFAULTS_C : ES_DEFAULTS;
+}
+
+function esApplyHeader() {
+  const st = document.getElementById('esStage');
+  if(!st) return;
+  const ap = apOf(esDoc());
+  const k = document.querySelector('.es-kicker');
+  const h = document.querySelector('.es-title h1');
+  const p = document.querySelector('.es-title p');
+  if(k) k.textContent = ap.kicker;
+  if(h) h.textContent = ap.title;
+  if(p) p.textContent = ap.tagline;
+  let bi = st.querySelector('.es-bgimg');
+  if(ap.img){
+    if(!bi){
+      bi = document.createElement('div');
+      bi.className = 'es-bgimg';
+      st.insertBefore(bi, st.firstChild);
+    }
+    bi.style.backgroundImage = 'url("' + ap.img.replace(/"/g, '%22') + '")';
+  } else if(bi){
+    bi.remove();
+  }
+}
+
+function esSetCorrupt(on) {
+  if(on === esCorrupt) return;
+  const st = document.getElementById('esStage');
+  const page = document.querySelector('.es-page');
+  if(!st || !page) return;
+  esCorrupt = on;
+  if(esG) esG.swapUntil = esG.time + 0.75;
+  st.classList.add('es-swap');
+  esCloseDetail(true);
+  window.setTimeout(() => {
+    if(!document.body.contains(st)) return;
+    page.classList.toggle('corrupt', on);
+    document.querySelectorAll('.es-switch button').forEach(b => b.classList.toggle('on', (b.dataset.m === 'c') === on));
+    esApplyHeader();
+    const box = document.getElementById('esShards');
+    if(box){
+      const fr = esFrags();
+      box.innerHTML = fr.map((f, i) => esShardHtml(f, i, fr.length)).join('');
+      esLayout();
+    }
+  }, 330);
+  window.setTimeout(() => st.classList.remove('es-swap'), 850);
 }
 
 function esSetMode(m, silent = false) {
@@ -4756,7 +5353,7 @@ function esOpenEditor(id) {
   esImg = cur ? cur.img : '';
   nvCloseForm();
   const box = pageEditHost();
-  const isDefault = ES_DEFAULTS.some(d => d.id === id);
+  const isDefault = esDefaults().some(d => d.id === id);
   box.innerHTML = `
     <button type="button" class="nv-card-x" onclick="nvCloseForm()">✕</button>
     <div class="nv-ed-title">${cur ? 'Modifier le fragment' : 'Nouveau fragment'}</div>
@@ -4791,7 +5388,7 @@ function esSaveFrag() {
   if(!t){ alert('Donne au moins un titre au fragment.'); return; }
   const id = esEditId || ('n' + Date.now().toString(36));
   const ord = Number(esVal('esfO'));
-  writeCityPatch('esf-' + id, { t, s: esVal('esfS'), img: esImg || null, body: esVal('esfB'), order: isFinite(ord) ? ord : 100, deleted: false })
+  writeCityPatch(esPrefix() + id, { t, s: esVal('esfS'), img: esImg || null, body: esVal('esfB'), order: isFinite(ord) ? ord : 100, deleted: false })
     .then(() => { nvCloseForm(); if(esOpenId) window.setTimeout(() => esOpen(esOpenId), 80); })
     .catch(err => alert('Enregistrement impossible : ' + (err && err.message ? err.message : err)));
 }
@@ -4799,14 +5396,14 @@ function esSaveFrag() {
 function esDeleteFrag() {
   if(!isLoggedIn() || !esEditId) return;
   if(!confirm('Supprimer ce fragment ?')) return;
-  writeCityPatch('esf-' + esEditId, { deleted: true })
+  writeCityPatch(esPrefix() + esEditId, { deleted: true })
     .then(() => { nvCloseForm(); esCloseDetail(true); })
     .catch(err => alert('Suppression impossible : ' + (err && err.message ? err.message : err)));
 }
 
 function esRestoreFrag() {
   if(!isLoggedIn() || !esEditId) return;
-  writeCityPatch('esf-' + esEditId, { t: null, s: null, img: null, body: null, order: null, deleted: false })
+  writeCityPatch(esPrefix() + esEditId, { t: null, s: null, img: null, body: null, order: null, deleted: false })
     .then(() => nvCloseForm())
     .catch(err => alert('Impossible : ' + (err && err.message ? err.message : err)));
 }
