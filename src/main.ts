@@ -4467,7 +4467,7 @@ function esShardHtml(f: EsFrag, i: number, n: number): string {
         <div class="es-shade"></div>
         <div class="es-scan"></div>
       </div>
-      <svg class="es-edge" aria-hidden="true"><polygon class="e2" points=""/><polygon class="e1" points=""/><polygon class="e3" points=""/></svg>
+      <svg class="es-edge" aria-hidden="true"><polygon class="e2" points=""/><polygon class="e1" points=""/><polygon class="e3" points=""/><path class="e4" d=""/></svg>
       <div class="es-label"><i class="es-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 1.5l2.4 8.1 8.1 2.4-8.1 2.4L12 22.5l-2.4-8.1L1.5 12l8.1-2.4z"/></svg></i><span><em>${num}</em>${esc(f.t)}<small>ESS // 0x${code}</small></span></div>
     </div>
   </div>`;
@@ -4549,7 +4549,7 @@ function renderEssencePage(): string {
         <div class="es-gauges" aria-hidden="true">${esGaugeHtml('esG1', 'Stabilité', 87)}${esGaugeHtml('esG2', 'Flux', 64)}${esGaugeHtml('esG3', 'Résonance', 92)}</div>
         ${esBootHtml()}
         <button type="button" class="es-hit" onclick="esBurst()" aria-label="Briser le cristal"></button>
-        <div class="es-shards" id="esShards"><svg class="es-minis" aria-hidden="true"></svg>${frags.map((f, i) => esShardHtml(f, i, frags.length)).join('')}</div>
+        <div class="es-shards" id="esShards"><svg class="es-minis" aria-hidden="true"></svg>${frags.map((f, i) => esShardHtml(f, i, frags.length)).join('')}<svg class="es-cracks" aria-hidden="true"></svg><svg class="es-hole" aria-hidden="true"></svg></div>
         <canvas class="es-fx" id="esFx"></canvas>
         <div class="es-flash"></div>
         <div class="es-ring r1"></div><div class="es-ring r2"></div>
@@ -4562,7 +4562,7 @@ function renderEssencePage(): string {
     </div>`;
 }
 
-/* ---- mise en page des fragments : cellules de Voronoï autour du centre, rétrécies pour laisser un joint sombre ---- */
+/* ---- mise en page des fragments : découpe d'un polygone par un demi-plan (sert à rogner les coins de verre au bord de la scène) ---- */
 function esClip(poly: number[][], nx: number, ny: number, c: number): number[][] {
   const out: number[][] = [];
   for(let i = 0; i < poly.length; i++){
@@ -4579,6 +4579,9 @@ function esClip(poly: number[][], nx: number, ny: number, c: number): number[][]
   return out;
 }
 
+// Fragments en « vitre brisée » : un point d'impact au centre (trou sombre), des fissures radiales qui partent jusqu'aux bords,
+// chaque fragment est un coin de verre entre deux fissures, rayé de fissures secondaires ; des impulsions de données
+// circulent le long des fissures (côté informatique), des éclats et des pixels s'échappent du trou.
 function esLayout(): void {
   const st = document.getElementById('esStage');
   if(!st) return;
@@ -4591,55 +4594,113 @@ function esLayout(): void {
   st.style.setProperty('--k', k.toFixed(3));
   if(!n) return;
   const r = tmSeeded(5309 + n);
-  const cx = W / 2;
-  const cy = H / 2;
-  const seeds: number[][] = [];
+  const cx = W * 0.5;
+  const cy = H * 0.5;
+  const R0 = Math.min(W, H) * 0.11;
+  const FAR = Math.hypot(W, H);
+  // fissures radiales : lignes brisées qui partent du bord du trou
+  const base = -Math.PI / 2 + (r() - 0.5) * 0.4;
+  const cracks: number[][][] = [];
+  const angs: number[] = [];
   for(let i = 0; i < n; i++){
-    const a = (i / n) * Math.PI * 2 - Math.PI / 2 + (r() - 0.5) * (Math.PI / n) * 0.7;
-    const rad = 0.26 + r() * 0.1;
-    seeds.push([cx + Math.cos(a) * W * rad * 1.15, cy + Math.sin(a) * H * rad * 1.25]);
-  }
-  const ell: number[][] = [];
-  for(let q = 0; q < 28; q++){
-    const an = q / 28 * Math.PI * 2;
-    ell.push([cx + Math.cos(an) * W * 0.48, cy + Math.sin(an) * H * 0.47]);
-  }
-  els.forEach((el, i) => {
-    let poly: number[][] = ell.map(p => [p[0], p[1]]);
-    for(let j = 0; j < n; j++){
-      if(j === i) continue;
-      const nx = seeds[j][0] - seeds[i][0];
-      const ny = seeds[j][1] - seeds[i][1];
-      const c = nx * (seeds[i][0] + seeds[j][0]) / 2 + ny * (seeds[i][1] + seeds[j][1]) / 2;
-      poly = esClip(poly, nx, ny, c);
-      if(poly.length < 3) break;
+    let an = base + i * Math.PI * 2 / n + (r() - 0.5) * (Math.PI / n) * 0.5;
+    angs.push(an);
+    let rad = R0 * (0.85 + r() * 0.3);
+    const pts: number[][] = [[cx + Math.cos(an) * rad, cy + Math.sin(an) * rad]];
+    while(rad < FAR){
+      rad += FAR * (0.1 + r() * 0.14);
+      an += (r() - 0.5) * 0.09;
+      pts.push([cx + Math.cos(an) * rad, cy + Math.sin(an) * rad]);
     }
+    cracks.push(pts);
+  }
+  const holePts: number[][] = [];
+  const m = -30;
+  els.forEach((el, i) => {
+    const A = cracks[i];
+    const B = cracks[(i + 1) % n];
+    const a0 = angs[i];
+    let a1 = angs[(i + 1) % n];
+    while(a1 <= a0) a1 += Math.PI * 2;
+    const inner: number[][] = [];
+    for(let q = 4; q >= 1; q--){
+      const an = a0 + (a1 - a0) * q / 5;
+      const rr0 = R0 * (q % 2 ? 0.62 + r() * 0.2 : 1.05 + r() * 0.3);
+      inner.push([cx + Math.cos(an) * rr0, cy + Math.sin(an) * rr0]);
+    }
+    holePts.push(A[0]);
+    inner.slice().reverse().forEach(p => holePts.push(p));
+    const am = (a0 + a1) / 2;
+    let poly: number[][] = A.concat([[cx + Math.cos(am) * FAR * 2.2, cy + Math.sin(am) * FAR * 2.2]]).concat(B.slice().reverse()).concat(inner);
+    poly = esClip(poly, -1, 0, -m);
+    poly = esClip(poly, 1, 0, W - m);
+    poly = esClip(poly, 0, -1, -m);
+    poly = esClip(poly, 0, 1, H - m);
     if(poly.length < 3) return;
     let gx = 0;
     let gy = 0;
     poly.forEach(p => { gx += p[0]; gy += p[1]; });
     gx /= poly.length;
     gy /= poly.length;
-    const f = 0.86;
-    poly = poly.map(p => [gx + (p[0] - gx) * f, gy + (p[1] - gy) * f]);
-    // verre brisé : sommets décalés, une pointe tirée vers l'extérieur, parfois un angle en moins
-    const rj = tmSeeded(77 + i * 13);
-    let md = 0;
-    poly.forEach(p => { md += Math.hypot(p[0] - gx, p[1] - gy); });
-    md /= poly.length;
-    poly = poly.map(p => [p[0] + (rj() - 0.5) * md * 0.14, p[1] + (rj() - 0.5) * md * 0.14]);
-    const spk = Math.floor(rj() * poly.length);
-    poly[spk] = [gx + (poly[spk][0] - gx) * 1.18, gy + (poly[spk][1] - gy) * 1.18];
-    if(poly.length > 5 && rj() < 0.6) poly.splice((spk + 2) % poly.length, 1);
+    // joint : chaque sommet recule de quelques pixels vers le centre de la pièce
+    const cgx = gx;
+    const cgy = gy;
+    const src = poly;
+    function inset(d0: number): number[][] {
+      return src.map(p => {
+        const dx = cgx - p[0];
+        const dy = cgy - p[1];
+        const dd = Math.hypot(dx, dy) || 1;
+        return [p[0] + dx / dd * d0, p[1] + dy / dd * d0];
+      });
+    }
+    const outer = inset(4);
+    const bev = inset(10);
     let x0 = 1e9;
     let y0 = 1e9;
     let x1 = -1e9;
     let y1 = -1e9;
-    poly.forEach(p => { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); });
+    outer.forEach(p => { x0 = Math.min(x0, p[0]); y0 = Math.min(y0, p[1]); x1 = Math.max(x1, p[0]); y1 = Math.max(y1, p[1]); });
     const bw = x1 - x0;
     const bh = y1 - y0;
-    const pts = poly.map(p => (p[0] - x0).toFixed(1) + ',' + (p[1] - y0).toFixed(1));
-    const pts2 = poly.map(p => (gx + (p[0] - gx) * 0.94 - x0).toFixed(1) + ',' + (gy + (p[1] - gy) * 0.94 - y0).toFixed(1));
+    const pts = outer.map(p => (p[0] - x0).toFixed(1) + ',' + (p[1] - y0).toFixed(1));
+    const pts2 = bev.map(p => (p[0] - x0).toFixed(1) + ',' + (p[1] - y0).toFixed(1));
+    // fissures secondaires (d'une fissure à l'autre, et quelques branches)
+    const rj = tmSeeded(77 + i * 13);
+    const aA = Math.atan2(A[1][1] - cy, A[1][0] - cx);
+    let aB = Math.atan2(B[1][1] - cy, B[1][0] - cx);
+    while(aB <= aA) aB += Math.PI * 2;
+    let d = '';
+    const lim = Math.min(W, H);
+    for(let q = 0; q < 3; q++){
+      const rr = lim * (0.2 + q * 0.17 + rj() * 0.08);
+      for(let s2 = 0; s2 <= 4; s2++){
+        const an = aA + (aB - aA) * s2 / 4;
+        const rr2 = rr * (0.92 + rj() * 0.16);
+        d += (s2 === 0 ? 'M' : 'L') + (cx + Math.cos(an) * rr2 - x0).toFixed(1) + ' ' + (cy + Math.sin(an) * rr2 - y0).toFixed(1);
+      }
+    }
+    // une longue fissure radiale qui traverse le coin jusqu'au bord
+    {
+      let an = aA + (aB - aA) * (0.3 + rj() * 0.4);
+      let rr = R0 * 1.05;
+      d += 'M' + (cx + Math.cos(an) * rr - x0).toFixed(1) + ' ' + (cy + Math.sin(an) * rr - y0).toFixed(1);
+      while(rr < FAR){
+        rr += lim * (0.08 + rj() * 0.1);
+        an += (rj() - 0.5) * 0.06;
+        d += 'L' + (cx + Math.cos(an) * rr - x0).toFixed(1) + ' ' + (cy + Math.sin(an) * rr - y0).toFixed(1);
+      }
+    }
+    for(let q = 0; q < 2; q++){
+      let an = aA + (aB - aA) * (0.15 + rj() * 0.7);
+      let rr = R0 * 1.2;
+      d += 'M' + (cx + Math.cos(an) * rr - x0).toFixed(1) + ' ' + (cy + Math.sin(an) * rr - y0).toFixed(1);
+      for(let s2 = 0; s2 < 4; s2++){
+        rr += lim * (0.05 + rj() * 0.07);
+        an += (rj() - 0.5) * 0.12;
+        d += 'L' + (cx + Math.cos(an) * rr - x0).toFixed(1) + ' ' + (cy + Math.sin(an) * rr - y0).toFixed(1);
+      }
+    }
     const ox = gx - x0;
     const oy = gy - y0;
     const rr = tmSeeded(911 + i * 17);
@@ -4651,41 +4712,71 @@ function esLayout(): void {
     el.style.setProperty('--ix', (cx - gx).toFixed(1) + 'px');
     el.style.setProperty('--iy', (cy - gy).toFixed(1) + 'px');
     el.style.setProperty('--ir', Math.round((rr() - 0.5) * 540) + 'deg');
-    el.style.setProperty('--dx', ((rr() - 0.5) * 10).toFixed(1) + 'px');
-    el.style.setProperty('--dy', ((rr() - 0.5) * 10).toFixed(1) + 'px');
-    el.style.setProperty('--dr', ((rr() - 0.5) * 9).toFixed(2) + 'deg');
-    el.style.setProperty('--tx', ((rr() - 0.5) * 22).toFixed(1) + 'deg');
-    el.style.setProperty('--ty', ((rr() - 0.5) * 26).toFixed(1) + 'deg');
-    const inner = el.querySelector<HTMLElement>('.es-shard-in');
-    if(inner) inner.style.clipPath = 'polygon(' + pts.map(p => p.replace(',', 'px ') + 'px').join(',') + ')';
+    el.style.setProperty('--dx', (Math.cos(am) * (4 + rr() * 6)).toFixed(1) + 'px');
+    el.style.setProperty('--dy', (Math.sin(am) * (4 + rr() * 6)).toFixed(1) + 'px');
+    el.style.setProperty('--dr', ((rr() - 0.5) * 2.4).toFixed(2) + 'deg');
+    el.style.setProperty('--tx', ((rr() - 0.5) * 8).toFixed(1) + 'deg');
+    el.style.setProperty('--ty', ((rr() - 0.5) * 10).toFixed(1) + 'deg');
+    const inner2 = el.querySelector<HTMLElement>('.es-shard-in');
+    if(inner2) inner2.style.clipPath = 'polygon(' + pts.map(p => p.replace(',', 'px ') + 'px').join(',') + ')';
     const svg = el.querySelector<SVGElement>('.es-edge');
     if(svg){
       svg.setAttribute('width', String(bw));
       svg.setAttribute('height', String(bh));
       svg.querySelectorAll('polygon').forEach(pg => pg.setAttribute('points', (pg.getAttribute('class') === 'e3' ? pts2 : pts).join(' ')));
+      const p4 = svg.querySelector('path');
+      if(p4) p4.setAttribute('d', d);
     }
     const lab = el.querySelector<HTMLElement>('.es-label');
-    let blv = poly[0];
-    poly.forEach(p => { if(p[1] - p[0] > blv[1] - blv[0]) blv = p; });
-    if(lab){ lab.style.left = (gx + (blv[0] - gx) * 0.5 - x0).toFixed(1) + 'px'; lab.style.top = (gy + (blv[1] - gy) * 0.5 - y0).toFixed(1) + 'px'; }
+    if(lab){
+      const rl = lim * 0.29;
+      lab.style.left = (cx + Math.cos(am) * rl - x0).toFixed(1) + 'px';
+      lab.style.top = (cy + Math.sin(am) * rl - y0).toFixed(1) + 'px';
+    }
   });
-  // petits éclats de verre qui flottent entre les fragments
+  // fissures radiales lumineuses + impulsions de données qui filent vers l'extérieur
+  const cs = st.querySelector('.es-cracks');
+  if(cs){
+    let html = '';
+    cracks.forEach((c, i) => {
+      const dd = c.map((p, q) => (q === 0 ? 'M' : 'L') + p[0].toFixed(1) + ' ' + p[1].toFixed(1)).join('');
+      html += `<path class="g" d="${dd}"/><path class="p" d="${dd}" style="animation-delay:-${(i * 0.7).toFixed(1)}s;animation-duration:${(2.2 + (i % 3) * 0.6).toFixed(1)}s"/>`;
+    });
+    cs.innerHTML = html;
+    cs.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  }
+  // trou d'impact : bords dentelés, cœur violet, pixels qui s'en échappent
+  const hole = st.querySelector('.es-hole');
+  if(hole){
+    const rh = tmSeeded(606);
+    let px = '';
+    for(let q = 0; q < 26; q++){
+      const an = rh() * 6.283;
+      const rd = R0 * (0.6 + rh() * 1.6);
+      const sz = 2 + rh() * 6;
+      px += `<rect x="${(cx + Math.cos(an) * rd).toFixed(1)}" y="${(cy + Math.sin(an) * rd).toFixed(1)}" width="${sz.toFixed(1)}" height="${sz.toFixed(1)}" style="animation-delay:-${(rh() * 2).toFixed(2)}s"/>`;
+    }
+    hole.innerHTML = `<defs><radialGradient id="esHoleG" cx="${cx}" cy="${cy}" r="${(R0 * 1.25).toFixed(1)}" gradientUnits="userSpaceOnUse"><stop offset="0" stop-color="#f3dcff"/><stop offset="0.18" stop-color="#b46cff"/><stop offset="0.5" stop-color="#3a1470"/><stop offset="1" stop-color="#05020c"/></radialGradient></defs>`
+      + `<polygon points="${holePts.map(p => p[0].toFixed(1) + ',' + p[1].toFixed(1)).join(' ')}"/>${px}`;
+    hole.setAttribute('viewBox', '0 0 ' + W + ' ' + H);
+  }
+  // petits éclats de verre projetés hors du trou
   const mini = st.querySelector('.es-minis');
   if(mini){
     const rm = tmSeeded(4242);
     let html = '';
-    for(let q = 0; q < 14; q++){
+    for(let q = 0; q < 16; q++){
       const an = rm() * 6.283;
-      const rad = q < 3 ? rm() * 0.04 : 0.47 + rm() * 0.09;
-      const px = cx + Math.cos(an) * W * rad;
-      const py = cy + Math.sin(an) * H * rad;
-      const sz = 5 + rm() * (q < 3 ? 8 : 22);
+      const rad = R0 * (1.1 + rm() * 1.8);
+      const ppx = cx + Math.cos(an) * rad;
+      const ppy = cy + Math.sin(an) * rad;
+      const sz = 4 + rm() * 14;
       const nv = 3 + Math.floor(rm() * 2);
       let pp = '';
       for(let v = 0; v < nv; v++){
         const a2 = v / nv * 6.283 + rm() * 1.2;
         const rr2 = sz * (0.5 + rm() * 0.6);
-        pp += (px + Math.cos(a2) * rr2).toFixed(1) + ',' + (py + Math.sin(a2) * rr2 * 1.3).toFixed(1) + ' ';
+        pp += (ppx + Math.cos(a2) * rr2).toFixed(1) + ',' + (ppy + Math.sin(a2) * rr2 * 1.3).toFixed(1) + ' ';
       }
       html += `<polygon points="${pp}" style="animation-delay:-${(rm() * 6).toFixed(1)}s;animation-duration:${(5 + rm() * 5).toFixed(1)}s"/>`;
     }
