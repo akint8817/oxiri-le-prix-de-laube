@@ -4631,6 +4631,259 @@ function esRgb(c) {
   return Math.round(c[0]) + ',' + Math.round(c[1]) + ',' + Math.round(c[2]);
 }
 
+// Pierre brute (façon pierre d'infinité) : bloc irrégulier à facettes, 9 sommets par anneau, fortement bosselé.
+function esBuildStone() {
+  const m = esCrystalMesh(-1.58, 1.42, [[-1.0, 0.5], [-0.38, 0.8], [0.28, 0.74], [0.88, 0.44]], 6, 2031, 0.36);
+  // aplati, un peu penché : un éclat brut plutôt qu'une sphère
+  m.v = m.v.map((p) => [p[0] * 0.95 + p[1] * 0.1, p[1], p[2] * 0.72]);
+  return m;
+}
+
+// Position à la fraction f (0 -> 1) le long d'une ligne brisée.
+function esAlong(pts, f) {
+  const seg = [];
+  let L = 0;
+  for(let i = 0; i < pts.length - 1; i++){
+    const l = Math.hypot(pts[i + 1][0] - pts[i][0], pts[i + 1][1] - pts[i][1]);
+    seg.push(l);
+    L += l;
+  }
+  let d = Math.max(0, Math.min(1, f)) * L;
+  for(let i = 0; i < seg.length; i++){
+    if(d <= seg[i]){
+      const k = seg[i] ? d / seg[i] : 0;
+      return [pts[i][0] + (pts[i + 1][0] - pts[i][0]) * k, pts[i][1] + (pts[i + 1][1] - pts[i][1]) * k];
+    }
+    d -= seg[i];
+  }
+  return pts[pts.length - 1];
+}
+
+// Veines : lignes brisées qui partent des bords de la scène et rejoignent la pierre (comme des vaisseaux qui alimentent un cœur).
+function esMakeVeins(W, H, cx, cy, R, seed) {
+  const r = tmSeeded(seed);
+  const out = [];
+  const n = 12;
+  for(let i = 0; i < n; i++){
+    const left = i % 2 === 0;
+    const sy = H * (0.1 + 0.8 * ((Math.floor(i / 2) + 0.5) / (n / 2))) + (r() - 0.5) * H * 0.06;
+    const sx = left ? -10 : W + 10;
+    const dir = left ? 1 : -1;
+    const x1 = sx + dir * W * (0.08 + r() * 0.14);
+    const ang = Math.atan2(sy - cy, sx - cx);
+    const er = R * (0.8 + r() * 0.2);
+    const ex = cx + Math.cos(ang) * er;
+    const ey = cy + Math.sin(ang) * er;
+    const x2 = x1 + (ex - x1) * (0.45 + r() * 0.25);
+    const y2 = sy + (ey - sy) * (0.5 + r() * 0.35);
+    const sig = [{ p: r(), v: 0.16 + r() * 0.2, w: 0 }];
+    if(r() < 0.5) sig.push({ p: r(), v: 0.2 + r() * 0.2, w: 1 + r() * 2 });
+    out.push({ pts: [[sx, sy], [x1, sy], [x2, y2], [ex, ey]], sig, w: 0.8 + r() * 0.8, glow: 0 });
+  }
+  return out;
+}
+
+// Trace les veines et fait circuler des signaux lumineux vers la pierre ; chaque arrivée relance le battement (G.beat).
+function esDrawVeins(g, veins, dt, a, oy, spd, G) {
+  g.save();
+  g.globalCompositeOperation = 'lighter';
+  g.lineJoin = 'round';
+  g.lineCap = 'round';
+  veins.forEach(v => {
+    const pts = v.pts.map((p, i) => i === v.pts.length - 1 ? [p[0], p[1] + oy] : [p[0], p[1] + (i === 2 ? oy * 0.5 : 0)]);
+    for(let pass = 0; pass < 2; pass++){
+      g.strokeStyle = pass === 0 ? 'rgba(170,90,255,' + (0.09 * a).toFixed(3) + ')' : 'rgba(195,140,255,' + ((0.3 + 0.35 * v.glow) * a).toFixed(3) + ')';
+      g.lineWidth = pass === 0 ? 6 : v.w;
+      g.beginPath();
+      pts.forEach((p, i) => { if(i === 0) g.moveTo(p[0], p[1]); else g.lineTo(p[0], p[1]); });
+      g.stroke();
+    }
+    g.fillStyle = 'rgba(225,195,255,' + (0.7 * a).toFixed(3) + ')';
+    g.fillRect(pts[1][0] - 1.5, pts[1][1] - 1.5, 3, 3);
+    g.fillRect(pts[2][0] - 1.5, pts[2][1] - 1.5, 3, 3);
+    v.sig.forEach((sg) => {
+      if(sg.w > 0){ sg.w -= dt; return; }
+      sg.p += sg.v * dt * spd;
+      if(sg.p >= 1){
+        sg.p = 0;
+        sg.w = 0.4 + Math.random() * 2.4;
+        G.beat = Math.min(1, (G.beat || 0) + 0.35);
+        v.glow = 1;
+        return;
+      }
+      let prev = esAlong(pts, Math.max(0, sg.p - 0.13));
+      for(let q = 1; q <= 6; q++){
+        const cur = esAlong(pts, Math.max(0, sg.p - 0.13 * (1 - q / 6)));
+        g.strokeStyle = 'rgba(' + (q > 4 ? '255,240,255' : '205,150,255') + ',' + ((q / 6) * 0.95 * a).toFixed(3) + ')';
+        g.lineWidth = 1 + q * 0.3;
+        g.beginPath();
+        g.moveTo(prev[0], prev[1]);
+        g.lineTo(cur[0], cur[1]);
+        g.stroke();
+        prev = cur;
+      }
+      const hg = g.createRadialGradient(prev[0], prev[1], 0, prev[0], prev[1], 9);
+      hg.addColorStop(0, 'rgba(255,245,255,' + (0.95 * a).toFixed(3) + ')');
+      hg.addColorStop(1, 'rgba(190,110,255,0)');
+      g.fillStyle = hg;
+      g.beginPath();
+      g.arc(prev[0], prev[1], 9, 0, 6.2832);
+      g.fill();
+    });
+    v.glow = Math.max(0, v.glow - dt * 1.4);
+  });
+  g.restore();
+}
+
+// Pierre éclairée de l'intérieur : aura, faces arrière violettes, lumière intérieure blanc-rose puis magenta, inclusions sombres,
+// surface brute translucide (reflet doux, liseré violet), arêtes très discrètes, paillettes.
+function esDrawStone(g, mesh, cx, cy, sc, rot, a, t, env, inc, glow) {
+  const pv = mesh.v.map((p) => {
+    const r = esRot(p, rot[0], rot[1], rot[2]);
+    return { r, p: esProj(r, cx, cy, sc) };
+  });
+  const faces = mesh.f.map((tr) => {
+    const A = pv[tr[0]].r;
+    const B = pv[tr[1]].r;
+    const C = pv[tr[2]].r;
+    const ux = B[0] - A[0];
+    const uy = B[1] - A[1];
+    const uz = B[2] - A[2];
+    const vx = C[0] - A[0];
+    const vy = C[1] - A[1];
+    const vz = C[2] - A[2];
+    let nx = uy * vz - uz * vy;
+    let ny = uz * vx - ux * vz;
+    let nz = ux * vy - uy * vx;
+    const mx = (A[0] + B[0] + C[0]) / 3;
+    const my = (A[1] + B[1] + C[1]) / 3;
+    const mz = (A[2] + B[2] + C[2]) / 3;
+    if(nx * mx + ny * my + nz * mz < 0){ nx = -nx; ny = -ny; nz = -nz; }
+    const len = Math.sqrt(nx * nx + ny * ny + nz * nz) || 1;
+    return { tr, z: mz, nx: nx / len, ny: ny / len, nz: nz / len };
+  });
+  faces.sort((q, w) => w.z - q.z);
+  function path(f) {
+    const A = pv[f.tr[0]].p;
+    const B = pv[f.tr[1]].p;
+    const C = pv[f.tr[2]].p;
+    g.beginPath();
+    g.moveTo(A[0], A[1]);
+    g.lineTo(B[0], B[1]);
+    g.lineTo(C[0], C[1]);
+    g.closePath();
+  }
+  g.save();
+  g.lineJoin = 'round';
+  // aura
+  g.globalCompositeOperation = 'lighter';
+  const au = g.createRadialGradient(cx, cy, sc * 0.4, cx, cy, sc * 2.8);
+  au.addColorStop(0, 'rgba(170,60,255,' + (0.3 * glow * a).toFixed(3) + ')');
+  au.addColorStop(0.45, 'rgba(110,30,220,' + (0.1 * glow * a).toFixed(3) + ')');
+  au.addColorStop(1, 'rgba(60,10,140,0)');
+  g.fillStyle = au;
+  g.fillRect(cx - sc * 3, cy - sc * 3, sc * 6, sc * 6);
+  // faces arrière : l'intérieur violet
+  g.globalCompositeOperation = 'source-over';
+  faces.forEach((f) => {
+    if(f.nz <= 0) return;
+    path(f);
+    g.fillStyle = 'rgba(52,12,108,' + (0.62 * a).toFixed(3) + ')';
+    g.fill();
+    g.strokeStyle = 'rgba(190,120,255,' + (0.1 * a).toFixed(3) + ')';
+    g.lineWidth = 0.7;
+    g.stroke();
+  });
+  // lumière intérieure
+  g.globalCompositeOperation = 'lighter';
+  const lx = cx + sc * 0.06;
+  const ly = cy + sc * 0.14;
+  const lr = sc * 1.15 * (0.88 + 0.18 * glow);
+  const li = g.createRadialGradient(lx, ly, 0, lx, ly, lr);
+  li.addColorStop(0, 'rgba(255,242,255,' + (0.95 * a).toFixed(3) + ')');
+  li.addColorStop(0.1, 'rgba(255,160,245,' + (0.85 * a).toFixed(3) + ')');
+  li.addColorStop(0.32, 'rgba(205,65,255,' + ((0.45 + 0.2 * glow) * a).toFixed(3) + ')');
+  li.addColorStop(0.68, 'rgba(120,30,225,' + (0.22 * a).toFixed(3) + ')');
+  li.addColorStop(1, 'rgba(80,10,180,0)');
+  g.fillStyle = li;
+  g.beginPath();
+  g.arc(lx, ly, lr, 0, 6.2832);
+  g.fill();
+  // inclusions sombres dans la pierre
+  g.globalCompositeOperation = 'source-over';
+  inc.forEach(q => {
+    const pr = esProj(esRot(q, rot[0], rot[1], rot[2]), cx, cy, sc);
+    const rr = (10 + q[3] * 16) * sc / 110;
+    const dg = g.createRadialGradient(pr[0], pr[1], 0, pr[0], pr[1], rr);
+    dg.addColorStop(0, 'rgba(12,0,24,' + (0.3 * a).toFixed(3) + ')');
+    dg.addColorStop(1, 'rgba(12,0,24,0)');
+    g.fillStyle = dg;
+    g.beginPath();
+    g.arc(pr[0], pr[1], rr, 0, 6.2832);
+    g.fill();
+  });
+  // surface avant : translucide et brute
+  const ll = Math.sqrt(0.42 * 0.42 + 0.68 * 0.68 + 0.6 * 0.6);
+  const L = [-0.42 / ll, -0.68 / ll, -0.6 / ll];
+  const hx = L[0];
+  const hy = L[1];
+  const hz = L[2] - 1;
+  const hl = Math.sqrt(hx * hx + hy * hy + hz * hz);
+  const es = sc * 3.2;
+  faces.forEach((f) => {
+    if(f.nz > 0) return;
+    const A = pv[f.tr[0]].p;
+    const B = pv[f.tr[1]].p;
+    const C = pv[f.tr[2]].p;
+    const fres = Math.pow(1 - Math.abs(f.nz), 1.4);
+    const lit = Math.max(0, f.nx * L[0] + f.ny * L[1] + f.nz * L[2]);
+    const spec = Math.pow(Math.max(0, (f.nx * hx + f.ny * hy + f.nz * hz) / hl), 8);
+    g.save();
+    path(f);
+    g.clip();
+    g.globalCompositeOperation = 'source-over';
+    const gr = g.createLinearGradient(A[0], A[1], C[0], C[1]);
+    gr.addColorStop(0, 'rgba(' + Math.round(40 + 40 * lit) + ',10,' + Math.round(90 + 60 * lit) + ',' + (0.28 * a).toFixed(3) + ')');
+    gr.addColorStop(1, 'rgba(14,3,36,' + (0.38 * a).toFixed(3) + ')');
+    g.fillStyle = gr;
+    g.fill();
+    g.globalCompositeOperation = 'lighter';
+    g.globalAlpha = (0.08 + 0.22 * fres) * a;
+    g.drawImage(env, cx - es / 2 - f.nx * es * 0.4, cy - es / 2 - f.ny * es * 0.4, es, es);
+    g.globalAlpha = 1;
+    if(spec > 0.03){
+      const sg = g.createLinearGradient(A[0], A[1], (B[0] + C[0]) / 2, (B[1] + C[1]) / 2);
+      sg.addColorStop(0, 'rgba(255,235,255,' + (spec * 0.32 * a).toFixed(3) + ')');
+      sg.addColorStop(1, 'rgba(255,235,255,0)');
+      g.fillStyle = sg;
+      g.fill();
+    }
+    g.fillStyle = 'rgba(210,140,255,' + (0.2 * fres * a).toFixed(3) + ')';
+    g.fill();
+    g.restore();
+  });
+  // arêtes très discrètes
+  g.globalCompositeOperation = 'lighter';
+  g.strokeStyle = 'rgba(230,195,255,' + (0.14 * a).toFixed(3) + ')';
+  g.lineWidth = 0.8;
+  faces.forEach((f) => {
+    if(f.nz > 0) return;
+    path(f);
+    g.stroke();
+  });
+  // paillettes
+  pv.forEach((q, i) => {
+    const tw = Math.sin(t * 1.9 + i * 2.3);
+    if(tw < 0.75 || q.r[2] > 0) return;
+    const s = (4 + 10 * (tw - 0.75) / 0.25) * (sc / 110);
+    const al = ((tw - 0.75) / 0.25 * 0.9 * a).toFixed(3);
+    g.fillStyle = 'rgba(255,245,255,' + al + ')';
+    g.fillRect(q.p[0] - s, q.p[1] - 0.6, s * 2, 1.2);
+    g.fillRect(q.p[0] - 0.6, q.p[1] - s, 1.2, s * 2);
+  });
+  g.restore();
+}
+
 function esFxStart() {
   const cv = document.querySelector('#esFx');
   const cvb = document.querySelector('#esBg');
@@ -4644,7 +4897,7 @@ function esFxStart() {
   const bgc = cvb;
   const ctx = g0;
   const bctx = gb0;
-  if(!esMeshCache) esMeshCache = esBuildMesh();
+  if(!esMeshCache) esMeshCache = esBuildStone();
   if(!esCache){
     esCache = {
       cloudA: esNoiseCanvas(300, 170, 11, [44, 22, 120], [30, 90, 150], 0.38, 0.78),
@@ -4669,7 +4922,7 @@ function esFxStart() {
   const G = {
     W: 0, H: 0, dpr: 1, sc: 140, mx: 0, my: 0, shards: [], lines: [], sparks: [], waves: [], flash: 0, shake: 0, glitch: 0, nextGlitch: 1.5, glitchEnd: 0,
     rx: 0, ry: 0, rz: 0, ryC: 0.5, swapUntil: 0, time: 0, nextSurge: 6, surgeEnd: 0,
-    stars: [], bokeh: [], orbits: [], debris: [], bars: [], blocks: [], rowOff: [], veins: [], sats: [],
+    stars: [], bokeh: [], orbits: [], debris: [], bars: [], blocks: [], rowOff: [], veins: [], sats: [], ext: [], inc: [], beat: 0,
   };
   esG = G;
   const resize = () => {
@@ -4688,6 +4941,7 @@ function esFxStart() {
     b4.width = Math.max(1, Math.ceil(G.W / 4));
     b4.height = Math.max(1, Math.ceil(G.H / 4));
     G.sc = Math.max(70, Math.min(G.W, G.H) * 0.2);
+    G.ext = esMakeVeins(G.W, G.H, G.W / 2, G.H / 2, G.sc * 0.8, 4410);
     G.rowOff = [];
     for(let i = 0; i < Math.ceil(G.H / 6); i++) G.rowOff.push(0);
   };
@@ -4711,8 +4965,9 @@ function esFxStart() {
     }
     G.veins.push(pts);
   }
-  // petits cristaux en orbite
-  for(let i = 0; i < 6; i++) G.sats.push({ mesh: esBuildShard(31 + i * 7), R: 1.7 + r() * 0.9, sp: (0.18 + r() * 0.25) * (i % 2 ? 1 : -1), ph: r() * 6.28, yo: (r() - 0.5) * 2.2, ms: 0.2 + r() * 0.2, s1: 0.4 + r(), s2: 0.3 + r(), s3: r() * 0.5 });
+  // inclusions sombres dans la pierre
+  for(let i = 0; i < 9; i++) G.inc.push([(r() - 0.5) * 1.1, (r() - 0.5) * 1.6, (r() - 0.5) * 1.1, r()]);
+  if(false) G.sats.push({ mesh: esBuildShard(31 + i * 7), R: 1.7 + r() * 0.9, sp: (0.18 + r() * 0.25) * (i % 2 ? 1 : -1), ph: r() * 6.28, yo: (r() - 0.5) * 2.2, ms: 0.2 + r() * 0.2, s1: 0.4 + r(), s2: 0.3 + r(), s3: r() * 0.5 });
   for(let i = 0; i < 44; i++) G.blocks.push([r() * 0.95, r() * 0.95, 0.04 + r() * 0.2, 0.03 + r() * 0.16, 14 + Math.floor(r() * 18)]);
   stage.addEventListener('pointermove', ev => {
     const b = stage.getBoundingClientRect();
@@ -4795,7 +5050,7 @@ function esFxStart() {
         for(let s = 0; s < 8; s++){
           const e1 = head - dir * o.len * s / 8;
           const e2 = head - dir * o.len * (s + 1) / 8;
-          bctx.strokeStyle = 'rgba(' + (o.c === 0 ? '210,230,255' : '190,150,255') + ',' + (o.al * (1 - s / 8) * aP).toFixed(3) + ')';
+          bctx.strokeStyle = 'rgba(' + (o.c === 0 ? '210,230,255' : '190,150,255') + ',' + (o.al * 0.5 * (1 - s / 8) * aP).toFixed(3) + ')';
           bctx.beginPath();
           bctx.ellipse(cx, oy0 + o.oy * k, o.rx * k, o.ry * k, o.tilt, Math.min(e1, e2), Math.max(e1, e2));
           bctx.stroke();
@@ -4843,7 +5098,7 @@ function esFxStart() {
       if(mode === 'charge') scale = 1 - 0.1 * charge + (Math.random() - 0.5) * 0.02 * charge;
       if(mode === 'blackout'){ const kk = Math.min(1, tm / 0.26); scale = 0.9 * (1 - kk * kk); alpha = 1 - kk * 0.4; }
       G.rx = -0.32 + G.my * -0.5 + Math.sin(t * 0.5) * 0.12;
-      G.ry += dt * (0.55 + charge * 6);
+      G.ry += dt * (0.28 + charge * 6);
       G.ryC += dt * (0.18 + charge * 5);
       G.rz = G.mx * 0.3;
       const ccx = cx;
@@ -4851,30 +5106,13 @@ function esFxStart() {
       octx.setTransform(G.dpr, 0, 0, G.dpr, 0, 0);
       octx.clearRect(0, 0, W, H);
       if(aP > 0.02){
-        esDrawReticle(octx, ccx, ccy, G.sc * 1.75 * scale, t, alpha * aP * 0.55 * (mode === 'blackout' ? 0.4 : 1), Sc, Pc);
-        // halo sombre derrière le cristal
-        const hg = octx.createRadialGradient(ccx, ccy, 0, ccx, ccy, G.sc * 2.4 * scale);
-        hg.addColorStop(0, 'rgba(120,60,255,' + (0.22 * alpha).toFixed(3) + ')');
-        hg.addColorStop(0.5, 'rgba(150,20,70,' + (0.1 * alpha).toFixed(3) + ')');
-        hg.addColorStop(1, 'rgba(0,0,0,0)');
-        octx.globalCompositeOperation = 'lighter';
-        octx.fillStyle = hg;
-        octx.fillRect(ccx - G.sc * 2.5 * scale, ccy - G.sc * 2.5 * scale, G.sc * 5 * scale, G.sc * 5 * scale);
-        octx.globalCompositeOperation = 'source-over';
-        const satPos = G.sats.map((sat) => {
-          const an = sat.ph + t * sat.sp * (1 + charge * 4);
-          const R2 = sat.R * (1 - 0.35 * charge);
-          return esRot([Math.cos(an) * R2, sat.yo + Math.sin(an * 0.7) * 0.15, Math.sin(an) * R2 * 0.6], 0.25, 0, 0.12);
-        });
-        G.sats.forEach((sat, i) => {
-          if(satPos[i][2] <= 0) return;
-          esDrawGlass(octx, sat.mesh, ccx, ccy, G.sc * 0.8 * scale, [t * sat.s1, t * sat.s2, sat.s3], satPos[i], sat.ms, alpha * aP, t, esCache.env, false, [], 0);
-        });
-        esDrawGlass(octx, esMeshCache, ccx, ccy, G.sc * 0.8 * scale, [G.rx, G.ry, G.rz], [0, 0, 0], 1, alpha * aP, t, esCache.env, true, G.veins, charge);
-        G.sats.forEach((sat, i) => {
-          if(satPos[i][2] > 0) return;
-          esDrawGlass(octx, sat.mesh, ccx, ccy, G.sc * 0.8 * scale, [t * sat.s1, t * sat.s2, sat.s3], satPos[i], sat.ms, alpha * aP, t, esCache.env, false, [], 0);
-        });
+        // battement : respiration lente + impulsion à chaque signal qui arrive
+        G.beat *= Math.pow(0.94, stp);
+        const br = Math.sin(t * 1.6);
+        const fade = mode === 'blackout' ? 0.3 : 1;
+        esDrawVeins(octx, G.ext, dt, alpha * aP * fade * Math.min(1, mat * 1.4), ccy - cy, 1 + charge * 5, G);
+        const breath = 1 + 0.022 * br + 0.045 * G.beat;
+        esDrawStone(octx, esMeshCache, ccx, ccy, G.sc * 0.86 * scale * breath, [G.rx, G.ry, G.rz], alpha * aP, t, esCache.env, G.inc, 0.78 + 0.22 * br + 0.6 * G.beat + charge * 0.8);
       }
       if(t < G.surgeEnd){
         octx.globalCompositeOperation = 'lighter';

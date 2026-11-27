@@ -4211,6 +4211,9 @@ body.nav-open .sidebar .nav-link:nth-child(n+10){ transition-delay:.44s, .44s, 0
 .es-label span{ font-family:'Barlow', 'Helvetica Neue', Arial, sans-serif; font-weight:600; letter-spacing:.02em; text-transform:none; font-size: clamp(13px, 1.05vw, 16px); line-height:1.25; }
 .es-label span em{ display:block; margin-bottom:2px; font-style:normal; font-family:'Orbitron', sans-serif; font-size:15px; font-weight:700; color:#fff; line-height:1; }
 @media (prefers-reduced-motion: reduce){ .es-minis polygon{ animation:none; } }
+
+/* pierre-cœur : scène épurée (pas de viseur ni de repères de navigation) */
+.es-target, .es-nav{ display:none !important; }
 @media (max-width:1000px){
   .fiche{ grid-template-columns:1fr; padding:20px; }
   .dz-id{ width:100%; max-width:440px; margin:0 auto; }
@@ -5234,6 +5237,6 @@ footer.page-foot{
     console.error('Firebase indisponible :', e);
   }
 </script>
-<script src="dist/main.js?v=164"></script>
+<script src="dist/main.js?v=165"></script>
 </body>
 </html>
